@@ -1,4 +1,26 @@
 services:
+  # 1. The Gateway (Entry Point)
+  gateway:
+    image: nginx:latest
+    ports:
+      - "${GATEWAY_PORT:-80}:80"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf
+    networks:
+      - salesduo-net
+    depends_on:
+      - backend
+      - frontend
+
+  # 2. Shared Redis (Session Store)
+  redis:
+    image: redis:alpine
+    container_name: ${REDIS_HOST:-shared-redis}
+    networks:
+      - salesduo-net
+    restart: always
+  
+  # 3. Core Database
   postgres:
     image: postgres:16-alpine
     container_name: prod-db
@@ -7,34 +29,48 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - salesduo-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       retries: 5
-
+  
+  # 4. Core Backend
   backend:
     build: ./backend
-    container_name: prod-backend
+    container_name: core-backend
     env_file: ./backend/.env
     environment:
       - PGHOST=postgres
       - NODE_ENV=production
     ports:
       - "3000:3000"
+    networks:
+      - salesduo-net
     depends_on:
+      redis:
+        condition: service_started
       postgres:
         condition: service_healthy
 
+  # 5. Core Frontend
   frontend:
     build: ./frontend
-    container_name: prod-frontend
+    container_name: core-frontend
     env_file: ./frontend/.env
     environment:
       - VITE_API_BASE_URL=/api
     ports:
-      - "80:80"
+      - "5173:5173"
+    networks:
+      - salesduo-net
     depends_on:
       - backend
+
+networks:
+  salesduo-net:
+    driver: bridge
 
 volumes:
   pgdata:
