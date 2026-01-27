@@ -1,0 +1,54 @@
+# =========================
+# Dependencies
+# =========================
+node_modules/
+
+# =========================
+# Environment Variables (CRITICAL)
+# =========================
+.env
+.env.production
+*.local
+
+# =========================
+# Build Outputs
+# =========================
+dist/
+dist-ssr/
+build/
+coverage/
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# =========================
+# IDE / Editor Settings
+# =========================
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# =========================
+# OS / Editor Temp Files
+# =========================
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# =========================
+# Playwright
+# =========================
+test-results/
+playwright-report/
+blob-report/
