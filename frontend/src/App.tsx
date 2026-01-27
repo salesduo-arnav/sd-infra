@@ -1,72 +1,205 @@
-import { useState, useEffect } from 'react';
-import './App.css';
-import { fetchItems, createItem } from './api';
-import type { Item } from './api';
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import Login from "./pages/Login";
+import SignUp from "./pages/SignUp";
+import ForgotPassword from "./pages/ForgotPassword";
+import Dashboard from "./pages/Dashboard";
+import Plans from "./pages/Plans";
+import Billing from "./pages/Billing";
+import Profile from "./pages/Profile";
+import Organisation from "./pages/Organisation";
+import Integrations from "./pages/Integrations";
+import NotFound from "./pages/NotFound";
+import ListingGenerator from "./pages/tools/ListingGenerator";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminApps from "./pages/admin/AdminApps";
+import AdminPlans from "./pages/admin/AdminPlans";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminOrganizations from "./pages/admin/AdminOrganizations";
 
-function App() {
-  const [items, setItems] = useState<Item[]>([]);
-  const [newItemName, setNewItemName] = useState('');
-  const [error, setError] = useState<string | null>(null);
+const queryClient = new QueryClient();
 
-  useEffect(() => {
-    loadItems();
-  }, []);
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+}
 
-  const loadItems = async () => {
-    try {
-      const data = await fetchItems();
-      setItems(data);
-      setError(null);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to connect to backend. Is it running?');
-    }
-  };
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isAdmin } = useAuth();
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  if (!isAdmin) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <>{children}</>;
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newItemName.trim()) return;
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <>{children}</>;
+}
 
-    try {
-      const createdItem = await createItem(newItemName);
-      setItems([...items, createdItem]);
-      setNewItemName('');
-    } catch (err) {
-      console.error(err);
-      setError('Failed to create item');
-    }
-  };
-
+function AppRoutes() {
   return (
-    <div className="container">
-      <h1>Item Manager</h1>
+    <Routes>
+      {/* Public routes */}
+      <Route
+        path="/login"
+        element={
+          <PublicRoute>
+            <Login />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/signup"
+        element={
+          <PublicRoute>
+            <SignUp />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/forgot-password"
+        element={
+          <PublicRoute>
+            <ForgotPassword />
+          </PublicRoute>
+        }
+      />
 
-      {error && <div className="error-message">{error}</div>}
+      {/* Protected routes */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/plans"
+        element={
+          <ProtectedRoute>
+            <Plans />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/billing"
+        element={
+          <ProtectedRoute>
+            <Billing />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/integrations"
+        element={
+          <ProtectedRoute>
+            <Integrations />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tools/listing-generator"
+        element={
+          <ProtectedRoute>
+            <ListingGenerator />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/organisation"
+        element={
+          <ProtectedRoute>
+            <Organisation />
+          </ProtectedRoute>
+        }
+      />
 
-      <form onSubmit={handleSubmit} className="form-group">
-        <input
-          type="text"
-          value={newItemName}
-          onChange={(e) => setNewItemName(e.target.value)}
-          placeholder="Enter item name..."
-        />
-        <button type="submit">Add Item</button>
-      </form>
+      {/* Admin routes */}
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/apps"
+        element={
+          <AdminRoute>
+            <AdminApps />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/plans"
+        element={
+          <AdminRoute>
+            <AdminPlans />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <AdminRoute>
+            <AdminUsers />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/organizations"
+        element={
+          <AdminRoute>
+            <AdminOrganizations />
+          </AdminRoute>
+        }
+      />
 
-      <ul className="item-list">
-        {items.length === 0 ? (
-          <p style={{ color: '#888' }}>No items found. Add one above!</p>
-        ) : (
-          items.map((item) => (
-            <li key={item.id} className="item-card">
-              <span className="item-name">{item.name}</span>
-              <span className="item-id">#{item.id}</span>
-            </li>
-          ))
-        )}
-      </ul>
-    </div>
+      {/* Redirect root to dashboard or login */}
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+      {/* 404 */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 }
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
+  </QueryClientProvider>
+);
 
 export default App;
