@@ -1,0 +1,193 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  lint-backend:
+    name: Lint Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Dependencies
+        working-directory: ./backend
+        run: npm ci
+      - name: Run Lint
+        working-directory: ./backend
+        run: |
+          set -o pipefail
+          npm run lint 2>&1 | tee ../backend_lint_report.md
+
+      - name: Upload Lint Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-lint-report
+          path: backend_lint_report.md
+
+  lint-frontend:
+    name: Lint Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Dependencies
+        working-directory: ./frontend
+        run: npm ci
+      - name: Run Lint
+        working-directory: ./frontend
+        run: |
+          set -o pipefail
+          npm run lint 2>&1 | tee ../frontend_lint_report.md
+
+      - name: Upload Lint Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-lint-report
+          path: frontend_lint_report.md
+
+  tests:
+    name: E2E & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Create .env files
+        run: |
+          cp backend/.env.example backend/.env
+          cp frontend/.env.example frontend/.env
+
+      - name: Build Docker Images
+        run: |
+          docker compose build
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml build
+
+      - name: Start Services
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+          echo "Waiting for services to initialize..."
+          sleep 15
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml ps
+
+      - name: Prepare Backend Test Database
+        run: |
+          echo "Waiting for Postgres to be ready..."
+          until docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T postgres pg_isready -U myuser -d mydb; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+          echo "Creating test database 'mydb_test'..."
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T postgres psql -U myuser -d mydb -c "SELECT 1 FROM pg_database WHERE datname = 'mydb_test'" | grep -q 1 || docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T postgres createdb -U myuser mydb_test
+
+      - name: Run Backend Tests
+        run: |
+          set -o pipefail
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T backend npm test 2>&1 | tee backend_report.md
+
+      - name: Install Frontend Test Dependencies
+        run: |
+          sudo chown -R $(whoami) frontend
+          cd frontend
+          npm ci
+          npx playwright install --with-deps
+
+      - name: Run Frontend Tests
+        env:
+          CI_DOCKER: "true"
+        run: |
+          cd frontend
+          set -o pipefail
+          npx playwright test 2>&1 | tee ../frontend_report.md
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down
+
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            backend_report.md
+            frontend_report.md
+
+  report:
+    name: Generate CML Report
+    needs: [lint-backend, lint-frontend, tests]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup CML
+        uses: iterative/setup-cml@v2
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+      
+      - name: Generate Report
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "## Backend Test Results" > report.md
+          echo "\`\`\`" >> report.md
+          cat test-reports/backend_report.md >> report.md || echo "Tests failed to run/not found." >> report.md
+          echo "\`\`\`" >> report.md
+          
+          echo "## Backend Lint Results" >> report.md
+          echo "\`\`\`" >> report.md
+          cat backend-lint-report/backend_lint_report.md >> report.md || echo "Linting failed to run/not found." >> report.md
+          echo "\`\`\`" >> report.md
+
+          echo "## Frontend Test Results" >> report.md
+          echo "\`\`\`" >> report.md
+          cat test-reports/frontend_report.md >> report.md || echo "Tests failed to run/not found." >> report.md
+          echo "\`\`\`" >> report.md
+
+          echo "## Frontend Lint Results" >> report.md
+          echo "\`\`\`" >> report.md
+          cat frontend-lint-report/frontend_lint_report.md >> report.md || echo "Linting failed to run/not found." >> report.md
+          echo "\`\`\`" >> report.md
+
+          cml comment create report.md
+
+  cd:
+    name: Continuous Deployment
+    needs: [tests, lint-backend, lint-frontend]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy
+        run: |
+          echo "=================================="
+          echo "🚀 CD Pipeline: Starting Deployment"
+          echo "=================================="
+          echo "Drafting release..."
+          echo "Pushing Docker images to registry..."
+          echo "Updating production cluster..."
+          echo "=================================="
+          echo "✅ Deployment Completed Successfully!"

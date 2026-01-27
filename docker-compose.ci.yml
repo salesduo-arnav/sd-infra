@@ -1,0 +1,7 @@
+services:
+  backend:
+    build:
+      target: builder
+    environment:
+      - NODE_ENV=test
+    command: npm run dev
