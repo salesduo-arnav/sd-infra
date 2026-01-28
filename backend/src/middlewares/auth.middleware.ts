@@ -5,19 +5,17 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     try {
         // 1. Get session ID from cookie
         const sessionId = req.cookies.session_id;
-        
+
         if (!sessionId) {
-            console.log('[Auth Middleware] No session ID found');
             return res.status(401).json({ message: 'Authentication required' });
         }
 
         // 2. Lookup session in Redis
         const sessionData = await redisClient.get(`session:${sessionId}`);
-        
+
         if (!sessionData) {
             // Invalid or expired session
             res.clearCookie('session_id');
-            console.log('[Auth Middleware] Invalid or expired session');
             return res.status(401).json({ message: 'Session expired' });
         }
 
