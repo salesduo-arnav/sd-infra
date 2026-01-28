@@ -16,6 +16,8 @@ services:
   redis:
     image: redis:alpine
     container_name: ${REDIS_HOST:-shared-redis}
+    ports:
+      - "6379:6379"
     networks:
       - salesduo-net
     restart: always
@@ -43,7 +45,8 @@ services:
     env_file: ./backend/.env
     environment:
       - PGHOST=postgres
-      - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
+      - CORS_ORIGINS=http://app.lvh.me
     ports:
       - "3000:3000"
     networks:
@@ -56,11 +59,11 @@ services:
 
   # 5. Core Frontend
   frontend:
-    build: ./frontend
+    build: 
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://api.lvh.me
     container_name: core-frontend
-    env_file: ./frontend/.env
-    environment:
-      - VITE_API_BASE_URL=/api
     ports:
       - "5173:5173"
     networks:
