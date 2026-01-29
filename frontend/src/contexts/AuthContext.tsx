@@ -1,9 +1,11 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { API_URL } from "@/lib/api";
 
 interface User {
   id: string;
   email: string;
   name: string;
+  is_superuser?: boolean;
 }
 
 interface AuthContextType {
@@ -19,53 +21,95 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock admin emails for demo purposes
-// TODO: Replace with proper role checking from backend
-const ADMIN_EMAILS = ["admin@example.com", "admin@SalesDuo.com"];
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const isAdmin = user ? ADMIN_EMAILS.includes(user.email) : false;
+  // Check for session on mount
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        // We don't send a token manually. 
+        // We use credentials: 'include' to send the cookie.
+        const res = await fetch(`${API_URL}/auth/me`, {
+          credentials: 'include'
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data);
+        }
+      } catch (error) {
+        console.error("Auth check failed", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    initAuth();
+  }, []);
+
+  const isAdmin = user?.is_superuser || false;
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
-    // TODO: Replace with your backend API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setUser({
-      id: "1",
-      email,
-      name: email.split("@")[0],
-    });
-    setIsLoading(false);
-  };
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include', // Important!
+        body: JSON.stringify({ email, password }),
+      });
 
-  const loginWithGoogle = async () => {
-    setIsLoading(true);
-    // TODO: Replace with your Google OAuth flow
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setUser({
-      id: "1",
-      email: "admin@example.com",
-      name: "Demo Admin",
-    });
-    setIsLoading(false);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Login failed");
+      }
+
+      const data = await res.json();
+      setUser(data.user);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const signup = async (name: string, email: string, password: string) => {
     setIsLoading(true);
-    // TODO: Replace with your backend API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setUser({
-      id: "1",
-      email,
-      name,
-    });
+    try {
+      const res = await fetch(`${API_URL}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include', // Important!
+        body: JSON.stringify({ full_name: name, email, password }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Signup failed");
+      }
+
+      const data = await res.json();
+      setUser(data.user);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    // Implementation pending
+    setIsLoading(true);
+    await new Promise(r => setTimeout(r, 1000));
     setIsLoading(false);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await fetch(`${API_URL}/auth/logout`, {
+        method: "POST",
+        credentials: 'include'
+      });
+    } catch (e) {
+      console.error(e);
+    }
     setUser(null);
   };
 

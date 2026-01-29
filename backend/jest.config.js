@@ -6,5 +6,6 @@ module.exports = {
     forceExit: true,
     globalSetup: '<rootDir>/src/tests/global-setup.ts',
     globalTeardown: '<rootDir>/src/tests/global-teardown.ts',
+    detectOpenHandles: true,
     // clearMocks: true,
 };
