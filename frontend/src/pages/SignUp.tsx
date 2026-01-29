@@ -144,16 +144,6 @@ export default function SignUp() {
                   </div>
                 )}
               </div>
-              {confirmPassword && (
-                <p
-                  className={`text-xs ${password === confirmPassword ? "text-green-500" : "text-red-500"
-                    }`}
-                >
-                  {password === confirmPassword
-                    ? "Passwords match"
-                    : "Passwords do not match"}
-                </p>
-              )}
             </div>
           </div>
         </div>

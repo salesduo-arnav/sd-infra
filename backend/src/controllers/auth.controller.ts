@@ -19,8 +19,8 @@ const createSession = async (res: Response, user: User) => {
 
     // Store in Redis
     await redisClient.set(
-        `session:${sessionId}`, 
-        JSON.stringify(sessionData), 
+        `session:${sessionId}`,
+        JSON.stringify(sessionData),
         { EX: sessionTTL }
     );
 
@@ -91,7 +91,7 @@ export const login = async (req: Request, res: Response) => {
 
 export const logout = async (req: Request, res: Response) => {
     const sessionId = req.cookies.session_id;
-    
+
     if (sessionId) {
         await redisClient.del(`session:${sessionId}`);
     }

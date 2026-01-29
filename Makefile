@@ -10,7 +10,7 @@ dev:
 
 # Start ONLY the database (Useful if you run 'npm run dev' locally)
 dev-db:
-	docker compose up postgres -d
+	docker compose up postgres redis -d
 
 # Stop the dev environment
 down:
