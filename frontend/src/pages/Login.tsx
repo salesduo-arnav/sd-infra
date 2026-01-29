@@ -11,7 +11,6 @@ import { GoogleButton } from "@/components/auth/GoogleButton";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const { login, loginWithGoogle, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -72,20 +71,6 @@ export default function Login() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="rememberMe"
-            checked={rememberMe}
-            onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-          />
-          <label
-            htmlFor="rememberMe"
-            className="text-sm text-muted-foreground leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-          >
-            Remember me for 30 days
-          </label>
         </div>
 
         {error && <p className="text-sm text-destructive">{error}</p>}

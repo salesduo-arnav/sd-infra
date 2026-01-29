@@ -7,29 +7,28 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GoogleButton } from "@/components/auth/GoogleButton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+// import {
+//   Select,
+//   SelectContent,
+//   SelectItem,
+//   SelectTrigger,
+//   SelectValue,
+// } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Check, X } from "lucide-react";
 
 export default function SignUp() {
   // Personal info
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
   // Organisation info
-  const [orgName, setOrgName] = useState("");
-  const [orgSize, setOrgSize] = useState("");
-  const [orgRole, setOrgRole] = useState("");
-  const [amazonSellerId, setAmazonSellerId] = useState("");
+  // const [orgName, setOrgName] = useState("");
+  // const [orgSize, setOrgSize] = useState("");
+  // const [orgRole, setOrgRole] = useState("");
+  // const [amazonSellerId, setAmazonSellerId] = useState("");
 
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [error, setError] = useState("");
@@ -51,7 +50,6 @@ export default function SignUp() {
     }
 
     try {
-      const fullName = `${firstName} ${lastName}`.trim();
       await signup(fullName, email, password);
       navigate("/dashboard");
     } catch (err) {
@@ -76,29 +74,19 @@ export default function SignUp() {
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Personal Information Section */}
         <div className="space-y-4">
-          <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+          {/* UNCOMMENT THIS WHEN ADDING ORGANIZATION INPUTS */}
+          {/* <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
             Personal Information
-          </h3>
+          </h3> */}
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="firstName">First Name</Label>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="fullName">Full Name</Label>
               <Input
-                id="firstName"
+                id="fullName"
                 type="text"
-                placeholder="John"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lastName">Last Name</Label>
-              <Input
-                id="lastName"
-                type="text"
-                placeholder="Doe"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                placeholder="John Doe"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
                 required
               />
             </div>
@@ -116,17 +104,6 @@ export default function SignUp() {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number (Optional)</Label>
-            <Input
-              id="phone"
-              type="tel"
-              placeholder="+1 (555) 000-0000"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
-          </div>
-
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -141,22 +118,50 @@ export default function SignUp() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="••••••••"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={
+                    confirmPassword
+                      ? password === confirmPassword
+                        ? "border-green-500 focus-visible:ring-green-500 pr-10"
+                        : "border-red-500 focus-visible:ring-red-500 pr-10"
+                      : ""
+                  }
+                  required
+                />
+                {confirmPassword && (
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    {password === confirmPassword ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <X className="h-4 w-4 text-red-500" />
+                    )}
+                  </div>
+                )}
+              </div>
+              {confirmPassword && (
+                <p
+                  className={`text-xs ${password === confirmPassword ? "text-green-500" : "text-red-500"
+                    }`}
+                >
+                  {password === confirmPassword
+                    ? "Passwords match"
+                    : "Passwords do not match"}
+                </p>
+              )}
             </div>
           </div>
         </div>
 
-        <Separator />
+        {/* <Separator /> */}
 
         {/* Organisation Information Section */}
-        <div className="space-y-4">
+        {/* <div className="space-y-4">
           <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
             Organisation Information
           </h3>
@@ -218,9 +223,9 @@ export default function SignUp() {
               You can add this later in your organisation settings
             </p>
           </div>
-        </div>
+        </div> */}
 
-        <Separator />
+        {/* <Separator /> */}
 
         <div className="flex items-center space-x-2">
           <Checkbox
