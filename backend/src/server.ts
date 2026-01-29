@@ -1,49 +1,76 @@
-import app from './app';
-import dotenv from 'dotenv';
-import { closeDB, connectDB } from './config/db';
-import { connectRedis } from './config/redis';
+import app from "./app";
+import dotenv from "dotenv";
+import path from "path";
+import { closeDB, connectDB } from "./config/db";
+import { connectRedis, closeRedis } from "./config/redis";
+import { Server } from "http";
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
-const startServer = async () => {
+let server: Server | null = null;
+let shuttingDown = false;
+
+const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+
+    console.log(`\n${signal} received. Shutting down...`);
+
+    // Force exit if graceful shutdown takes too long
+    setTimeout(() => {
+        console.error("Forcing shutdown after timeout...");
+        process.exit(1);
+    }, 5000).unref();
+
     try {
-        console.log('Starting server...');
-        await connectDB();
-        await connectRedis();
+        if (server) {
+            await new Promise<void>((resolve) => server!.close(() => resolve()));
+            console.log("HTTP server closed");
+        }
 
-        const server = app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
-        });
+        await closeDB();
+        console.log("Database connection closed");
 
-        // Graceful Shutdown Logic
-        const shutdown = async (signal: string) => {
-            console.log(`${signal} received: closing HTTP server`);
+        await closeRedis();
+        console.log("Redis connection closed");
 
-            server.close(async () => {
-                console.log('HTTP server closed');
-
-                try {
-                    // Close Database Pool
-                    await closeDB();
-                    console.log('Database connection closed');
-                    process.exit(0);
-                } catch (err) {
-                    console.error('Error closing database connection:', err);
-                    process.exit(1);
-                }
-            });
-        };
-
-        // Listen for termination signals
-        process.on('SIGTERM', () => shutdown('SIGTERM')); // Docker stop
-        process.on('SIGINT', () => shutdown('SIGINT'));   // Ctrl+C locally
-
+        process.exit(0);
     } catch (err) {
-        console.error('Failed to start server:', err);
+        console.error("Shutdown error:", err);
         process.exit(1);
     }
 };
 
-startServer();
+// Register handlers FIRST
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
+process.on("SIGUSR2", shutdown);
+
+// Optional safety nets
+process.on("uncaughtException", (err) => {
+    console.error(err);
+    shutdown("uncaughtException");
+});
+
+process.on("unhandledRejection", (reason) => {
+    console.error(reason);
+    shutdown("unhandledRejection");
+});
+
+const startServer = async () => {
+    console.log("Starting server...");
+
+    server = app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+
+    await connectDB();
+    await connectRedis();
+};
+
+startServer().catch((err) => {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+});

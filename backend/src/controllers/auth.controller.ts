@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import User from '../models/user';
 import redisClient from '../config/redis';
+import { isSuperuserEmail } from '../config/superuser';
+
 
 // Helper to create session
 const createSession = async (res: Response, user: User) => {
@@ -49,13 +51,15 @@ export const register = async (req: Request, res: Response) => {
             email,
             password_hash,
             full_name,
+            is_superuser: isSuperuserEmail(email)
         });
+
 
         await createSession(res, user);
 
         res.status(201).json({
             message: 'Registered successfully',
-            user: { id: user.id, email: user.email, name: user.full_name }
+            user: user
         });
     } catch (error) {
         console.error(error);
@@ -77,11 +81,18 @@ export const login = async (req: Request, res: Response) => {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
+        // Sync superuser status if it changed in config
+        const shouldBeSuperuser = isSuperuserEmail(email);
+        if (user.is_superuser !== shouldBeSuperuser) {
+            user.is_superuser = shouldBeSuperuser;
+            await user.save();
+        }
+
         await createSession(res, user);
 
         res.json({
             message: 'Logged in successfully',
-            user: { id: user.id, email: user.email, name: user.full_name }
+            user: user
         });
     } catch (error) {
         console.error(error);

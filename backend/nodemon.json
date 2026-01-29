@@ -3,5 +3,7 @@
         "src"
     ],
     "ext": "ts",
-    "exec": "node -r ts-node/register src/server.ts"
+    "exec": "node -r ts-node/register src/server.ts",
+    "delay": 1500,
+    "signal": "SIGINT"
 }

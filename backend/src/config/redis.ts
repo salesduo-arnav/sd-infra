@@ -1,7 +1,8 @@
 import { createClient } from 'redis';
 import dotenv from 'dotenv';
+import path from 'path';
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const redisClient = createClient({
     url: process.env.REDIS_URL || 'redis://localhost:6379',
@@ -16,6 +17,12 @@ redisClient.on('connect', () => console.log('Redis Client Connected'));
 export const connectRedis = async () => {
     if (!redisClient.isOpen) {
         await redisClient.connect();
+    }
+};
+
+export const closeRedis = async () => {
+    if (redisClient.isOpen) {
+        await redisClient.quit();
     }
 };
 
