@@ -47,6 +47,7 @@ services:
       - PGHOST=postgres
       - REDIS_URL=redis://redis:6379
       - CORS_ORIGINS=http://app.lvh.me
+      - FRONTEND_URL=http://app.lvh.me
     ports:
       - "3000:3000"
     networks:
