@@ -1,76 +1,82 @@
 import app from "./app";
 import dotenv from "dotenv";
 import path from "path";
+import { Server } from "http";
 import { closeDB, connectDB } from "./config/db";
 import { connectRedis, closeRedis } from "./config/redis";
-import { Server } from "http";
 
+// Load environment variables
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const PORT = Number(process.env.PORT) || 3000;
-
 let server: Server | null = null;
-let shuttingDown = false;
 
-const shutdown = async (signal: string) => {
-    if (shuttingDown) return;
-    shuttingDown = true;
+const shutdown = (signal: string) => {
+    console.log(`\n[${signal}] signal received: closing HTTP server...`);
 
-    console.log(`\n${signal} received. Shutting down...`);
-
-    // Force exit if graceful shutdown takes too long
-    setTimeout(() => {
-        console.error("Forcing shutdown after timeout...");
+    // 1. Force shutdown if cleanup hangs longer than 10 seconds
+    const forceExitTimeout = setTimeout(() => {
+        console.error("⚠️ Force shutdown: Cleanup timed out.");
         process.exit(1);
-    }, 5000).unref();
+    }, 10000);
 
-    try {
-        if (server) {
-            await new Promise<void>((resolve) => server!.close(() => resolve()));
-            console.log("HTTP server closed");
+    const cleanupResources = async () => {
+        try {
+            console.log("HTTP server closed.");
+
+            // Close external connections
+            await closeDB();
+            console.log("Database connection closed.");
+
+            await closeRedis();
+            console.log("Redis connection closed.");
+
+            // Clear the force timeout since we finished successfully
+            clearTimeout(forceExitTimeout);
+            console.log("✅ Graceful shutdown completed.");
+            process.exit(0);
+        } catch (err) {
+            console.error("❌ Error during resource cleanup:", err);
+            process.exit(1);
         }
+    };
 
-        await closeDB();
-        console.log("Database connection closed");
+    // 2. Stop the server from accepting new connections
+    if (server) {
+        server.close(cleanupResources);
+    } else {
+        cleanupResources();
+    }
+};
 
-        await closeRedis();
-        console.log("Redis connection closed");
+// Start the Server
+const startServer = async () => {
+    try {
+        console.log("Initializing services...");
 
-        process.exit(0);
+        // Connect to Data Sources first
+        await connectDB();
+        await connectRedis();
+
+        // Start listening
+        server = app.listen(PORT, () => {
+            console.log(`✅ Server running on port ${PORT}`);
+        });
+
     } catch (err) {
-        console.error("Shutdown error:", err);
+        console.error("❌ Failed to start server:", err);
         process.exit(1);
     }
 };
 
-// Register handlers FIRST
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);
-process.on("SIGUSR2", shutdown);
+// --- Signal Listeners ---
 
-// Optional safety nets
-process.on("uncaughtException", (err) => {
-    console.error(err);
-    shutdown("uncaughtException");
-});
+// Handle Nodemon restart
+process.once("SIGUSR2", () => shutdown("SIGUSR2"));
 
-process.on("unhandledRejection", (reason) => {
-    console.error(reason);
-    shutdown("unhandledRejection");
-});
+// Handle generic termination (Ctrl+C, Docker stop, etc.)
+process.once("SIGINT", () => shutdown("SIGINT"));
+process.once("SIGTERM", () => shutdown("SIGTERM"));
 
-const startServer = async () => {
-    console.log("Starting server...");
-
-    server = app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
-    });
-
-    await connectDB();
-    await connectRedis();
-};
-
-startServer().catch((err) => {
-    console.error("Failed to start server:", err);
-    process.exit(1);
-});
+// Execute
+startServer();
