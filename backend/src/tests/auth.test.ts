@@ -3,6 +3,7 @@ import app from '../app';
 import sequelize, { closeDB } from '../config/db';
 import redisClient from '../config/redis';
 import User from '../models/user';
+import { mailService } from '../services/mail.service';
 
 describe('Authentication API Integration Tests', () => {
     const testUser = {
@@ -133,6 +134,45 @@ describe('Authentication API Integration Tests', () => {
                 .get('/auth/me')
                 .set('Cookie', cookies);
             expect(meRes.statusCode).toEqual(401);
+        });
+    });
+
+    describe('POST /auth/forgot-password', () => {
+        it('should send a reset email if user exists', async () => {
+            // Register user first
+            await request(app).post('/auth/register').send(testUser);
+
+            const sendMailSpy = jest.spyOn(mailService, 'sendMail').mockResolvedValue();
+
+            const res = await request(app)
+                .post('/auth/forgot-password')
+                .send({ email: testUser.email });
+
+            expect(res.statusCode).toEqual(200);
+            expect(res.body.message).toEqual('If an account exists, a reset link has been sent.');
+
+            expect(sendMailSpy).toHaveBeenCalledTimes(1);
+            expect(sendMailSpy).toHaveBeenCalledWith(expect.objectContaining({
+                to: testUser.email,
+                subject: 'Password Reset Request'
+            }));
+
+            sendMailSpy.mockRestore();
+        });
+
+        it('should return 200 message even if user does not exist (enumeration protection)', async () => {
+            const sendMailSpy = jest.spyOn(mailService, 'sendMail').mockResolvedValue();
+
+            const res = await request(app)
+                .post('/auth/forgot-password')
+                .send({ email: 'nonexistent@example.com' });
+
+            expect(res.statusCode).toEqual(200);
+            expect(res.body.message).toEqual('If an account exists, a reset link has been sent.');
+
+            expect(sendMailSpy).not.toHaveBeenCalled();
+
+            sendMailSpy.mockRestore();
         });
     });
 });

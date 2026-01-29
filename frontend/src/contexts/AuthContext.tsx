@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { API_URL } from "@/lib/api";
 
 interface User {
   id: string;
@@ -20,8 +21,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,9 +32,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // We don't send a token manually. 
         // We use credentials: 'include' to send the cookie.
         const res = await fetch(`${API_URL}/auth/me`, {
-            credentials: 'include' 
+          credentials: 'include'
         });
-        
+
         if (res.ok) {
           const data = await res.json();
           setUser(data);
@@ -104,11 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await fetch(`${API_URL}/auth/logout`, { 
-        method: "POST", 
-        credentials: 'include' 
+      await fetch(`${API_URL}/auth/logout`, {
+        method: "POST",
+        credentials: 'include'
       });
-    } catch(e) {
+    } catch (e) {
       console.error(e);
     }
     setUser(null);

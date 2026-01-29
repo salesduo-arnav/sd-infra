@@ -1,9 +1,17 @@
+import { mailService } from '../services/mail.service';
+import crypto from 'crypto';
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import User from '../models/user';
 import redisClient from '../config/redis';
 import { isSuperuserEmail } from '../config/superuser';
+import dotenv from 'dotenv';
+import path from 'path';
+
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+
 
 
 // Helper to create session
@@ -115,4 +123,80 @@ export const getMe = async (req: Request, res: Response) => {
     // req.user is populated by the middleware
     if (!req.user) return res.status(401).json({ message: 'Not authenticated' });
     res.json(req.user);
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ where: { email } });
+
+        // Always return success even if user doesn't exist to prevent enumeration attacks
+        if (!user) {
+            return res.json({ message: 'If an account exists, a reset link has been sent.' });
+        }
+
+        // Generate a secure random token
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const tokenTTL = 3600; // 1 hour
+
+        // Store token in Redis: reset_token:xyz -> user_id
+        await redisClient.set(
+            `reset_token:${resetToken}`,
+            user.id,
+            { EX: tokenTTL }
+        );
+
+        // Create the reset link (Adjust frontend URL as needed)
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+        // Send Email using MailService
+        await mailService.sendMail({
+            to: user.email,
+            subject: 'Password Reset Request',
+            html: `
+                <p>You requested a password reset.</p>
+                <p>Click this link to reset your password:</p>
+                <a href="${resetLink}">${resetLink}</a>
+                <p>This link expires in 1 hour.</p>
+            `,
+        });
+
+        res.json({ message: 'If an account exists, a reset link has been sent.' });
+    } catch (error) {
+        console.error('Forgot Password Error:', error);
+        res.status(500).json({ message: 'Error sending email' });
+    }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+    try {
+        const { token, newPassword } = req.body;
+
+        // Verify token from Redis
+        const userId = await redisClient.get(`reset_token:${token}`);
+
+        if (!userId) {
+            return res.status(400).json({ message: 'Invalid or expired token' });
+        }
+
+        // Find user
+        const user = await User.findByPk(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Hash new password
+        const salt = await bcrypt.genSalt(10);
+        user.password_hash = await bcrypt.hash(newPassword, salt);
+        await user.save();
+
+        // Delete token from Redis so it can't be reused
+        await redisClient.del(`reset_token:${token}`);
+
+        res.json({ message: 'Password has been reset successfully. You can now login.' });
+    } catch (error) {
+        console.error('Reset Password Error:', error);
+        res.status(500).json({ message: 'Server error resetting password' });
+    }
 };
