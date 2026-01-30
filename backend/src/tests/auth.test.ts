@@ -337,6 +337,9 @@ describe('Authentication API Integration Tests', () => {
         });
 
         it('should return 500 if Google token exchange fails', async () => {
+            // Suppress expected console.error output
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+
             mockGetToken.mockRejectedValue(new Error('Token exchange failed'));
 
             const res = await request(app)
@@ -345,9 +348,14 @@ describe('Authentication API Integration Tests', () => {
 
             expect(res.statusCode).toEqual(500);
             expect(res.body.message).toEqual('Google authentication failed');
+
+            consoleSpy.mockRestore();
         });
 
         it('should return 500 if ID token verification fails', async () => {
+            // Suppress expected console.error output
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+
             mockGetToken.mockResolvedValue({
                 tokens: {
                     id_token: 'mock_id_token',
@@ -363,6 +371,8 @@ describe('Authentication API Integration Tests', () => {
 
             expect(res.statusCode).toEqual(500);
             expect(res.body.message).toEqual('Google authentication failed');
+
+            consoleSpy.mockRestore();
         });
 
         it('should allow access to protected routes after Google login', async () => {
