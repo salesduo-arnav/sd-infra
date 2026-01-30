@@ -148,11 +148,26 @@ export const login = async (req: Request, res: Response) => {
             await user.save();
         }
 
+        // Refetch user with membership to ensure frontend gets correct state
+        const userWithOrg = await User.findByPk(user.id, {
+            include: [{
+                model: OrganizationMember,
+                as: 'membership',
+                include: [{
+                    model: Organization,
+                    as: 'organization'
+                }, {
+                    model: Role,
+                    as: 'role'
+                }]
+            }]
+        });
+
         await createSession(res, user);
 
         res.json({
             message: 'Logged in successfully',
-            user: user
+            user: userWithOrg
         });
     } catch (error) {
         console.error(error);
