@@ -1,0 +1,55 @@
+import { User } from './user';
+import { Role, Permission, RolePermission } from './role';
+import { Organization, OrganizationMember } from './organization';
+import { Invitation } from './invitation';
+
+// =====================
+// Associations
+// =====================
+
+// User <-> Organization (via OrganizationMember)
+User.hasOne(OrganizationMember, { foreignKey: 'user_id', as: 'membership' });
+OrganizationMember.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
+Organization.hasMany(OrganizationMember, { foreignKey: 'organization_id', as: 'members' });
+OrganizationMember.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
+
+// OrganizationMember <-> Role
+OrganizationMember.belongsTo(Role, { foreignKey: 'role_id', as: 'role' });
+Role.hasMany(OrganizationMember, { foreignKey: 'role_id' });
+
+// Role <-> Permission (Many-to-Many)
+Role.belongsToMany(Permission, {
+  through: RolePermission,
+  foreignKey: 'role_id',
+  otherKey: 'permission_id',
+  as: 'permissions',
+});
+Permission.belongsToMany(Role, {
+  through: RolePermission,
+  foreignKey: 'permission_id',
+  otherKey: 'role_id',
+  as: 'roles',
+});
+
+// Invitation Associations
+Organization.hasMany(Invitation, { foreignKey: 'organization_id', as: 'invitations' });
+Invitation.belongsTo(Organization, { foreignKey: 'organization_id' });
+
+Role.hasMany(Invitation, { foreignKey: 'role_id' });
+Invitation.belongsTo(Role, { foreignKey: 'role_id' });
+
+User.hasMany(Invitation, { foreignKey: 'invited_by', as: 'sent_invitations' });
+Invitation.belongsTo(User, { foreignKey: 'invited_by', as: 'sender' });
+
+
+// Export all models
+export {
+  User,
+  Role,
+  Permission,
+  RolePermission,
+  Organization,
+  OrganizationMember,
+  Invitation
+};

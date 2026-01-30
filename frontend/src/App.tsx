@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
@@ -13,6 +13,7 @@ import Plans from "./pages/Plans";
 import Billing from "./pages/Billing";
 import Profile from "./pages/Profile";
 import Organisation from "./pages/Organisation";
+import CreateOrganisation from "./pages/CreateOrganisation";
 import Integrations from "./pages/Integrations";
 import NotFound from "./pages/NotFound";
 import ListingGenerator from "./pages/tools/ListingGenerator";
@@ -21,14 +22,31 @@ import AdminApps from "./pages/admin/AdminApps";
 import AdminPlans from "./pages/admin/AdminPlans";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminOrganizations from "./pages/admin/AdminOrganizations";
+import InviteAccepted from "./pages/InviteAccepted";
+
 
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, isLoading } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) return <div>Loading...</div>;
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
+
+  // If user has no organization and is not on the creation page, redirect them
+  if (!user?.membership && location.pathname !== "/create-organisation") {
+    return <Navigate to="/create-organisation" replace />;
+  }
+
+  // If user has organization and tries to access creation page, redirect to dashboard
+  if (user?.membership && location.pathname === "/create-organisation") {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -145,6 +163,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/create-organisation"
+        element={
+          <ProtectedRoute>
+            <CreateOrganisation />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Admin routes */}
       <Route
@@ -185,6 +211,14 @@ function AppRoutes() {
           <AdminRoute>
             <AdminOrganizations />
           </AdminRoute>
+        }
+      />
+      <Route
+        path="/accept-invite"
+        element={
+          <PublicRoute>
+            <InviteAccepted />
+          </PublicRoute>
         }
       />
 

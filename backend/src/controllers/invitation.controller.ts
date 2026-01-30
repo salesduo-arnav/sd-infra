@@ -1,0 +1,180 @@
+import { Request, Response } from 'express';
+import { Invitation, InvitationStatus } from '../models/invitation';
+import { OrganizationMember } from '../models/organization';
+import { Role } from '../models/role';
+import User from '../models/user';
+import crypto from 'crypto';
+import { mailService } from '../services/mail.service'; // Assuming this exists from auth controller usage
+import { Organization } from '../models/organization'; // Added for validateInvitation
+
+export const inviteMember = async (req: Request, res: Response) => {
+    try {
+        const { email, role_id } = req.body;
+        const userId = req.user?.id;
+        
+        // Check permission
+        const membership = await OrganizationMember.findOne({
+            where: { user_id: userId },
+            include: [{ model: Role, as: 'role' }]
+        }) as any;
+
+        if (!membership || (membership.role.name !== 'Owner' && membership.role.name !== 'Admin')) {
+            return res.status(403).json({ message: 'Insufficient permissions' });
+        }
+
+        const orgId = membership.organization_id;
+
+        // Check if already invited
+        const existingInvite = await Invitation.findOne({
+            where: { organization_id: orgId, email, status: InvitationStatus.PENDING }
+        });
+
+        if (existingInvite) {
+            return res.status(400).json({ message: 'User already invited' });
+        }
+
+        // Check if already a member
+        const existingMember = await OrganizationMember.findOne({
+            where: { organization_id: orgId },
+            include: [{ model: User, as: 'user', where: { email } }]
+        } as any);
+
+        if (existingMember) {
+            return res.status(400).json({ message: 'User is already a member' });
+        }
+
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+        const invitation = await Invitation.create({
+            organization_id: orgId,
+            email,
+            role_id,
+            token,
+            invited_by: userId,
+            status: InvitationStatus.PENDING,
+            expires_at: expiresAt
+        });
+
+        // Send Email (Mocked or Real)
+        try {
+             // Construct invite link (adjust frontend URL)
+             const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+             const inviteLink = `${frontendUrl}/accept-invite?token=${token}`;
+ 
+             await mailService.sendMail({
+                 to: email,
+                 subject: 'You have been invited to join an organization',
+                 html: `<p>Click here to join: <a href="${inviteLink}">${inviteLink}</a></p>`
+             });
+        } catch (mailError) {
+            console.error('Mail Error:', mailError);
+            // Don't fail the request, just log it. 
+            // In production, we might want to return a warning or retry.
+        }
+
+        res.status(201).json({ message: 'Invitation sent', invitation });
+
+    } catch (error) {
+        console.error('Invite Error:', error);
+        res.status(500).json({ message: 'Server error sending invitation' });
+    }
+};
+
+export const getPendingInvitations = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user?.id;
+        // Check permission (Reader/Viewer might not see invites, but Admin/Owner should)
+        const membership = await OrganizationMember.findOne({
+            where: { user_id: userId }
+        }) as any;
+
+        if (!membership) return res.status(403).json({ message: 'Not in organization' });
+
+        const invitations = await Invitation.findAll({
+            where: { 
+                organization_id: membership.organization_id,
+                status: InvitationStatus.PENDING
+            },
+            include: [{ model: Role }] // Include role details
+        });
+
+        res.json(invitations);
+    } catch (error) {
+        console.error('Get Invites Error:', error);
+        res.status(500).json({ message: 'Server error fetching invitations' });
+    }
+};
+
+export const revokeInvitation = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user?.id;
+
+        const membership = await OrganizationMember.findOne({
+            where: { user_id: userId },
+            include: [{ model: Role, as: 'role' }]
+        }) as any;
+
+        if (!membership || (membership.role.name !== 'Owner' && membership.role.name !== 'Admin')) {
+            return res.status(403).json({ message: 'Insufficient permissions' });
+        }
+
+        const invitation = await Invitation.findOne({
+            where: { id, organization_id: membership.organization_id }
+        });
+
+        if (!invitation) return res.status(404).json({ message: 'Invitation not found' });
+
+        await invitation.destroy();
+
+        res.json({ message: 'Invitation revoked' });
+
+    } catch (error) {
+        console.error('Revoke Error:', error);
+        res.status(500).json({ message: 'Server error revoking invitation' });
+    }
+};
+
+export const validateInvitation = async (req: Request, res: Response) => {
+    try {
+        const { token } = req.query;
+
+        if (!token) {
+            return res.status(400).json({ message: 'Token is required' });
+        }
+
+        const invitation = await Invitation.findOne({
+            where: { 
+                token: token as string,
+                status: InvitationStatus.PENDING
+            },
+            include: [{ model: Role }]
+        }) as any;
+
+        if (!invitation) {
+            return res.status(404).json({ message: 'Invalid or expired invitation' });
+        }
+
+        // Check expiry
+        if (new Date() > invitation.expires_at) {
+            return res.status(400).json({ message: 'Invitation expired' });
+        }
+
+        // Get organization name
+        const organization = await Organization.findByPk(invitation.organization_id);
+
+        res.json({
+            email: invitation.email,
+            role: invitation.role?.name,
+            organization_id: invitation.organization_id,
+            organization_name: organization?.name
+        });
+
+    } catch (error) {
+        console.error('Validate Invite Error:', error);
+        res.status(500).json({ message: 'Server error validating invitation' });
+    }
+};
+

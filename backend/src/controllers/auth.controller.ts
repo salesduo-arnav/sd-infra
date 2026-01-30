@@ -4,6 +4,9 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import User from '../models/user';
+import { Organization, OrganizationMember } from '../models/organization';
+import { Role } from '../models/role';
+import { Invitation, InvitationStatus } from '../models/invitation';
 import redisClient from '../config/redis';
 import { isSuperuserEmail } from '../config/superuser';
 import dotenv from 'dotenv';
@@ -45,11 +48,33 @@ const createSession = async (res: Response, user: User) => {
 
 export const register = async (req: Request, res: Response) => {
     try {
-        const { email, password, full_name } = req.body;
+        const { email, password, full_name, token } = req.body;
 
         const existingUser = await User.findOne({ where: { email } });
         if (existingUser) {
             return res.status(400).json({ message: 'User already exists' });
+        }
+
+        let invitation: any = null;
+        if (token) {
+            invitation = await Invitation.findOne({
+                where: { 
+                    token, 
+                    status: InvitationStatus.PENDING 
+                }
+            });
+
+            if (!invitation) {
+                return res.status(400).json({ message: 'Invalid or expired invitation token' });
+            }
+
+            if (invitation.email !== email) {
+                return res.status(400).json({ message: 'Email does not match invitation' });
+            }
+            
+             if (new Date() > invitation.expires_at) {
+                return res.status(400).json({ message: 'Invitation expired' });
+            }
         }
 
         const salt = await bcrypt.genSalt(10);
@@ -62,12 +87,39 @@ export const register = async (req: Request, res: Response) => {
             is_superuser: isSuperuserEmail(email)
         });
 
+        if (invitation) {
+            // Add user to organization
+            await OrganizationMember.create({
+                organization_id: invitation.organization_id,
+                user_id: user.id,
+                role_id: invitation.role_id
+            });
+
+            // Mark invitation as accepted
+            invitation.status = InvitationStatus.ACCEPTED;
+            await invitation.save();
+        }
+
+        // Refetch user with membership to ensure frontend gets correct state
+        const userWithOrg = await User.findByPk(user.id, {
+            include: [{
+                model: OrganizationMember,
+                as: 'membership',
+                include: [{
+                    model: Organization,
+                    as: 'organization'
+                }, {
+                    model: Role,
+                    as: 'role'
+                }]
+            }]
+        });
 
         await createSession(res, user);
 
         res.status(201).json({
             message: 'Registered successfully',
-            user: user
+            user: userWithOrg
         });
     } catch (error) {
         console.error(error);
@@ -122,7 +174,28 @@ export const logout = async (req: Request, res: Response) => {
 export const getMe = async (req: Request, res: Response) => {
     // req.user is populated by the middleware
     if (!req.user) return res.status(401).json({ message: 'Not authenticated' });
-    res.json(req.user);
+
+    // Fetch fresh user data with organization info
+    try {
+        const userWithOrg = await User.findByPk(req.user.id, {
+            include: [{
+                model: OrganizationMember,
+                as: 'membership',
+                include: [{
+                    model: Organization,
+                    as: 'organization'
+                }, {
+                    model: Role,
+                    as: 'role'
+                }]
+            }]
+        });
+
+        res.json(userWithOrg);
+    } catch (error) {
+        console.error('GetMe Error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
 };
 
 export const forgotPassword = async (req: Request, res: Response) => {

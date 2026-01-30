@@ -3,7 +3,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import authRoutes from './routes/auth.routes';
+import organizationRoutes from './routes/organization.routes';
+import invitationRoutes from './routes/invitation.routes';
 import { errorHandler } from './middlewares/error';
+import './models'; // Initialize associations
 
 const app = express();
 
@@ -19,6 +22,8 @@ app.use(cookieParser());
 
 // Routes
 app.use('/auth', authRoutes);
+app.use('/organizations', organizationRoutes);
+app.use('/invitations', invitationRoutes);
 
 // Standard Health Check
 app.get('/health', (req, res) => res.status(200).send('OK'));

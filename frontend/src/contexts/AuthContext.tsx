@@ -6,6 +6,16 @@ interface User {
   email: string;
   name: string;
   is_superuser?: boolean;
+  membership?: {
+    organization: {
+      id: string;
+      name: string;
+      slug: string;
+    };
+    role: {
+      name: string;
+    };
+  };
 }
 
 interface AuthContextType {
@@ -14,9 +24,10 @@ interface AuthContextType {
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
-  signup: (name: string, email: string, password: string) => Promise<void>;
+  signup: (name: string, email: string, password: string, token?: string) => Promise<User | void>;
   logout: () => void;
   isLoading: boolean;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,25 +36,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const refreshUser = async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/me`, {
+        credentials: 'include'
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data);
+      }
+    } catch (error) {
+      console.error("Auth check failed", error);
+    }
+  };
+
   // Check for session on mount
   useEffect(() => {
     const initAuth = async () => {
-      try {
-        // We don't send a token manually. 
-        // We use credentials: 'include' to send the cookie.
-        const res = await fetch(`${API_URL}/auth/me`, {
-          credentials: 'include'
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          setUser(data);
-        }
-      } catch (error) {
-        console.error("Auth check failed", error);
-      } finally {
-        setIsLoading(false);
-      }
+      await refreshUser();
+      setIsLoading(false);
     };
     initAuth();
   }, []);
@@ -72,14 +84,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signup = async (name: string, email: string, password: string) => {
+  const signup = async (name: string, email: string, password: string, token?: string) => {
     setIsLoading(true);
     try {
       const res = await fetch(`${API_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: 'include', // Important!
-        body: JSON.stringify({ full_name: name, email, password }),
+        body: JSON.stringify({ full_name: name, email, password, token }),
       });
 
       if (!res.ok) {
@@ -89,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const data = await res.json();
       setUser(data.user);
+      return data.user;
     } finally {
       setIsLoading(false);
     }
@@ -124,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signup,
         logout,
         isLoading,
+        refreshUser,
       }}
     >
       {children}
