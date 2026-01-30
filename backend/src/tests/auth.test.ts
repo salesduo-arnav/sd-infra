@@ -1,9 +1,27 @@
 import request from 'supertest';
-import app from '../app';
 import sequelize, { closeDB } from '../config/db';
 import redisClient from '../config/redis';
 import User from '../models/user';
 import { mailService } from '../services/mail.service';
+
+// Create mock functions that will be shared across tests
+const mockGetToken = jest.fn();
+const mockVerifyIdToken = jest.fn();
+const mockSetCredentials = jest.fn();
+
+// Mock the google-auth-library BEFORE importing app
+jest.mock('google-auth-library', () => {
+    return {
+        OAuth2Client: jest.fn().mockImplementation(() => ({
+            getToken: mockGetToken,
+            verifyIdToken: mockVerifyIdToken,
+            setCredentials: mockSetCredentials,
+        })),
+    };
+});
+
+// Import app AFTER setting up the mock
+import app from '../app';
 
 describe('Authentication API Integration Tests', () => {
     const testUser = {
@@ -173,6 +191,231 @@ describe('Authentication API Integration Tests', () => {
             expect(sendMailSpy).not.toHaveBeenCalled();
 
             sendMailSpy.mockRestore();
+        });
+    });
+
+    describe('POST /auth/google', () => {
+        const mockGoogleUser = {
+            email: 'googleuser@gmail.com',
+            name: 'Google User'
+        };
+
+        beforeEach(() => {
+            // Reset mocks before each test
+            jest.clearAllMocks();
+        });
+
+        const setupSuccessfulGoogleAuth = () => {
+            mockGetToken.mockResolvedValue({
+                tokens: {
+                    id_token: 'mock_id_token',
+                    access_token: 'mock_access_token'
+                }
+            });
+
+            mockVerifyIdToken.mockResolvedValue({
+                getPayload: () => ({
+                    email: mockGoogleUser.email,
+                    name: mockGoogleUser.name,
+                    sub: '123456789'
+                })
+            });
+        };
+
+        it('should register a new user via Google and set session cookie', async () => {
+            setupSuccessfulGoogleAuth();
+
+            const res = await request(app)
+                .post('/auth/google')
+                .send({ code: 'valid_auth_code' });
+
+            expect(res.statusCode).toEqual(200);
+            expect(res.body.message).toEqual('Logged in with Google successfully');
+            expect(res.body.user).toHaveProperty('id');
+            expect(res.body.user.email).toEqual(mockGoogleUser.email);
+
+            // Verify session cookie is set
+            const cookies = res.get('Set-Cookie') || [];
+            expect(cookies.some(c => c.includes('session_id'))).toBe(true);
+
+            // Verify user was created in database
+            const user = await User.findOne({ where: { email: mockGoogleUser.email } });
+            expect(user).not.toBeNull();
+            expect(user?.full_name).toEqual(mockGoogleUser.name);
+            expect(user?.password_hash).toBeNull(); // Google users don't have password
+        });
+
+        it('should login existing user via Google', async () => {
+            // First, create a user that was previously registered via Google
+            await User.create({
+                email: mockGoogleUser.email,
+                full_name: mockGoogleUser.name,
+                password_hash: null,
+                is_superuser: false
+            });
+
+            setupSuccessfulGoogleAuth();
+
+            const res = await request(app)
+                .post('/auth/google')
+                .send({ code: 'valid_auth_code' });
+
+            expect(res.statusCode).toEqual(200);
+            expect(res.body.message).toEqual('Logged in with Google successfully');
+            expect(res.body.user.email).toEqual(mockGoogleUser.email);
+
+            // Verify no duplicate user was created
+            const userCount = await User.count({ where: { email: mockGoogleUser.email } });
+            expect(userCount).toEqual(1);
+        });
+
+        it('should login existing password-based user via Google', async () => {
+            // Create a user that originally registered with password
+            await User.create({
+                email: mockGoogleUser.email,
+                full_name: 'Original Name',
+                password_hash: 'some_hashed_password',
+                is_superuser: false
+            });
+
+            setupSuccessfulGoogleAuth();
+
+            const res = await request(app)
+                .post('/auth/google')
+                .send({ code: 'valid_auth_code' });
+
+            expect(res.statusCode).toEqual(200);
+            expect(res.body.message).toEqual('Logged in with Google successfully');
+
+            // User should keep their original password hash (linking accounts)
+            const user = await User.findOne({ where: { email: mockGoogleUser.email } });
+            expect(user?.password_hash).toEqual('some_hashed_password');
+        });
+
+        it('should return 400 if Google token verification fails (no payload)', async () => {
+            mockGetToken.mockResolvedValue({
+                tokens: {
+                    id_token: 'mock_id_token',
+                    access_token: 'mock_access_token'
+                }
+            });
+
+            mockVerifyIdToken.mockResolvedValue({
+                getPayload: () => null // No payload
+            });
+
+            const res = await request(app)
+                .post('/auth/google')
+                .send({ code: 'valid_auth_code' });
+
+            expect(res.statusCode).toEqual(400);
+            expect(res.body.message).toEqual('Invalid Google Token');
+        });
+
+        it('should return 400 if Google token has no email', async () => {
+            mockGetToken.mockResolvedValue({
+                tokens: {
+                    id_token: 'mock_id_token',
+                    access_token: 'mock_access_token'
+                }
+            });
+
+            mockVerifyIdToken.mockResolvedValue({
+                getPayload: () => ({
+                    name: 'User Without Email',
+                    sub: '123456789'
+                    // No email field
+                })
+            });
+
+            const res = await request(app)
+                .post('/auth/google')
+                .send({ code: 'valid_auth_code' });
+
+            expect(res.statusCode).toEqual(400);
+            expect(res.body.message).toEqual('Invalid Google Token');
+        });
+
+        it('should return 500 if Google token exchange fails', async () => {
+            // Suppress expected console.error output
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+
+            mockGetToken.mockRejectedValue(new Error('Token exchange failed'));
+
+            const res = await request(app)
+                .post('/auth/google')
+                .send({ code: 'invalid_auth_code' });
+
+            expect(res.statusCode).toEqual(500);
+            expect(res.body.message).toEqual('Google authentication failed');
+
+            consoleSpy.mockRestore();
+        });
+
+        it('should return 500 if ID token verification fails', async () => {
+            // Suppress expected console.error output
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+
+            mockGetToken.mockResolvedValue({
+                tokens: {
+                    id_token: 'mock_id_token',
+                    access_token: 'mock_access_token'
+                }
+            });
+
+            mockVerifyIdToken.mockRejectedValue(new Error('ID token verification failed'));
+
+            const res = await request(app)
+                .post('/auth/google')
+                .send({ code: 'valid_auth_code' });
+
+            expect(res.statusCode).toEqual(500);
+            expect(res.body.message).toEqual('Google authentication failed');
+
+            consoleSpy.mockRestore();
+        });
+
+        it('should allow access to protected routes after Google login', async () => {
+            setupSuccessfulGoogleAuth();
+
+            const loginRes = await request(app)
+                .post('/auth/google')
+                .send({ code: 'valid_auth_code' });
+
+            const cookie = loginRes.get('Set-Cookie');
+
+            // Access protected /auth/me route
+            const meRes = await request(app)
+                .get('/auth/me')
+                .set('Cookie', cookie || []);
+
+            expect(meRes.statusCode).toEqual(200);
+            expect(meRes.body.email).toEqual(mockGoogleUser.email);
+            expect(meRes.body.name).toEqual(mockGoogleUser.name);
+        });
+
+        it('should properly logout after Google login', async () => {
+            setupSuccessfulGoogleAuth();
+
+            const loginRes = await request(app)
+                .post('/auth/google')
+                .send({ code: 'valid_auth_code' });
+
+            const cookie = loginRes.get('Set-Cookie');
+
+            // Logout
+            const logoutRes = await request(app)
+                .post('/auth/logout')
+                .set('Cookie', cookie || []);
+
+            expect(logoutRes.statusCode).toEqual(200);
+
+            // Verify session is invalidated
+            const meRes = await request(app)
+                .get('/auth/me')
+                .set('Cookie', logoutRes.get('Set-Cookie') || []);
+
+            expect(meRes.statusCode).toEqual(401);
         });
     });
 });

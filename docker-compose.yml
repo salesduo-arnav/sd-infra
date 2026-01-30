@@ -26,7 +26,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: prod-db
-    env_file: ./backend/.env
+    env_file: ./.env
     ports:
       - "5432:5432"
     volumes:
@@ -37,17 +37,30 @@ services:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       retries: 5
+
+  # 4. DB Viewer (Uncomment to see database at http://localhost:5050)
+  # pgadmin:
+  #   image: dpage/pgadmin4:latest
+  #   container_name: pgadmin
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: admin@salesduo.com
+  #     PGADMIN_DEFAULT_PASSWORD: admin
+  #   ports:
+  #     - "5050:80"
+  #   volumes:
+  #     - pgadmin_data:/var/lib/pgadmin
+  #   networks:
+  #     - salesduo-net
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   restart: always
   
   # 4. Core Backend
   backend:
     build: ./backend
     container_name: core-backend
-    env_file: ./backend/.env
-    environment:
-      - PGHOST=postgres
-      - REDIS_URL=redis://redis:6379
-      - CORS_ORIGINS=http://app.lvh.me
-      - FRONTEND_URL=http://app.lvh.me
+    env_file: ./.env
     ports:
       - "3000:3000"
     networks:
@@ -63,7 +76,8 @@ services:
     build: 
       context: ./frontend
       args:
-        VITE_API_BASE_URL: http://api.lvh.me
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
     container_name: core-frontend
     ports:
       - "5173:5173"
@@ -78,3 +92,4 @@ networks:
 
 volumes:
   pgdata:
+  # pgadmin_data: # Uncomment to persist pgadmin data
