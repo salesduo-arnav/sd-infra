@@ -101,7 +101,7 @@ export default function Login() {
     >
       <div className="space-y-5">
         {/* Mode Toggle */}
-        <div className="flex rounded-lg bg-muted/25 p-1">
+        <div className="flex rounded-lg bg-muted p-1">
           <button
             type="button"
             onClick={() => handleModeSwitch("password")}

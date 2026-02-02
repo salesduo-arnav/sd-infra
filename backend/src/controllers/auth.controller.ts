@@ -165,8 +165,8 @@ export const login = async (req: Request, res: Response) => {
             if (invitation) {
                 // Validate invitation match
                 if (invitation.email === email && new Date() <= invitation.expires_at) {
-                    
-                     // Check if already a member (idempotency)
+
+                    // Check if already a member (idempotency)
                     const existingMembership = await OrganizationMember.findOne({
                         where: {
                             organization_id: invitation.organization_id,
@@ -532,7 +532,7 @@ export const verifyLoginOtp = async (req: Request, res: Response) => {
         const userWithOrg = await User.findByPk(user.id, {
             include: [{
                 model: OrganizationMember,
-                as: 'membership',
+                as: 'memberships',
                 include: [{
                     model: Organization,
                     as: 'organization'
@@ -702,7 +702,7 @@ export const verifySignupOtp = async (req: Request, res: Response) => {
         const userWithOrg = await User.findByPk(user.id, {
             include: [{
                 model: OrganizationMember,
-                as: 'membership',
+                as: 'memberships',
                 include: [{
                     model: Organization,
                     as: 'organization'
