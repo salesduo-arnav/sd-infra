@@ -26,15 +26,6 @@ export default function Login() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      await loginWithGoogle();
-      navigate("/dashboard");
-    } catch (err) {
-      setError("Google sign-in failed");
-    }
-  };
-
   return (
     <AuthLayout
       title="Welcome back"
@@ -90,7 +81,10 @@ export default function Login() {
           </div>
         </div>
 
-        <GoogleButton onClick={handleGoogleLogin} isLoading={isLoading} />
+        <GoogleButton
+          isLoading={isLoading}
+          onSuccess={() => navigate("/dashboard")}
+        />
 
         <p className="text-center text-sm text-muted-foreground">
           Don't have an account?{" "}

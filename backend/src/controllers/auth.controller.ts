@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import { OAuth2Client } from 'google-auth-library';
 import User from '../models/user';
 import { Organization, OrganizationMember } from '../models/organization';
 import { Role } from '../models/role';
@@ -14,8 +15,11 @@ import path from 'path';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-
-
+const client = new OAuth2Client(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    'postmessage' // Special redirect URI for credentials.getToken() from flow: 'auth-code'
+);
 
 // Helper to create session
 const createSession = async (res: Response, user: User) => {
@@ -136,7 +140,7 @@ export const login = async (req: Request, res: Response) => {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        const isMatch = await bcrypt.compare(password, user.password_hash);
+        const isMatch = user.password_hash && await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
@@ -286,5 +290,125 @@ export const resetPassword = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Reset Password Error:', error);
         res.status(500).json({ message: 'Server error resetting password' });
+    }
+};
+
+export const googleAuth = async (req: Request, res: Response) => {
+    try {
+        const { code, token } = req.body;
+
+        if (!process.env.GOOGLE_CLIENT_SECRET) {
+            console.error('Missing GOOGLE_CLIENT_SECRET');
+            return res.status(500).json({ message: 'Server configuration error' });
+        }
+
+        // 1. Exchange code for tokens
+        const { tokens } = await client.getToken(code);
+        client.setCredentials(tokens);
+
+        // 2. Verify Id Token and get payload
+        const ticket = await client.verifyIdToken({
+            idToken: tokens.id_token!,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+
+        if (!payload || !payload.email) {
+            return res.status(400).json({ message: 'Invalid Google Token' });
+        }
+
+        const { email, name } = payload;
+
+        // 3. Check for valid invitation if token is provided
+        let invitation: any = null;
+        if (token) {
+            invitation = await Invitation.findOne({
+                where: {
+                    token,
+                    status: InvitationStatus.PENDING
+                }
+            });
+
+            if (invitation) {
+                // Validate invitation
+                if (invitation.email !== email) {
+                     // We continue without processing the invite if email mismatch,
+                     // or we could error out.
+                     // For Google Auth it's safer to error if they explicitly tried to use an invite link
+                     // but logged in with a different email.
+                     return res.status(400).json({ message: 'Google email does not match invitation email' });
+                }
+
+                if (new Date() > invitation.expires_at) {
+                    return res.status(400).json({ message: 'Invitation expired' });
+                }
+            } else {
+                 return res.status(400).json({ message: 'Invalid or expired invitation token' });
+            }
+        }
+
+        // 4. Check if user exists
+        let user = await User.findOne({ where: { email } });
+
+        // 5. If not, create new user
+        if (!user) {
+            user = await User.create({
+                email,
+                full_name: name,
+                password_hash: null, // No password for Google users
+                is_superuser: isSuperuserEmail(email),
+            });
+        }
+
+        // 6. Process Invitation if exists
+        if (invitation) {
+            // Check if already a member (idempotency)
+            const membership = await OrganizationMember.findOne({
+                 where: {
+                     organization_id: invitation.organization_id,
+                     user_id: user.id
+                 }
+            });
+
+            if (!membership) {
+                // Add user to organization
+                await OrganizationMember.create({
+                    organization_id: invitation.organization_id,
+                    user_id: user.id,
+                    role_id: invitation.role_id
+                });
+            }
+
+            // Mark invitation as accepted
+            invitation.status = InvitationStatus.ACCEPTED;
+            await invitation.save();
+        }
+
+        // 7. Refetch user with membership to ensure frontend gets correct state
+        const userWithOrg = await User.findByPk(user.id, {
+            include: [{
+                model: OrganizationMember,
+                as: 'membership',
+                include: [{
+                    model: Organization,
+                    as: 'organization'
+                }, {
+                    model: Role,
+                    as: 'role'
+                }]
+            }]
+        });
+
+        // 8. Create Session
+        await createSession(res, user);
+
+        res.json({
+            message: 'Logged in with Google successfully',
+            user: userWithOrg
+        });
+
+    } catch (error) {
+        console.error('Google Auth Error:', error);
+        res.status(500).json({ message: 'Google authentication failed' });
     }
 };

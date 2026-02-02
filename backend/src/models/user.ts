@@ -4,7 +4,7 @@ import sequelize from '../config/db';
 export type UserAttributes = {
   id: string;
   email: string;
-  password_hash: string;
+  password_hash: string | null;
   full_name?: string;
   is_superuser: boolean;
   created_at?: Date;
@@ -16,7 +16,7 @@ export type UserCreationAttributes = Optional<UserAttributes, 'id' | 'is_superus
 export class User extends Model<UserAttributes, UserCreationAttributes> implements UserAttributes {
   public id!: string;
   public email!: string;
-  public password_hash!: string;
+  public password_hash!: string | null;
   public full_name!: string;
   public is_superuser!: boolean;
   public readonly created_at!: Date;
@@ -40,7 +40,7 @@ User.init(
     },
     password_hash: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     full_name: {
       type: DataTypes.STRING,

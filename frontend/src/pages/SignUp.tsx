@@ -65,15 +65,6 @@ export default function SignUp() {
     }
   };
 
-  const handleGoogleSignup = async () => {
-    try {
-      await loginWithGoogle();
-      navigate("/dashboard");
-    } catch (err) {
-      setError("Google sign-up failed");
-    }
-  };
-
   return (
     <AuthLayout
       title="Create an account"
@@ -273,9 +264,10 @@ export default function SignUp() {
         </div>
 
         <GoogleButton
-          onClick={handleGoogleSignup}
           isLoading={isLoading}
           text="Sign up with Google"
+          onSuccess={() => navigate("/dashboard")}
+          inviteToken={inviteToken}
         />
 
         <p className="text-center text-sm text-muted-foreground">

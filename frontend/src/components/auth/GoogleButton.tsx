@@ -1,24 +1,38 @@
 import { Button } from "@/components/ui/button";
+import { useGoogleLogin } from "@react-oauth/google";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface GoogleButtonProps {
-  onClick: () => void;
   isLoading?: boolean;
   text?: string;
+  onSuccess?: () => void;
+  inviteToken?: string | null;
 }
 
-export function GoogleButton({
-  onClick,
-  isLoading,
-  text = "Continue with Google",
-}: GoogleButtonProps) {
+export function GoogleButton({ isLoading, text = "Continue with Google", onSuccess, inviteToken }: GoogleButtonProps) {
+  const { loginWithGoogle } = useAuth();
+
+  const handleGoogleLogin = useGoogleLogin({
+    flow: 'auth-code',
+    onSuccess: async (codeResponse) => {
+      // Pass the code to your context
+      await loginWithGoogle(codeResponse.code, inviteToken || undefined);
+      if (onSuccess) onSuccess();
+    },
+    onError: () => {
+      console.error("Login Failed");
+    }
+  });
+
   return (
     <Button
       type="button"
       variant="outline"
       className="w-full"
-      onClick={onClick}
+      onClick={() => handleGoogleLogin()}
       disabled={isLoading}
     >
+      {/* SVG Icon */}
       <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
         <path
           d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
