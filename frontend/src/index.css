@@ -24,8 +24,9 @@
     --popover: 20 5% 90%;
     --popover-foreground: 24 9% 10%;
 
-    --primary: 37 92% 50%;
-    --primary-foreground: 47 100% 96%;
+    /* Primary color: #ff9900 */
+    --primary: 32 100% 50%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 24 5% 44%;
     --secondary-foreground: 60 9% 97%;
@@ -33,8 +34,8 @@
     --muted: 23 5% 82%;
     --muted-foreground: 24 9% 10%;
 
-    --accent: 47 100% 96%;
-    --accent-foreground: 37 92% 50%;
+    --accent: 32 100% 97%;
+    --accent-foreground: 32 100% 35%;
 
     --destructive: 0 72% 50%;
     --destructive-foreground: 0 85% 97%;
@@ -47,22 +48,23 @@
 
     --border: 23 5% 82%;
     --input: 23 5% 82%;
-    --ring: 37 92% 50%;
+    --ring: 32 100% 50%;
 
     --radius: 1rem;
 
+    /* Sidebar colors with orange accent */
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 24 9% 10%;
-    --sidebar-primary: 37 92% 50%;
-    --sidebar-primary-foreground: 47 100% 96%;
-    --sidebar-accent: 24 5% 44%;
-    --sidebar-accent-foreground: 60 9% 97%;
+    --sidebar-primary: 32 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 32 100% 95%;
+    --sidebar-accent-foreground: 32 100% 30%;
     --sidebar-border: 23 5% 82%;
-    --sidebar-ring: 37 92% 50%;
-    --chart-1: 45 96% 64%;
-    --chart-2: 47 95% 53%;
-    --chart-3: 43 96% 56%;
-    --chart-4: 37 92% 50%;
+    --sidebar-ring: 32 100% 50%;
+    --chart-1: 32 100% 60%;
+    --chart-2: 32 100% 50%;
+    --chart-3: 28 100% 55%;
+    --chart-4: 25 100% 45%;
     --chart-5: 24 5% 44%;
     --sidebar: 60 9% 97%;
     --font-sans: 'Source Sans Pro', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
@@ -90,8 +92,9 @@
     --popover: 30 6% 25%;
     --popover-foreground: 60 9% 97%;
 
-    --primary: 43 96% 56%;
-    --primary-foreground: 20 91% 14%;
+    /* Primary color: #ff9900 */
+    --primary: 32 100% 50%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 24 5% 44%;
     --secondary-foreground: 60 9% 97%;
@@ -99,8 +102,8 @@
     --muted: 24 5% 44%;
     --muted-foreground: 60 9% 97%;
 
-    --accent: 25 83% 14%;
-    --accent-foreground: 47 95% 53%;
+    --accent: 32 100% 12%;
+    --accent-foreground: 32 100% 70%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 85% 97%;
@@ -113,20 +116,21 @@
 
     --border: 33 5% 32%;
     --input: 33 5% 32%;
-    --ring: 43 96% 56%;
+    --ring: 32 100% 50%;
 
+    /* Sidebar colors with orange accent for dark mode */
     --sidebar-background: 222 47% 8%;
     --sidebar-foreground: 60 9% 97%;
-    --sidebar-primary: 43 96% 56%;
-    --sidebar-primary-foreground: 20 91% 14%;
-    --sidebar-accent: 47 95% 53%;
-    --sidebar-accent-foreground: 25 83% 14%;
+    --sidebar-primary: 32 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 32 100% 15%;
+    --sidebar-accent-foreground: 32 100% 70%;
     --sidebar-border: 33 5% 32%;
-    --sidebar-ring: 43 96% 56%;
-    --chart-1: 45 96% 64%;
-    --chart-2: 48 96% 76%;
-    --chart-3: 43 96% 56%;
-    --chart-4: 37 92% 50%;
+    --sidebar-ring: 32 100% 50%;
+    --chart-1: 32 100% 60%;
+    --chart-2: 32 100% 70%;
+    --chart-3: 28 100% 55%;
+    --chart-4: 25 100% 45%;
     --chart-5: 33 5% 32%;
     --sidebar: 12 6% 15%;
     --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
