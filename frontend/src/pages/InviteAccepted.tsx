@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthLayout } from "@/components/auth/AuthLayout";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, Building2, ArrowRight, Mail } from "lucide-react";
 import { API_URL } from "@/lib/api";
 
 export default function InviteAccepted() {
@@ -46,47 +47,141 @@ export default function InviteAccepted() {
     validateToken();
   }, [token]);
 
-  const handleContinue = () => {
-    if (inviteDetails && token) {
-      navigate(`/signup?email=${encodeURIComponent(inviteDetails.email)}&token=${token}`);
+  const { isAuthenticated, refreshUser } = useAuth();
+
+  const handleContinue = async () => {
+    if (!inviteDetails || !token) return;
+
+    if (isAuthenticated) {
+        // User is already logged in, accept invite directly
+        try {
+            const res = await fetch(`${API_URL}/invitations/accept`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ token })
+            });
+
+            if (!res.ok) {
+                 const data = await res.json();
+                 throw new Error(data.message || "Failed to accept");
+            }
+
+            await refreshUser();
+            navigate("/dashboard");
+        } catch (e) {
+            if (e instanceof Error) {
+                // If already a member, just redirect
+                if (e.message === 'Already a member') {
+                    navigate("/dashboard");
+                    return;
+                }
+                setErrorMsg(e.message);
+            } else {
+                setErrorMsg("Failed to accept invitation");
+            }
+            setStatus("error");
+        }
+    } else {
+        // Not logged in, go to signup
+        navigate(`/signup?email=${encodeURIComponent(inviteDetails.email)}&token=${token}`);
     }
   };
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-16 w-16 rounded-2xl bg-gradient-to-r from-[#ff9900] to-[#e88800] flex items-center justify-center shadow-lg animate-pulse">
+            <Loader2 className="h-8 w-8 text-white animate-spin" />
+          </div>
+          <p className="text-muted-foreground">Validating your invitation...</p>
+        </div>
       </div>
     );
   }
 
   if (status === "error") {
     return (
-      <AuthLayout title="Invitation Invalid" subtitle="There was a problem with your link">
-        <div className="flex flex-col items-center justify-center space-y-6 py-4">
-          <XCircle className="h-16 w-16 text-destructive" />
-          <p className="text-center text-muted-foreground">{errorMsg}</p>
-          <Button variant="outline" className="w-full" asChild>
-            <Link to="/login">Go to Login</Link>
-          </Button>
+      <AuthLayout title="Invitation Invalid" subtitle="There was a problem with your invitation link">
+        <div className="flex flex-col items-center justify-center space-y-6 py-8">
+          <div className="h-20 w-20 rounded-2xl bg-destructive/10 flex items-center justify-center">
+            <XCircle className="h-10 w-10 text-destructive" />
+          </div>
+
+          <div className="text-center space-y-2">
+            <p className="text-foreground font-medium">Unable to process invitation</p>
+            <p className="text-muted-foreground text-sm max-w-sm">{errorMsg}</p>
+          </div>
+
+          <div className="w-full space-y-3 pt-4">
+            <Button variant="outline" className="w-full h-11" asChild>
+              <Link to="/login">Go to Login</Link>
+            </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              Need help?{" "}
+              <Link to="/contact" className="text-primary hover:underline">
+                Contact Support
+              </Link>
+            </p>
+          </div>
         </div>
       </AuthLayout>
     );
   }
 
   return (
-    <AuthLayout 
-      title="Invite Accepted!" 
-      subtitle={`You have been invited to join ${inviteDetails?.organization_name || "an organization"}`}
+    <AuthLayout
+      title="You're Invited!"
+      subtitle={`Join ${inviteDetails?.organization_name || "the team"} on SalesDuo`}
     >
-      <div className="flex flex-col items-center justify-center space-y-6 py-4">
-        <CheckCircle className="h-16 w-16 text-green-500" />
-        <p className="text-center text-muted-foreground">
-            You can now sign up to create your account.
-        </p>
-        <Button className="w-full" onClick={handleContinue}>
-          Continue to Sign Up
-        </Button>
+      <div className="flex flex-col items-center justify-center space-y-6 py-8">
+        {/* Success Icon with animation */}
+        <div className="relative">
+          <div className="h-20 w-20 rounded-2xl bg-gradient-to-r from-[#ff9900] to-[#e88800] flex items-center justify-center shadow-lg">
+            <CheckCircle className="h-10 w-10 text-white" />
+          </div>
+          {/* Decorative ring */}
+          <div className="absolute inset-0 rounded-2xl border-4 border-[#ff9900]/20 -m-2" />
+        </div>
+
+        {/* Organization info card */}
+        <div className="w-full p-4 rounded-xl bg-muted/10 border border-border">
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-lg bg-gradient-to-r from-[#ff9900]/20 to-[#e88800]/20 flex items-center justify-center">
+              <Building2 className="h-6 w-6 text-[#ff9900]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-foreground truncate">
+                {inviteDetails?.organization_name}
+              </p>
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                <Mail className="h-3 w-3" />
+                <span className="truncate">{inviteDetails?.email}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-center space-y-1">
+          <p className="text-muted-foreground">
+            Create your account to join and start collaborating with your team.
+          </p>
+        </div>
+
+        <div className="w-full space-y-3 pt-2">
+          <Button className="w-full h-11 text-base" onClick={handleContinue}>
+            {isAuthenticated ? "Join Organization" : "Continue to Sign Up"}
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+
+          <p className="text-center text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <Link to={`/login?token=${token}`} className="text-primary hover:underline font-medium">
+              Sign in instead
+            </Link>
+          </p>
+        </div>
       </div>
     </AuthLayout>
   );

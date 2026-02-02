@@ -14,12 +14,6 @@ export const createOrganization = async (req: Request, res: Response) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
-        // Check if user already has an organization (enforcing 1 org per user for now)
-        const existingMember = await OrganizationMember.findOne({ where: { user_id: userId } });
-        if (existingMember) {
-            return res.status(400).json({ message: 'User already belongs to an organization' });
-        }
-
         // Generate slug from name
         let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
         // Append random string if slug exists (simple collision handling)
@@ -70,19 +64,42 @@ export const getMyOrganization = async (req: Request, res: Response) => {
         const userId = req.user?.id;
         if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-        const membership = await OrganizationMember.findOne({
-            where: { user_id: userId },
-            include: [
-                {
-                    model: Organization,
-                    as: 'organization'
-                },
-                {
-                    model: Role,
-                    as: 'role'
-                }
-            ]
-        });
+        const orgId = req.headers['x-organization-id'] as string;
+
+        let membership;
+        
+        if (orgId) {
+             membership = await OrganizationMember.findOne({
+                where: { user_id: userId, organization_id: orgId },
+                include: [
+                    {
+                        model: Organization,
+                        as: 'organization'
+                    },
+                    {
+                        model: Role,
+                        as: 'role'
+                    }
+                ]
+            });
+        }
+        
+        // Fallback to first found if no specific org requested (or invalid)
+        if (!membership) {
+             membership = await OrganizationMember.findOne({
+                where: { user_id: userId },
+                include: [
+                    {
+                        model: Organization,
+                        as: 'organization'
+                    },
+                    {
+                        model: Role,
+                        as: 'role'
+                    }
+                ]
+            });
+        }
 
         if (!membership) {
             return res.json({ organization: null });
@@ -104,9 +121,17 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
         const userId = req.user?.id;
         if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
+        const orgId = req.headers['x-organization-id'] as string;
+        
         // Get user's organization
+        // Must filter by the active organization context
+        const whereClause: { user_id: string; organization_id?: string } = { user_id: userId };
+        if (orgId) {
+            whereClause.organization_id = orgId;
+        }
+
         const membership = await OrganizationMember.findOne({
-            where: { user_id: userId }
+            where: whereClause
         });
 
         if (!membership) {
@@ -142,8 +167,15 @@ export const updateOrganization = async (req: Request, res: Response) => {
         const userId = req.user?.id;
         if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
+        const orgId = req.headers['x-organization-id'] as string;
+
+        const whereClause: { user_id: string; organization_id?: string } = { user_id: userId };
+        if (orgId) {
+            whereClause.organization_id = orgId;
+        }
+
         const membership = await OrganizationMember.findOne({
-            where: { user_id: userId },
+            where: whereClause,
             include: [{ model: Role, as: 'role' }]
         });
 

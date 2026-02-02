@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -9,18 +9,34 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 
 export default function Login() {
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get("token");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const { login, loginWithGoogle, isLoading } = useAuth();
+  const { login, loginWithGoogle, isLoading, checkPendingInvites } = useAuth();
   const navigate = useNavigate();
+
+  const handleAuthSuccess = async () => {
+      // Check for invites
+      try {
+        const pending = await checkPendingInvites();
+        if (pending && pending.length > 0) {
+            navigate("/pending-invites");
+            return;
+        }
+      } catch (e) {
+          console.error(e);
+      }
+      navigate("/dashboard");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     try {
-      await login(email, password);
-      navigate("/dashboard");
+      await login(email, password, inviteToken || undefined);
+      await handleAuthSuccess();
     } catch (err) {
       setError("Invalid email or password");
     }
@@ -83,7 +99,7 @@ export default function Login() {
 
         <GoogleButton
           isLoading={isLoading}
-          onSuccess={() => navigate("/dashboard")}
+          onSuccess={handleAuthSuccess}
         />
 
         <p className="text-center text-sm text-muted-foreground">
