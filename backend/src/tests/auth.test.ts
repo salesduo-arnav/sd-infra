@@ -103,8 +103,8 @@ describe('Authentication API Integration Tests', () => {
                 });
 
             expect(res.statusCode).toEqual(201);
-            expect(res.body.user.membership).toBeDefined();
-            expect(res.body.user.membership.organization.id).toEqual(orgId);
+            expect(res.body.user.memberships).toBeDefined();
+            expect(res.body.user.memberships[0].organization.id).toEqual(orgId);
 
             // Verify Invitation Updated
             const invite = await Invitation.findOne({ where: { token } });
@@ -234,10 +234,10 @@ describe('Authentication API Integration Tests', () => {
              });
              
              expect(res.status).toBe(200);
-             expect(res.body.user.membership).toBeDefined();
-             expect(res.body.user.membership).not.toBeNull();
-             expect(res.body.user.membership.organization.slug).toBe('login-org');
-             expect(res.body.user.membership.role.name).toBe('Owner');
+             expect(res.body.user.memberships).toBeDefined();
+             expect(res.body.user.memberships.length).toBeGreaterThan(0);
+             expect(res.body.user.memberships[0].organization.slug).toBe('login-org');
+             expect(res.body.user.memberships[0].role.name).toBe('Owner');
         });
     });
 
@@ -570,8 +570,8 @@ describe('Authentication API Integration Tests', () => {
                 });
 
             expect(res.statusCode).toEqual(200);
-            expect(res.body.user.membership).toBeDefined();
-            expect(res.body.user.membership.organization.id).toEqual(orgId);
+            expect(res.body.user.memberships).toBeDefined();
+            expect(res.body.user.memberships[0].organization.id).toEqual(orgId);
 
             // Verify Invitation Updated
             const invite = await Invitation.findOne({ where: { token } });

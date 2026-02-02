@@ -78,21 +78,26 @@ describe('Organization API Integration Tests', () => {
             expect(role?.name).toEqual('Owner');
         });
 
-        it('should fail if user already belongs to an organization', async () => {
+        it('should allow user to create multiple organizations', async () => {
             // Create first org
             await request(app)
                 .post('/organizations')
                 .set('Cookie', authCookie)
                 .send(testOrg);
 
-            // Try to create second org
+            // Create second org
             const res = await request(app)
                 .post('/organizations')
                 .set('Cookie', authCookie)
                 .send({ name: 'Another Corp' });
 
-            expect(res.statusCode).toEqual(400);
-            expect(res.body.message).toEqual('User already belongs to an organization');
+            expect(res.statusCode).toEqual(201);
+            expect(res.body.organization.name).toEqual('Another Corp');
+            
+            // Verify memberships count
+            const user = await User.findOne({ where: { email: testUser.email } });
+            const members = await OrganizationMember.findAll({ where: { user_id: user?.id } });
+            expect(members.length).toEqual(2);
         });
     });
 

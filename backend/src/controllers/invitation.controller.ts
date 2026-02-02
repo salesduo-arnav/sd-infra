@@ -97,7 +97,7 @@ export const getPendingInvitations = async (req: Request, res: Response) => {
                 organization_id: membership.organization_id,
                 status: InvitationStatus.PENDING
             },
-            include: [{ model: Role }] // Include role details
+            include: [{ model: Role, as: 'role' }] // Include role details
         });
 
         res.json(invitations);
@@ -150,7 +150,7 @@ export const validateInvitation = async (req: Request, res: Response) => {
                 token: token as string,
                 status: InvitationStatus.PENDING
             },
-            include: [{ model: Role }]
+            include: [{ model: Role, as: 'role' }]
         });
 
         if (!invitation) {
@@ -178,3 +178,103 @@ export const validateInvitation = async (req: Request, res: Response) => {
     }
 };
 
+export const acceptInvitation = async (req: Request, res: Response) => {
+    try {
+        const { token } = req.body;
+        const userId = req.user?.id;
+
+        if (!token) return res.status(400).json({ message: 'Token is required' });
+        if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+        const invitation = await Invitation.findOne({
+            where: { token, status: InvitationStatus.PENDING }
+        });
+
+        if (!invitation) return res.status(404).json({ message: 'Invalid invitation' });
+
+        if (new Date() > invitation.expires_at) {
+            return res.status(400).json({ message: 'Invitation expired' });
+        }
+
+        // Idempotency check
+        const existingMember = await OrganizationMember.findOne({
+            where: { user_id: userId, organization_id: invitation.organization_id }
+        });
+
+        if (existingMember) {
+             // Mark invite as accepted if user is already a member
+             invitation.status = InvitationStatus.ACCEPTED;
+             await invitation.save();
+             return res.json({ message: 'Already a member' });
+        }
+
+        // Add user to organization
+        await OrganizationMember.create({
+            user_id: userId,
+            organization_id: invitation.organization_id,
+            role_id: invitation.role_id
+        });
+
+        // Mark invite as accepted
+        invitation.status = InvitationStatus.ACCEPTED;
+        await invitation.save();
+
+        res.json({ message: 'Invitation accepted' });
+
+    } catch (error) {
+        console.error('Accept Invite Error:', error);
+        res.status(500).json({ message: 'Server error accepting invitation' });
+    }
+};
+
+
+export const getMyPendingInvitations = async (req: Request, res: Response) => {
+    try {
+        const user = req.user;
+        if (!user) return res.status(401).json({ message: 'Not authenticated' });
+
+        const invitations = await Invitation.findAll({
+            where: { 
+                email: user.email,
+                status: InvitationStatus.PENDING
+            },
+            include: [
+                { model: Organization, as: 'organization' },
+                { model: Role, as: 'role' }
+            ]
+        });
+
+        res.json(invitations);
+    } catch (error) {
+        console.error('Get My Invites Error:', error);
+        res.status(500).json({ message: 'Server error fetching your invitations' });
+    }
+};
+
+export const declineInvitation = async (req: Request, res: Response) => {
+    try {
+        const { token } = req.body;
+        const user = req.user;
+
+        if (!token) return res.status(400).json({ message: 'Token is required' });
+        if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+        const invitation = await Invitation.findOne({
+            where: { token, status: InvitationStatus.PENDING }
+        });
+
+        if (!invitation) return res.status(404).json({ message: 'Invalid invitation' });
+
+        if (invitation.email !== user.email) {
+            return res.status(403).json({ message: 'This invitation does not belong to you' });
+        }
+
+        await invitation.destroy();
+
+        res.json({ message: 'Invitation declined' });
+
+    } catch (error) {
+        console.error('Decline Invite Error:', error);
+        res.status(500).json({ message: 'Server error declining invitation' });
+    }
+};

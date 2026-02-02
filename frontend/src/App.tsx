@@ -23,6 +23,7 @@ import AdminPlans from "./pages/admin/AdminPlans";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminOrganizations from "./pages/admin/AdminOrganizations";
 import InviteAccepted from "./pages/InviteAccepted";
+import PendingInvitations from "./pages/PendingInvitations";
 
 
 const queryClient = new QueryClient();
@@ -38,13 +39,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   // If user has no organization and is not on the creation page, redirect them
-  if (!user?.membership && location.pathname !== "/create-organisation") {
+  if ((!user?.memberships || user.memberships.length === 0) && location.pathname !== "/create-organisation" && location.pathname !== "/pending-invites") {
     return <Navigate to="/create-organisation" replace />;
-  }
-
-  // If user has organization and tries to access creation page, redirect to dashboard
-  if (user?.membership && location.pathname === "/create-organisation") {
-    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
@@ -171,6 +167,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/pending-invites"
+        element={
+          <ProtectedRoute>
+            <PendingInvitations />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Admin routes */}
       <Route
@@ -216,9 +220,7 @@ function AppRoutes() {
       <Route
         path="/accept-invite"
         element={
-          <PublicRoute>
             <InviteAccepted />
-          </PublicRoute>
         }
       />
 

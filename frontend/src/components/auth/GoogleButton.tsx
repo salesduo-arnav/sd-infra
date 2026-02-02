@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { useGoogleLogin } from "@react-oauth/google";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, User } from "@/contexts/AuthContext";
 
 interface GoogleButtonProps {
   isLoading?: boolean;
   text?: string;
-  onSuccess?: () => void;
+  onSuccess?: (user?: User | void) => void;
   inviteToken?: string | null;
 }
 
@@ -16,8 +16,8 @@ export function GoogleButton({ isLoading, text = "Continue with Google", onSucce
     flow: 'auth-code',
     onSuccess: async (codeResponse) => {
       // Pass the code to your context
-      await loginWithGoogle(codeResponse.code, inviteToken || undefined);
-      if (onSuccess) onSuccess();
+      const user = await loginWithGoogle(codeResponse.code, inviteToken || undefined);
+      if (onSuccess) onSuccess(user);
     },
     onError: () => {
       console.error("Login Failed");

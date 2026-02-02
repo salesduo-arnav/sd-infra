@@ -8,7 +8,7 @@ import { Invitation } from './invitation';
 // =====================
 
 // User <-> Organization (via OrganizationMember)
-User.hasOne(OrganizationMember, { foreignKey: 'user_id', as: 'membership' });
+User.hasMany(OrganizationMember, { foreignKey: 'user_id', as: 'memberships' });
 OrganizationMember.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
 Organization.hasMany(OrganizationMember, { foreignKey: 'organization_id', as: 'members' });
@@ -34,10 +34,10 @@ Permission.belongsToMany(Role, {
 
 // Invitation Associations
 Organization.hasMany(Invitation, { foreignKey: 'organization_id', as: 'invitations' });
-Invitation.belongsTo(Organization, { foreignKey: 'organization_id' });
+Invitation.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
 
 Role.hasMany(Invitation, { foreignKey: 'role_id' });
-Invitation.belongsTo(Role, { foreignKey: 'role_id' });
+Invitation.belongsTo(Role, { foreignKey: 'role_id', as: 'role' });
 
 User.hasMany(Invitation, { foreignKey: 'invited_by', as: 'sent_invitations' });
 Invitation.belongsTo(User, { foreignKey: 'invited_by', as: 'sender' });

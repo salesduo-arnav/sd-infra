@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ interface Invitation {
 }
 
 export default function Organisation() {
-  const { user } = useAuth();
+  const { user, activeOrganization } = useAuth();
   const [orgName, setOrgName] = useState("");
   const [orgWebsite, setOrgWebsite] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -64,12 +64,16 @@ export default function Organisation() {
   const [loading, setLoading] = useState(true);
 
   // Fetch Data
-  const fetchData = async () => {
+  // Fetch Data
+  const fetchData = useCallback(async () => {
+    if (!activeOrganization) return;
+    setLoading(true);
     try {
+      const headers = { 'x-organization-id': activeOrganization.id };
       const [membersRes, invitesRes, orgRes] = await Promise.all([
-        fetch(`${API_URL}/organizations/members`, { credentials: 'include' }),
-        fetch(`${API_URL}/invitations`, { credentials: 'include' }),
-        fetch(`${API_URL}/organizations/me`, { credentials: 'include' })
+        fetch(`${API_URL}/organizations/members`, { credentials: 'include', headers }),
+        fetch(`${API_URL}/invitations`, { credentials: 'include', headers }),
+        fetch(`${API_URL}/organizations/me`, { credentials: 'include', headers })
       ]);
 
       if (membersRes.ok) setMembers(await membersRes.json());
@@ -90,17 +94,21 @@ export default function Organisation() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeOrganization]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const handleSaveOrgDetails = async () => {
+    if (!activeOrganization) return;
     try {
         const res = await fetch(`${API_URL}/organizations`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'x-organization-id': activeOrganization.id 
+            },
             credentials: 'include',
             body: JSON.stringify({ name: orgName, website: orgWebsite })
         });
@@ -116,10 +124,14 @@ export default function Organisation() {
   };
 
   const handleInviteMember = async () => {
+    if (!activeOrganization) return;
     try {
         const res = await fetch(`${API_URL}/invitations`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'x-organization-id': activeOrganization.id 
+            },
             credentials: 'include',
             body: JSON.stringify({ email: inviteEmail, role_id: parseInt(inviteRole) })
         });
@@ -144,10 +156,12 @@ export default function Organisation() {
   };
 
   const handleRevokeInvitation = async (id: string) => {
+    if (!activeOrganization) return;
     try {
         const res = await fetch(`${API_URL}/invitations/${id}`, {
             method: 'DELETE',
             credentials: 'include',
+            headers: { 'x-organization-id': activeOrganization.id }
         });
         if (res.ok) {
             toast.success("Invitation revoked");
