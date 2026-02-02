@@ -12,7 +12,7 @@ export default function CreateOrganisation() {
   const [website, setWebsite] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const { refreshUser } = useAuth();
+  const { refreshUser, switchOrganization } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,7 +33,11 @@ export default function CreateOrganisation() {
         throw new Error(data.message || "Failed to create organization");
       }
 
+      const data = await res.json();
       await refreshUser();
+      if (data.organization && data.organization.id) {
+          switchOrganization(data.organization.id);
+      }
       navigate("/dashboard");
     } catch (err) {
       if (err instanceof Error) {

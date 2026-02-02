@@ -109,7 +109,7 @@ export const register = async (req: Request, res: Response) => {
         const userWithOrg = await User.findByPk(user.id, {
             include: [{
                 model: OrganizationMember,
-                as: 'membership',
+                as: 'memberships',
                 include: [{
                     model: Organization,
                     as: 'organization'
@@ -134,7 +134,7 @@ export const register = async (req: Request, res: Response) => {
 
 export const login = async (req: Request, res: Response) => {
     try {
-        const { email, password } = req.body;
+        const { email, password, token } = req.body;
 
         const user = await User.findOne({ where: { email } });
         if (!user) {
@@ -153,11 +153,48 @@ export const login = async (req: Request, res: Response) => {
             await user.save();
         }
 
+        // Handle Invitation if token is provided
+        if (token) {
+            const invitation = await Invitation.findOne({
+                where: {
+                    token,
+                    status: InvitationStatus.PENDING
+                }
+            });
+
+            if (invitation) {
+                // Validate invitation match
+                if (invitation.email === email && new Date() <= invitation.expires_at) {
+                    
+                     // Check if already a member (idempotency)
+                    const existingMembership = await OrganizationMember.findOne({
+                        where: {
+                            organization_id: invitation.organization_id,
+                            user_id: user.id
+                        }
+                    });
+
+                    if (!existingMembership) {
+                        // Add user to organization
+                        await OrganizationMember.create({
+                            organization_id: invitation.organization_id,
+                            user_id: user.id,
+                            role_id: invitation.role_id
+                        });
+                    }
+
+                    // Mark invitation as accepted
+                    invitation.status = InvitationStatus.ACCEPTED;
+                    await invitation.save();
+                }
+            }
+        }
+
         // Refetch user with membership to ensure frontend gets correct state
         const userWithOrg = await User.findByPk(user.id, {
             include: [{
                 model: OrganizationMember,
-                as: 'membership',
+                as: 'memberships',
                 include: [{
                     model: Organization,
                     as: 'organization'
@@ -200,7 +237,7 @@ export const getMe = async (req: Request, res: Response) => {
         const userWithOrg = await User.findByPk(req.user.id, {
             include: [{
                 model: OrganizationMember,
-                as: 'membership',
+                as: 'memberships',
                 include: [{
                     model: Organization,
                     as: 'organization'
@@ -385,7 +422,7 @@ export const googleAuth = async (req: Request, res: Response) => {
         const userWithOrg = await User.findByPk(user.id, {
             include: [{
                 model: OrganizationMember,
-                as: 'membership',
+                as: 'memberships',
                 include: [{
                     model: Organization,
                     as: 'organization'

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthLayout } from "@/components/auth/AuthLayout";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, User } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,8 +36,34 @@ export default function SignUp() {
   const [signupState, setSignupState] = useState<SignupState>("form");
   const [showOtpModal, setShowOtpModal] = useState(false);
 
-  const { sendSignupOtp, verifySignupOtp, isLoading } = useAuth();
+  const { sendSignupOtp, verifySignupOtp, isLoading, checkPendingInvites } = useAuth();
   const navigate = useNavigate();
+
+  const handleAuthSuccess = async (user: User | void) => {
+    // Check for pending invites (always check, regardless of how they signed up)
+    try {
+      const pending = await checkPendingInvites();
+      if (pending && pending.length > 0) {
+        navigate("/pending-invites");
+        return;
+      }
+    } catch (e) {
+      console.error("Error checking invites", e);
+    }
+
+
+    if (!user) return;
+
+    // Default flow
+    // Check if user has organizations
+    const hasOrg = (user.memberships && user.memberships.length > 0);
+
+    if (hasOrg) {
+      navigate("/dashboard");
+    } else {
+      navigate("/create-organisation");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,11 +107,7 @@ export default function SignUp() {
       setSignupState("verifying");
       const user = await verifySignupOtp(email, otp);
       setShowOtpModal(false);
-      if (user && user.membership && user.membership.organization) {
-        navigate("/dashboard");
-      } else {
-        navigate("/create-organisation");
-      }
+      await handleAuthSuccess(user);
     } catch (err) {
       setError(err.message || "Invalid OTP");
       setSignupState("otp-sent");
@@ -251,7 +273,7 @@ export default function SignUp() {
         <GoogleButton
           isLoading={isLoading}
           text="Sign up with Google"
-          onSuccess={() => navigate("/dashboard")}
+          onSuccess={handleAuthSuccess}
           inviteToken={inviteToken}
         />
 

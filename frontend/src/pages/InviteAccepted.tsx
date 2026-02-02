@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthLayout } from "@/components/auth/AuthLayout";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2, Building2, ArrowRight, Mail } from "lucide-react";
 import { API_URL } from "@/lib/api";
@@ -46,9 +47,44 @@ export default function InviteAccepted() {
     validateToken();
   }, [token]);
 
-  const handleContinue = () => {
-    if (inviteDetails && token) {
-      navigate(`/signup?email=${encodeURIComponent(inviteDetails.email)}&token=${token}`);
+  const { isAuthenticated, refreshUser } = useAuth();
+
+  const handleContinue = async () => {
+    if (!inviteDetails || !token) return;
+
+    if (isAuthenticated) {
+        // User is already logged in, accept invite directly
+        try {
+            const res = await fetch(`${API_URL}/invitations/accept`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ token })
+            });
+
+            if (!res.ok) {
+                 const data = await res.json();
+                 throw new Error(data.message || "Failed to accept");
+            }
+
+            await refreshUser();
+            navigate("/dashboard");
+        } catch (e) {
+            if (e instanceof Error) {
+                // If already a member, just redirect
+                if (e.message === 'Already a member') {
+                    navigate("/dashboard");
+                    return;
+                }
+                setErrorMsg(e.message);
+            } else {
+                setErrorMsg("Failed to accept invitation");
+            }
+            setStatus("error");
+        }
+    } else {
+        // Not logged in, go to signup
+        navigate(`/signup?email=${encodeURIComponent(inviteDetails.email)}&token=${token}`);
     }
   };
 
@@ -135,13 +171,13 @@ export default function InviteAccepted() {
 
         <div className="w-full space-y-3 pt-2">
           <Button className="w-full h-11 text-base" onClick={handleContinue}>
-            Continue to Sign Up
+            {isAuthenticated ? "Join Organization" : "Continue to Sign Up"}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
 
           <p className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link to="/login" className="text-primary hover:underline font-medium">
+            <Link to={`/login?token=${token}`} className="text-primary hover:underline font-medium">
               Sign in instead
             </Link>
           </p>

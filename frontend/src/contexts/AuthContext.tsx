@@ -1,21 +1,39 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { API_URL } from "@/lib/api";
 
-interface User {
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface Role {
+  id: number;
+  name: string;
+}
+
+export interface OrganizationMember {
+  organization: Organization;
+  role: Role;
+}
+
+export interface User {
   id: string;
   email: string;
   full_name: string;
   is_superuser?: boolean;
-  membership?: {
-    organization: {
-      id: string;
-      name: string;
-      slug: string;
-    };
-    role: {
-      name: string;
-    };
-  };
+  memberships?: OrganizationMember[];
+}
+
+export interface Invitation {
+  id: string;
+  email: string;
+  role: { id: number; name: string };
+  status: string;
+  organization_id: string;
+  invited_by: string;
+  token: string;
+  organization: { name: string };
 }
 
 interface SignupData {
@@ -29,12 +47,17 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  loginWithGoogle: (code: string, token?: string) => Promise<void>;
+  activeOrganization: Organization | null;
+  switchOrganization: (orgId: string) => void;
+  login: (email: string, password: string, token?: string) => Promise<void>;
+  loginWithGoogle: (code: string, token?: string) => Promise<User | void>;
   signup: (name: string, email: string, password: string, token?: string) => Promise<User | void>;
   logout: () => void;
   isLoading: boolean;
   refreshUser: () => Promise<void>;
+  checkPendingInvites: () => Promise<Invitation[]>;
+  acceptInvite: (token: string) => Promise<void>;
+  declineInvite: (token: string) => Promise<void>;
   // OTP methods
   sendLoginOtp: (email: string) => Promise<void>;
   verifyLoginOtp: (email: string, otp: string) => Promise<void>;
@@ -46,7 +69,35 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [activeOrganization, setActiveOrganization] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Load active organization from localStorage on mount
+  useEffect(() => {
+    const savedOrgId = localStorage.getItem("activeOrganizationId");
+    if (user && user.memberships && user.memberships.length > 0) {
+      if (savedOrgId) {
+        const savedOrg = user.memberships.find(m => m.organization.id === savedOrgId)?.organization;
+        if (savedOrg) {
+          setActiveOrganization(savedOrg);
+          return;
+        }
+      }
+      // Default to first organization if no saved one found or saved one is invalid
+      setActiveOrganization(user.memberships[0].organization);
+    } else {
+      setActiveOrganization(null);
+    }
+  }, [user]);
+
+  const switchOrganization = (orgId: string) => {
+    if (!user || !user.memberships) return;
+    const member = user.memberships.find(m => m.organization.id === orgId);
+    if (member) {
+      setActiveOrganization(member.organization);
+      localStorage.setItem("activeOrganizationId", member.organization.id);
+    }
+  };
 
   const refreshUser = async () => {
     try {
@@ -74,14 +125,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = user?.is_superuser || false;
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, token?: string) => {
     setIsLoading(true);
     try {
       const res = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: 'include', // Important!
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, token }),
       });
 
       if (!res.ok) {
@@ -136,8 +187,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const data = await res.json();
       setUser(data.user);
+      return data.user;
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const checkPendingInvites = async () => {
+    try {
+      const res = await fetch(`${API_URL}/invitations/my-pending`, {
+        credentials: 'include'
+      });
+      if (!res.ok) return [];
+      return await res.json();
+    } catch (error) {
+      console.error("Check pending invites failed", error);
+      return [];
+    }
+  };
+
+  const acceptInvite = async (token: string) => {
+    const res = await fetch(`${API_URL}/invitations/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: 'include',
+      body: JSON.stringify({ token }),
+    });
+
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.message || "Failed to accept invite");
+    }
+
+    // Refresh user to get new membership
+    await refreshUser();
+  };
+
+  const declineInvite = async (token: string) => {
+    const res = await fetch(`${API_URL}/invitations/decline`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: 'include',
+      body: JSON.stringify({ token }),
+    });
+
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.message || "Failed to decline invite");
     }
   };
 
@@ -151,6 +247,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error(e);
     }
     setUser(null);
+    setActiveOrganization(null);
+    localStorage.removeItem("activeOrganizationId");
   };
 
   // ===== OTP METHODS =====
@@ -249,12 +347,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isAuthenticated: !!user,
         isAdmin,
+        activeOrganization,
+        switchOrganization,
         login,
         loginWithGoogle,
         signup,
         logout,
         isLoading,
         refreshUser,
+        checkPendingInvites,
+        acceptInvite,
+        declineInvite,
         // OTP methods
         sendLoginOtp,
         verifyLoginOtp,
