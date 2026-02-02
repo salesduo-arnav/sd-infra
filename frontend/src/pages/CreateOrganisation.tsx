@@ -37,8 +37,12 @@ export default function CreateOrganisation() {
       // Refresh user context to include new org info
       await refreshUser();
       navigate("/dashboard");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An error occurred");
+      }
     } finally {
       setLoading(false);
     }

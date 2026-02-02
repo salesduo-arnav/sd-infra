@@ -59,7 +59,7 @@ export const register = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        let invitation: any = null;
+        let invitation: Invitation | null = null;
         if (token) {
             invitation = await Invitation.findOne({
                 where: { 
@@ -320,7 +320,7 @@ export const googleAuth = async (req: Request, res: Response) => {
         const { email, name } = payload;
 
         // 3. Check for valid invitation if token is provided
-        let invitation: any = null;
+        let invitation: Invitation | null = null;
         if (token) {
             invitation = await Invitation.findOne({
                 where: {
@@ -332,11 +332,7 @@ export const googleAuth = async (req: Request, res: Response) => {
             if (invitation) {
                 // Validate invitation
                 if (invitation.email !== email) {
-                     // We continue without processing the invite if email mismatch,
-                     // or we could error out.
-                     // For Google Auth it's safer to error if they explicitly tried to use an invite link
-                     // but logged in with a different email.
-                     return res.status(400).json({ message: 'Google email does not match invitation email' });
+                    return res.status(400).json({ message: 'Google email does not match invitation email' });
                 }
 
                 if (new Date() > invitation.expires_at) {

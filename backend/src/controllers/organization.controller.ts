@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Organization, OrganizationMember } from '../models/organization';
+import { Organization, OrganizationMember, OrgStatus } from '../models/organization';
 import { Role } from '../models/role';
 import { User } from '../models/user'; // Import User if needed for typing or checks
 import sequelize from '../config/db';
@@ -33,7 +33,7 @@ export const createOrganization = async (req: Request, res: Response) => {
             name,
             website,
             slug,
-            status: 'active' as any // Enum casting
+            status: OrgStatus.ACTIVE
         }, { transaction });
 
         // Find or Create Owner Role
@@ -82,7 +82,7 @@ export const getMyOrganization = async (req: Request, res: Response) => {
                     as: 'role'
                 }
             ]
-        }) as any;
+        });
 
         if (!membership) {
             return res.json({ organization: null });
@@ -107,7 +107,7 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
         // Get user's organization
         const membership = await OrganizationMember.findOne({
             where: { user_id: userId }
-        }) as any; // Cast for now
+        });
 
         if (!membership) {
             return res.status(404).json({ message: 'Organization not found' });
@@ -145,7 +145,7 @@ export const updateOrganization = async (req: Request, res: Response) => {
         const membership = await OrganizationMember.findOne({
             where: { user_id: userId },
             include: [{ model: Role, as: 'role' }]
-        }) as any;
+        });
 
         if (!membership) {
             return res.status(404).json({ message: 'Organization not found' });

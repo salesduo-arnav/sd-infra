@@ -18,7 +18,6 @@ describe('Invitation API Integration Tests', () => {
     const invitedUserEmail = 'newhire@example.com';
 
     let authCookie: string[];
-    let createdOrgId: string;
     let memberRoleId: number;
 
     beforeAll(async () => {
@@ -45,12 +44,10 @@ describe('Invitation API Integration Tests', () => {
         authCookie = res.get('Set-Cookie') || [];
 
         // Create Organization
-        const orgRes = await request(app)
+        await request(app)
             .post('/organizations')
             .set('Cookie', authCookie)
             .send({ name: 'Tech Corp', website: 'https://tech.com' });
-        
-        createdOrgId = orgRes.body.organization.id;
 
         // Ensure 'Member' role exists (since controller might not create it automatically if not found during invite, unlike Owner in createOrg)
         // Actually inviteMember uses role_id, so we need to know the IDs.

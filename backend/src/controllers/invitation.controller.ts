@@ -4,8 +4,8 @@ import { OrganizationMember } from '../models/organization';
 import { Role } from '../models/role';
 import User from '../models/user';
 import crypto from 'crypto';
-import { mailService } from '../services/mail.service'; // Assuming this exists from auth controller usage
-import { Organization } from '../models/organization'; // Added for validateInvitation
+import { mailService } from '../services/mail.service';
+import { Organization } from '../models/organization';
 
 export const inviteMember = async (req: Request, res: Response) => {
     try {
@@ -16,9 +16,9 @@ export const inviteMember = async (req: Request, res: Response) => {
         const membership = await OrganizationMember.findOne({
             where: { user_id: userId },
             include: [{ model: Role, as: 'role' }]
-        }) as any;
+        });
 
-        if (!membership || (membership.role.name !== 'Owner' && membership.role.name !== 'Admin')) {
+        if (!membership || (membership.role?.name !== 'Owner' && membership.role?.name !== 'Admin')) {
             return res.status(403).json({ message: 'Insufficient permissions' });
         }
 
@@ -37,7 +37,7 @@ export const inviteMember = async (req: Request, res: Response) => {
         const existingMember = await OrganizationMember.findOne({
             where: { organization_id: orgId },
             include: [{ model: User, as: 'user', where: { email } }]
-        } as any);
+        });
 
         if (existingMember) {
             return res.status(400).json({ message: 'User is already a member' });
@@ -88,7 +88,7 @@ export const getPendingInvitations = async (req: Request, res: Response) => {
         // Check permission (Reader/Viewer might not see invites, but Admin/Owner should)
         const membership = await OrganizationMember.findOne({
             where: { user_id: userId }
-        }) as any;
+        });
 
         if (!membership) return res.status(403).json({ message: 'Not in organization' });
 
@@ -115,9 +115,9 @@ export const revokeInvitation = async (req: Request, res: Response) => {
         const membership = await OrganizationMember.findOne({
             where: { user_id: userId },
             include: [{ model: Role, as: 'role' }]
-        }) as any;
+        });
 
-        if (!membership || (membership.role.name !== 'Owner' && membership.role.name !== 'Admin')) {
+        if (!membership || (membership.role?.name !== 'Owner' && membership.role?.name !== 'Admin')) {
             return res.status(403).json({ message: 'Insufficient permissions' });
         }
 
@@ -151,7 +151,7 @@ export const validateInvitation = async (req: Request, res: Response) => {
                 status: InvitationStatus.PENDING
             },
             include: [{ model: Role }]
-        }) as any;
+        });
 
         if (!invitation) {
             return res.status(404).json({ message: 'Invalid or expired invitation' });

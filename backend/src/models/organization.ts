@@ -109,6 +109,10 @@ export class OrganizationMember extends Model<OrganizationMemberAttributes, Orga
   public role_id!: number;
   public is_active!: boolean;
   public readonly joined_at!: Date;
+  
+  public readonly role?: Role;
+  public readonly user?: User;
+  public readonly organization?: Organization;
 }
 
 OrganizationMember.init(

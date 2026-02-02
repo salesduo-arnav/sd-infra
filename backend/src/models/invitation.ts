@@ -1,5 +1,6 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import sequelize from '../config/db';
+import { Role } from './role';
 
 export enum InvitationStatus {
   PENDING = 'pending',
@@ -34,6 +35,8 @@ export class Invitation extends Model<InvitationAttributes, InvitationCreationAt
   
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
+
+  public readonly role?: Role;
 }
 
 Invitation.init(

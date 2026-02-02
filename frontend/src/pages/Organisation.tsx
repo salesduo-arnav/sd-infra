@@ -134,8 +134,12 @@ export default function Organisation() {
         setInviteRole("2");
         setIsInviteDialogOpen(false);
         fetchData(); // Refresh list
-    } catch (e: any) {
-        toast.error(e.message);
+    } catch (e) {
+        if (e instanceof Error) {
+            toast.error(e.message);
+        } else {
+            toast.error("Failed to invite member");
+        }
     }
   };
 

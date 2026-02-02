@@ -33,9 +33,13 @@ export default function InviteAccepted() {
         const data = await res.json();
         setInviteDetails(data);
         setStatus("success");
-      } catch (err: any) {
+      } catch (err) {
         setStatus("error");
-        setErrorMsg(err.message);
+        if (err instanceof Error) {
+          setErrorMsg(err.message);
+        } else {
+          setErrorMsg("Failed to validate invitation");
+        }
       }
     };
 
