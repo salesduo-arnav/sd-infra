@@ -10,19 +10,19 @@ import { Badge } from "@/components/ui/badge";
 
 export default function Profile() {
   const { user } = useAuth();
-  const [name, setName] = useState(user?.name || "");
+  const [name, setName] = useState(user?.full_name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
+  const initials = user?.full_name
+    ? user.full_name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
     : "U";
 
   const handleProfileUpdate = (e: React.FormEvent) => {

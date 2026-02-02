@@ -52,7 +52,7 @@ export default function Dashboard() {
       <div className="space-y-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            Welcome back, {user?.name || "Seller"}
+            Welcome back, {user?.full_name || "Seller"}
           </h1>
           <p className="mt-2 text-muted-foreground">
             Access your tools and manage your Amazon business

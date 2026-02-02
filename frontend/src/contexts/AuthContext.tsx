@@ -4,7 +4,7 @@ import { API_URL } from "@/lib/api";
 interface User {
   id: string;
   email: string;
-  name: string;
+  full_name: string;
   is_superuser?: boolean;
   membership?: {
     organization: {

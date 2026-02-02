@@ -179,11 +179,11 @@ export function AppSidebar() {
             <button className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-muted transition-colors">
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                  {user?.name ? getInitials(user.name) : "U"}
+                  {user?.full_name ? getInitials(user.full_name) : "U"}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 truncate">
-                <p className="text-sm font-medium truncate">{user?.name || "User"}</p>
+                <p className="text-sm font-medium truncate">{user?.full_name || "User"}</p>
                 <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
               </div>
             </button>
