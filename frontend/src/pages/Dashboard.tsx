@@ -2,7 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { AppCard } from "@/components/dashboard/AppCard";
-import { QuickStats } from "@/components/dashboard/QuickStats";
+// import { QuickStats } from "@/components/dashboard/QuickStats";
 import { FileText, ImageIcon, BarChart, Package } from "lucide-react";
 
 export default function Dashboard() {
@@ -59,7 +59,7 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <QuickStats />
+        {/* <QuickStats /> */}
 
         <div>
           <h2 className="text-xl font-semibold">Your Apps</h2>
