@@ -6,16 +6,17 @@ interface GoogleButtonProps {
   isLoading?: boolean;
   text?: string;
   onSuccess?: () => void;
+  inviteToken?: string | null;
 }
 
-export function GoogleButton({ isLoading, text = "Continue with Google", onSuccess }: GoogleButtonProps) {
+export function GoogleButton({ isLoading, text = "Continue with Google", onSuccess, inviteToken }: GoogleButtonProps) {
   const { loginWithGoogle } = useAuth();
 
   const handleGoogleLogin = useGoogleLogin({
     flow: 'auth-code',
     onSuccess: async (codeResponse) => {
       // Pass the code to your context
-      await loginWithGoogle(codeResponse.code);
+      await loginWithGoogle(codeResponse.code, inviteToken || undefined);
       if (onSuccess) onSuccess();
     },
     onError: () => {

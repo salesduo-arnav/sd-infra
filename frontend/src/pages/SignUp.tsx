@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -15,12 +15,16 @@ import { GoogleButton } from "@/components/auth/GoogleButton";
 //   SelectValue,
 // } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Check, X } from "lucide-react";
+import { Check, X, Lock } from "lucide-react";
 
 export default function SignUp() {
+  const [searchParams] = useSearchParams();
+  const inviteEmail = searchParams.get("email");
+  const inviteToken = searchParams.get("token");
+
   // Personal info
   const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(inviteEmail || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -50,8 +54,12 @@ export default function SignUp() {
     }
 
     try {
-      await signup(fullName, email, password);
-      navigate("/dashboard");
+      const user = await signup(fullName, email, password, inviteToken || undefined);
+      if (user && user.membership && user.membership.organization) {
+        navigate("/dashboard");
+      } else {
+        navigate("/create-organisation");
+      }
     } catch (err) {
       setError("Failed to create account");
     }
@@ -85,14 +93,23 @@ export default function SignUp() {
 
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="name@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+            <div className="relative">
+              <Input
+                id="email"
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                readOnly={!!inviteEmail}
+                className={inviteEmail ? "bg-muted pr-10" : ""}
+                required
+              />
+              {inviteEmail && (
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -250,6 +267,7 @@ export default function SignUp() {
           isLoading={isLoading}
           text="Sign up with Google"
           onSuccess={() => navigate("/dashboard")}
+          inviteToken={inviteToken}
         />
 
         <p className="text-center text-sm text-muted-foreground">

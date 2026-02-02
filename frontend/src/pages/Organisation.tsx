@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Table,
@@ -31,40 +30,136 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Building2, Users, Mail, UserPlus, Trash2, Shield } from "lucide-react";
+import { Building2, Users, Mail, UserPlus, Trash2, Shield, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { API_URL } from "@/lib/api";
+import { toast } from "sonner";
 
-const mockTeamMembers = [
-  { id: "1", name: "John Doe", email: "john@example.com", role: "Owner", status: "Active" },
-  { id: "2", name: "Jane Smith", email: "jane@example.com", role: "Admin", status: "Active" },
-  { id: "3", name: "Mike Johnson", email: "mike@example.com", role: "Member", status: "Pending" },
-];
+interface Member {
+  id: string; // This is OrganizationMember ID, not User ID
+  user_id: string;
+  role: { id: number; name: string };
+  user: { full_name: string; email: string };
+  is_active: boolean;
+}
+
+interface Invitation {
+  id: string;
+  email: string;
+  role: { id: number; name: string };
+  status: string;
+}
 
 export default function Organisation() {
   const { user } = useAuth();
-  const [orgName, setOrgName] = useState("Acme Sellers Inc.");
-  const [orgWebsite, setOrgWebsite] = useState("https://acme-sellers.com");
+  const [orgName, setOrgName] = useState("");
+  const [orgWebsite, setOrgWebsite] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("member");
+  const [inviteRole, setInviteRole] = useState("2"); // Default to Member role ID (assuming 2)
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState("");
 
-  const handleSaveOrgDetails = () => {
-    // TODO: Implement save organization details
-    console.log("Saving org details:", { orgName, orgWebsite });
+  const [members, setMembers] = useState<Member[]>([]);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch Data
+  const fetchData = async () => {
+    try {
+      const [membersRes, invitesRes, orgRes] = await Promise.all([
+        fetch(`${API_URL}/organizations/members`, { credentials: 'include' }),
+        fetch(`${API_URL}/invitations`, { credentials: 'include' }),
+        fetch(`${API_URL}/organizations/me`, { credentials: 'include' })
+      ]);
+
+      if (membersRes.ok) setMembers(await membersRes.json());
+      if (invitesRes.ok) setInvitations(await invitesRes.json());
+      if (orgRes.ok) {
+        const data = await orgRes.json();
+        if (data.organization) {
+            setOrgName(data.organization.name);
+            setOrgWebsite(data.organization.website || "");
+        }
+        if (data.role) {
+            setCurrentUserRole(data.role.name);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch data", error);
+      toast.error("Failed to load organization data");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleInviteMember = () => {
-    // TODO: Implement invite member
-    console.log("Inviting member:", { email: inviteEmail, role: inviteRole });
-    setInviteEmail("");
-    setInviteRole("member");
-    setIsInviteDialogOpen(false);
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleSaveOrgDetails = async () => {
+    try {
+        const res = await fetch(`${API_URL}/organizations`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ name: orgName, website: orgWebsite })
+        });
+        
+        if (res.ok) {
+            toast.success("Organization details updated");
+        } else {
+            throw new Error();
+        }
+    } catch (e) {
+        toast.error("Failed to update details");
+    }
   };
 
-  const handleRemoveMember = (memberId: string) => {
-    // TODO: Implement remove member
-    console.log("Removing member:", memberId);
+  const handleInviteMember = async () => {
+    try {
+        const res = await fetch(`${API_URL}/invitations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ email: inviteEmail, role_id: parseInt(inviteRole) })
+        });
+
+        if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.message || "Failed to invite");
+        }
+
+        toast.success("Invitation sent");
+        setInviteEmail("");
+        setInviteRole("2");
+        setIsInviteDialogOpen(false);
+        fetchData(); // Refresh list
+    } catch (e) {
+        if (e instanceof Error) {
+            toast.error(e.message);
+        } else {
+            toast.error("Failed to invite member");
+        }
+    }
   };
+
+  const handleRevokeInvitation = async (id: string) => {
+    try {
+        const res = await fetch(`${API_URL}/invitations/${id}`, {
+            method: 'DELETE',
+            credentials: 'include',
+        });
+        if (res.ok) {
+            toast.success("Invitation revoked");
+            fetchData();
+        }
+    } catch (e) {
+        toast.error("Failed to revoke invitation");
+    }
+  };
+
+  const canEditOrg = currentUserRole === "Owner";
+  const canInvite = currentUserRole === "Owner" || currentUserRole === "Admin";
 
   return (
     <Layout>
@@ -96,6 +191,7 @@ export default function Organisation() {
                   value={orgName}
                   onChange={(e) => setOrgName(e.target.value)}
                   placeholder="Enter organisation name"
+                  disabled={!canEditOrg}
                 />
               </div>
               <div className="space-y-2">
@@ -105,12 +201,15 @@ export default function Organisation() {
                   value={orgWebsite}
                   onChange={(e) => setOrgWebsite(e.target.value)}
                   placeholder="https://example.com"
+                  disabled={!canEditOrg}
                 />
               </div>
             </div>
+            {canEditOrg && (
             <div className="flex justify-end">
               <Button onClick={handleSaveOrgDetails}>Save Changes</Button>
             </div>
+            )}
           </CardContent>
         </Card>
 
@@ -127,6 +226,7 @@ export default function Organisation() {
                   Manage who has access to your organization
                 </CardDescription>
               </div>
+              {canInvite && (
               <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
@@ -138,7 +238,7 @@ export default function Organisation() {
                   <DialogHeader>
                     <DialogTitle>Invite Team Member</DialogTitle>
                     <DialogDescription>
-                      Send an invitation to join your organization
+                       Send an invitation to join your organization
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
@@ -159,9 +259,9 @@ export default function Organisation() {
                           <SelectValue placeholder="Select a role" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="member">Member</SelectItem>
-                          <SelectItem value="viewer">Viewer</SelectItem>
+                          <SelectItem value="3">Admin</SelectItem> 
+                          <SelectItem value="2">Member</SelectItem>
+                          {/* Note: Role IDs hardcoded for now, ideally fetch Roles API */}
                         </SelectContent>
                       </Select>
                     </div>
@@ -177,6 +277,7 @@ export default function Organisation() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -190,82 +291,96 @@ export default function Organisation() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockTeamMembers.map((member) => (
+                {/* Active Members */}
+                {members.map((member) => (
                   <TableRow key={member.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
                           <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                            {member.name
+                            {member.user.full_name
                               .split(" ")
                               .map((n) => n[0])
                               .join("")}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium">{member.name}</p>
-                          <p className="text-sm text-muted-foreground">{member.email}</p>
+                          <p className="font-medium">{member.user.full_name}</p>
+                          <p className="text-sm text-muted-foreground">{member.user.email}</p>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant={member.role === "Owner" ? "default" : "secondary"}
+                        variant={member.role.name === "Owner" ? "default" : "secondary"}
                         className="gap-1"
                       >
-                        {member.role === "Owner" && <Shield className="h-3 w-3" />}
-                        {member.role}
+                        {member.role.name === "Owner" && <Shield className="h-3 w-3" />}
+                        {member.role.name}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant={member.status === "Active" ? "default" : "outline"}
-                        className={
-                          member.status === "Active"
-                            ? "bg-green-500/10 text-green-600 border-green-500/20"
-                            : ""
-                        }
+                        variant="default"
+                        className="bg-green-500/10 text-green-600 border-green-500/20"
                       >
-                        {member.status}
+                        Active
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      {member.role !== "Owner" && (
+                       {/* Actions like remove member could go here */}
+                    </TableCell>
+                  </TableRow>
+                ))}
+
+                {/* Pending Invitations */}
+                {invitations.map((invite) => (
+                  <TableRow key={invite.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center">
+                            <Clock className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-muted-foreground">Pending Invitation</p>
+                          <p className="text-sm text-muted-foreground">{invite.email}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                     <TableCell>
+                      <Badge variant="outline">
+                        {invite.role?.name || 'Member'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">
+                        {invite.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                       {canInvite && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleRemoveMember(member.id)}
+                          onClick={() => handleRevokeInvitation(invite.id)}
                           className="text-destructive hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      )}
+                       )}
                     </TableCell>
                   </TableRow>
                 ))}
+
+                {members.length === 0 && invitations.length === 0 && !loading && (
+                    <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                            No members found
+                        </TableCell>
+                    </TableRow>
+                )}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
-
-        {/* Danger Zone */}
-        <Card className="border-destructive/50">
-          <CardHeader>
-            <CardTitle className="text-destructive">Danger Zone</CardTitle>
-            <CardDescription>
-              Irreversible and destructive actions
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Delete Organisation</p>
-                <p className="text-sm text-muted-foreground">
-                  Permanently delete your organization and all associated data
-                </p>
-              </div>
-              <Button variant="destructive">Delete Organisation</Button>
-            </div>
           </CardContent>
         </Card>
       </div>

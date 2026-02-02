@@ -2,7 +2,11 @@ import request from 'supertest';
 import sequelize, { closeDB } from '../config/db';
 import redisClient from '../config/redis';
 import User from '../models/user';
+import { Organization, OrganizationMember, OrgStatus } from '../models/organization';
+import { Role } from '../models/role';
+import { Invitation, InvitationStatus } from '../models/invitation';
 import { mailService } from '../services/mail.service';
+import '../models'; // Ensure associations are registered
 
 // Create mock functions that will be shared across tests
 const mockGetToken = jest.fn();
@@ -44,13 +48,108 @@ describe('Authentication API Integration Tests', () => {
 
     beforeEach(async () => {
         // Clear User table and Redis before each test for isolation
-        await User.destroy({ where: {}, truncate: true, cascade: true });
+        await Invitation.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await OrganizationMember.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Organization.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await User.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Role.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await redisClient.flushAll();
     });
 
     afterAll(async () => {
         await redisClient.quit();
         await closeDB();
+    });
+
+    describe('POST /auth/register with Invitation', () => {
+        it('should register user and add to organization if token is valid', async () => {
+            // 1. Setup Org and Invitation
+            const ownerRes = await request(app).post('/auth/register').send({
+                email: 'owner@example.com',
+                password: 'Password123!',
+                full_name: 'Owner User'
+            });
+            const ownerCookie = ownerRes.get('Set-Cookie') || [];
+
+            const orgRes = await request(app)
+                .post('/organizations')
+                .set('Cookie', ownerCookie)
+                .send({ name: 'Invite Corp' });
+            const orgId = orgRes.body.organization.id;
+
+            // Create Member Role
+            const role = await Role.create({ name: 'Member' });
+
+            // Create Invitation directly in DB
+            const token = 'valid-token-123';
+            await Invitation.create({
+                organization_id: orgId,
+                email: 'invitee@example.com',
+                role_id: role.id,
+                token,
+                invited_by: ownerRes.body.user.id,
+                status: InvitationStatus.PENDING,
+                expires_at: new Date(Date.now() + 86400000)
+            });
+
+            // 2. Register with Token
+            const res = await request(app)
+                .post('/auth/register')
+                .send({
+                    email: 'invitee@example.com',
+                    password: 'Password123!',
+                    full_name: 'Invited User',
+                    token
+                });
+
+            expect(res.statusCode).toEqual(201);
+            expect(res.body.user.membership).toBeDefined();
+            expect(res.body.user.membership.organization.id).toEqual(orgId);
+
+            // Verify Invitation Updated
+            const invite = await Invitation.findOne({ where: { token } });
+            expect(invite?.status).toEqual(InvitationStatus.ACCEPTED);
+        });
+
+        it('should fail if email does not match invitation', async () => {
+             // 1. Setup Org and Invitation
+             const ownerRes = await request(app).post('/auth/register').send({
+                email: 'owner2@example.com',
+                password: 'Password123!',
+                full_name: 'Owner User'
+            });
+            const ownerCookie = ownerRes.get('Set-Cookie') || [];
+
+            const orgRes = await request(app)
+                .post('/organizations')
+                .set('Cookie', ownerCookie)
+                .send({ name: 'Invite Corp 2' });
+            const orgId = orgRes.body.organization.id;
+            const role = await Role.create({ name: 'Member2' });
+
+            const token = 'valid-token-456';
+            await Invitation.create({
+                organization_id: orgId,
+                email: 'intended@example.com',
+                role_id: role.id,
+                token,
+                invited_by: ownerRes.body.user.id,
+                status: InvitationStatus.PENDING,
+                expires_at: new Date(Date.now() + 86400000)
+            });
+
+             const res = await request(app)
+                .post('/auth/register')
+                .send({
+                    email: 'hacker@example.com',
+                    password: 'Password123!',
+                    full_name: 'Hacker User',
+                    token
+                });
+
+            expect(res.statusCode).toEqual(400);
+            expect(res.body.message).toEqual('Email does not match invitation');
+        });
     });
 
     describe('POST /auth/register', () => {
@@ -101,6 +200,45 @@ describe('Authentication API Integration Tests', () => {
             expect(res.statusCode).toEqual(401);
             expect(res.body.message).toEqual('Invalid credentials');
         });
+
+        it('should return user with membership details after login', async () => {
+             // 1. Register User
+             const reg = await request(app).post('/auth/register').send({
+                 email: 'owner-login@test.com',
+                 password: 'password123',
+                 full_name: 'Owner Only'
+             });
+             const userId = reg.body.user.id;
+             
+             // 2. Create Org and Membership manually
+             const org = await Organization.create({
+                 name: 'Login Org',
+                 slug: 'login-org',
+                 status: OrgStatus.ACTIVE,
+                 website: 'https://login.com',
+                 stripe_customer_id: 'cus_login_123'
+             });
+             
+             const role = await Role.create({ name: 'Owner', description: 'desc' });
+             
+             await OrganizationMember.create({
+                 user_id: userId,
+                 organization_id: org.id,
+                 role_id: role.id
+             });
+             
+             // 3. Login
+             const res = await request(app).post('/auth/login').send({
+                 email: 'owner-login@test.com',
+                 password: 'password123'
+             });
+             
+             expect(res.status).toBe(200);
+             expect(res.body.user.membership).toBeDefined();
+             expect(res.body.user.membership).not.toBeNull();
+             expect(res.body.user.membership.organization.slug).toBe('login-org');
+             expect(res.body.user.membership.role.name).toBe('Owner');
+        });
     });
 
     describe('GET /auth/me', () => {
@@ -117,9 +255,10 @@ describe('Authentication API Integration Tests', () => {
                 .get('/auth/me')
                 .set('Cookie', cookie || []);
 
+
             expect(res.statusCode).toEqual(200);
             expect(res.body.email).toEqual(testUser.email);
-            expect(res.body.name).toEqual(testUser.full_name);
+            expect(res.body.full_name).toEqual(testUser.full_name);
         });
 
         it('should return 401 if no session cookie is provided', async () => {
@@ -391,7 +530,92 @@ describe('Authentication API Integration Tests', () => {
 
             expect(meRes.statusCode).toEqual(200);
             expect(meRes.body.email).toEqual(mockGoogleUser.email);
-            expect(meRes.body.name).toEqual(mockGoogleUser.name);
+            expect(meRes.body.full_name).toEqual(mockGoogleUser.name);
+        });
+
+        it('should join organization if invite token is provided during Google Auth', async () => {
+             // 1. Setup Org and Invitation
+             const ownerRes = await request(app).post('/auth/register').send({
+                email: 'owner-google-invite@example.com',
+                password: 'Password123!',
+                full_name: 'Owner User'
+            });
+            const ownerCookie = ownerRes.get('Set-Cookie') || [];
+
+            const orgRes = await request(app)
+                .post('/organizations')
+                .set('Cookie', ownerCookie)
+                .send({ name: 'Google Invite Corp' });
+            const orgId = orgRes.body.organization.id;
+            const role = await Role.create({ name: 'GoogleMember' });
+
+            const token = 'google-invite-token-123';
+            await Invitation.create({
+                organization_id: orgId,
+                email: mockGoogleUser.email, // Matches google mock
+                role_id: role.id,
+                token,
+                invited_by: ownerRes.body.user.id,
+                status: InvitationStatus.PENDING,
+                expires_at: new Date(Date.now() + 86400000)
+            });
+
+            setupSuccessfulGoogleAuth();
+
+            const res = await request(app)
+                .post('/auth/google')
+                .send({ 
+                    code: 'valid_auth_code',
+                    token: token
+                });
+
+            expect(res.statusCode).toEqual(200);
+            expect(res.body.user.membership).toBeDefined();
+            expect(res.body.user.membership.organization.id).toEqual(orgId);
+
+            // Verify Invitation Updated
+            const invite = await Invitation.findOne({ where: { token } });
+            expect(invite?.status).toEqual(InvitationStatus.ACCEPTED);
+        });
+
+        it('should return 400 if google email does not match invite email', async () => {
+             // 1. Setup Org and Invitation
+             const ownerRes = await request(app).post('/auth/register').send({
+                email: 'owner-google-fail@example.com',
+                password: 'Password123!',
+                full_name: 'Owner User'
+            });
+            const ownerCookie = ownerRes.get('Set-Cookie') || [];
+
+            const orgRes = await request(app)
+                .post('/organizations')
+                .set('Cookie', ownerCookie)
+                .send({ name: 'Google Fail Corp' });
+            const orgId = orgRes.body.organization.id;
+            const role = await Role.create({ name: 'FailMember' });
+
+            const token = 'google-fail-token-123';
+            await Invitation.create({
+                organization_id: orgId,
+                email: 'other-email@example.com', // Different email
+                role_id: role.id,
+                token,
+                invited_by: ownerRes.body.user.id,
+                status: InvitationStatus.PENDING,
+                expires_at: new Date(Date.now() + 86400000)
+            });
+
+            setupSuccessfulGoogleAuth(); // Returns mockGoogleUser.email
+
+            const res = await request(app)
+                .post('/auth/google')
+                .send({ 
+                    code: 'valid_auth_code',
+                    token: token
+                });
+
+            expect(res.statusCode).toEqual(400);
+            expect(res.body.message).toEqual('Google email does not match invitation email');
         });
 
         it('should properly logout after Google login', async () => {

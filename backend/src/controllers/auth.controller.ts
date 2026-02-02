@@ -5,6 +5,9 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { OAuth2Client } from 'google-auth-library';
 import User from '../models/user';
+import { Organization, OrganizationMember } from '../models/organization';
+import { Role } from '../models/role';
+import { Invitation, InvitationStatus } from '../models/invitation';
 import redisClient from '../config/redis';
 import { isSuperuserEmail } from '../config/superuser';
 import dotenv from 'dotenv';
@@ -49,11 +52,33 @@ const createSession = async (res: Response, user: User) => {
 
 export const register = async (req: Request, res: Response) => {
     try {
-        const { email, password, full_name } = req.body;
+        const { email, password, full_name, token } = req.body;
 
         const existingUser = await User.findOne({ where: { email } });
         if (existingUser) {
             return res.status(400).json({ message: 'User already exists' });
+        }
+
+        let invitation: Invitation | null = null;
+        if (token) {
+            invitation = await Invitation.findOne({
+                where: { 
+                    token, 
+                    status: InvitationStatus.PENDING 
+                }
+            });
+
+            if (!invitation) {
+                return res.status(400).json({ message: 'Invalid or expired invitation token' });
+            }
+
+            if (invitation.email !== email) {
+                return res.status(400).json({ message: 'Email does not match invitation' });
+            }
+            
+             if (new Date() > invitation.expires_at) {
+                return res.status(400).json({ message: 'Invitation expired' });
+            }
         }
 
         const salt = await bcrypt.genSalt(10);
@@ -66,12 +91,39 @@ export const register = async (req: Request, res: Response) => {
             is_superuser: isSuperuserEmail(email)
         });
 
+        if (invitation) {
+            // Add user to organization
+            await OrganizationMember.create({
+                organization_id: invitation.organization_id,
+                user_id: user.id,
+                role_id: invitation.role_id
+            });
+
+            // Mark invitation as accepted
+            invitation.status = InvitationStatus.ACCEPTED;
+            await invitation.save();
+        }
+
+        // Refetch user with membership to ensure frontend gets correct state
+        const userWithOrg = await User.findByPk(user.id, {
+            include: [{
+                model: OrganizationMember,
+                as: 'membership',
+                include: [{
+                    model: Organization,
+                    as: 'organization'
+                }, {
+                    model: Role,
+                    as: 'role'
+                }]
+            }]
+        });
 
         await createSession(res, user);
 
         res.status(201).json({
             message: 'Registered successfully',
-            user: user
+            user: userWithOrg
         });
     } catch (error) {
         console.error(error);
@@ -100,11 +152,26 @@ export const login = async (req: Request, res: Response) => {
             await user.save();
         }
 
+        // Refetch user with membership to ensure frontend gets correct state
+        const userWithOrg = await User.findByPk(user.id, {
+            include: [{
+                model: OrganizationMember,
+                as: 'membership',
+                include: [{
+                    model: Organization,
+                    as: 'organization'
+                }, {
+                    model: Role,
+                    as: 'role'
+                }]
+            }]
+        });
+
         await createSession(res, user);
 
         res.json({
             message: 'Logged in successfully',
-            user: user
+            user: userWithOrg
         });
     } catch (error) {
         console.error(error);
@@ -126,7 +193,28 @@ export const logout = async (req: Request, res: Response) => {
 export const getMe = async (req: Request, res: Response) => {
     // req.user is populated by the middleware
     if (!req.user) return res.status(401).json({ message: 'Not authenticated' });
-    res.json(req.user);
+
+    // Fetch fresh user data with organization info
+    try {
+        const userWithOrg = await User.findByPk(req.user.id, {
+            include: [{
+                model: OrganizationMember,
+                as: 'membership',
+                include: [{
+                    model: Organization,
+                    as: 'organization'
+                }, {
+                    model: Role,
+                    as: 'role'
+                }]
+            }]
+        });
+
+        res.json(userWithOrg);
+    } catch (error) {
+        console.error('GetMe Error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
 };
 
 export const forgotPassword = async (req: Request, res: Response) => {
@@ -207,7 +295,7 @@ export const resetPassword = async (req: Request, res: Response) => {
 
 export const googleAuth = async (req: Request, res: Response) => {
     try {
-        const { code } = req.body;
+        const { code, token } = req.body;
 
         if (!process.env.GOOGLE_CLIENT_SECRET) {
             console.error('Missing GOOGLE_CLIENT_SECRET');
@@ -218,7 +306,7 @@ export const googleAuth = async (req: Request, res: Response) => {
         const { tokens } = await client.getToken(code);
         client.setCredentials(tokens);
 
-        // 2. Verify ID Token and get payload
+        // 2. Verify Id Token and get payload
         const ticket = await client.verifyIdToken({
             idToken: tokens.id_token!,
             audience: process.env.GOOGLE_CLIENT_ID,
@@ -231,10 +319,34 @@ export const googleAuth = async (req: Request, res: Response) => {
 
         const { email, name } = payload;
 
-        // 3. Check if user exists
+        // 3. Check for valid invitation if token is provided
+        let invitation: Invitation | null = null;
+        if (token) {
+            invitation = await Invitation.findOne({
+                where: {
+                    token,
+                    status: InvitationStatus.PENDING
+                }
+            });
+
+            if (invitation) {
+                // Validate invitation
+                if (invitation.email !== email) {
+                    return res.status(400).json({ message: 'Google email does not match invitation email' });
+                }
+
+                if (new Date() > invitation.expires_at) {
+                    return res.status(400).json({ message: 'Invitation expired' });
+                }
+            } else {
+                 return res.status(400).json({ message: 'Invalid or expired invitation token' });
+            }
+        }
+
+        // 4. Check if user exists
         let user = await User.findOne({ where: { email } });
 
-        // 4. If not, create new user
+        // 5. If not, create new user
         if (!user) {
             user = await User.create({
                 email,
@@ -244,12 +356,51 @@ export const googleAuth = async (req: Request, res: Response) => {
             });
         }
 
-        // 5. Create Session
+        // 6. Process Invitation if exists
+        if (invitation) {
+            // Check if already a member (idempotency)
+            const membership = await OrganizationMember.findOne({
+                 where: {
+                     organization_id: invitation.organization_id,
+                     user_id: user.id
+                 }
+            });
+
+            if (!membership) {
+                // Add user to organization
+                await OrganizationMember.create({
+                    organization_id: invitation.organization_id,
+                    user_id: user.id,
+                    role_id: invitation.role_id
+                });
+            }
+
+            // Mark invitation as accepted
+            invitation.status = InvitationStatus.ACCEPTED;
+            await invitation.save();
+        }
+
+        // 7. Refetch user with membership to ensure frontend gets correct state
+        const userWithOrg = await User.findByPk(user.id, {
+            include: [{
+                model: OrganizationMember,
+                as: 'membership',
+                include: [{
+                    model: Organization,
+                    as: 'organization'
+                }, {
+                    model: Role,
+                    as: 'role'
+                }]
+            }]
+        });
+
+        // 8. Create Session
         await createSession(res, user);
 
         res.json({
             message: 'Logged in with Google successfully',
-            user: user
+            user: userWithOrg
         });
 
     } catch (error) {
