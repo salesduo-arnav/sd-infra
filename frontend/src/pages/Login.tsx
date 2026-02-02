@@ -43,7 +43,7 @@ export default function Login() {
     try {
       await sendLoginOtp(email);
       setOtpState("sent");
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || "Failed to send OTP");
     }
   };
@@ -59,7 +59,7 @@ export default function Login() {
       setOtpState("verifying");
       await verifyLoginOtp(email, otp);
       navigate("/dashboard");
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || "Invalid OTP");
       setOtpState("sent");
     }

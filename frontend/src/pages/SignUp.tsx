@@ -63,7 +63,7 @@ export default function SignUp() {
       });
       setSignupState("otp-sent");
       setShowOtpModal(true);
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || "Failed to send verification code");
     }
   };
@@ -86,7 +86,7 @@ export default function SignUp() {
       } else {
         navigate("/create-organisation");
       }
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || "Invalid OTP");
       setSignupState("otp-sent");
     }
@@ -102,7 +102,7 @@ export default function SignUp() {
         password,
         token: inviteToken || undefined,
       });
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || "Failed to resend OTP");
     }
   };
