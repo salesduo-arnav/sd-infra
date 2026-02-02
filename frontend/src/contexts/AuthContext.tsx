@@ -18,6 +18,13 @@ interface User {
   };
 }
 
+interface SignupData {
+  full_name: string;
+  email: string;
+  password: string;
+  token?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -28,6 +35,11 @@ interface AuthContextType {
   logout: () => void;
   isLoading: boolean;
   refreshUser: () => Promise<void>;
+  // OTP methods
+  sendLoginOtp: (email: string) => Promise<void>;
+  verifyLoginOtp: (email: string, otp: string) => Promise<void>;
+  sendSignupOtp: (data: SignupData) => Promise<void>;
+  verifySignupOtp: (email: string, otp: string) => Promise<User | void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -141,6 +153,96 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  // ===== OTP METHODS =====
+
+  const sendLoginOtp = async (email: string) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/send-login-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify({ email }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to send OTP");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifyLoginOtp = async (email: string, otp: string) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/verify-login-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify({ email, otp }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Invalid OTP");
+      }
+
+      const data = await res.json();
+      setUser(data.user);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const sendSignupOtp = async (data: SignupData) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/send-signup-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          full_name: data.full_name,
+          token: data.token,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to send verification OTP");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifySignupOtp = async (email: string, otp: string) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/verify-signup-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify({ email, otp }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to verify OTP");
+      }
+
+      const data = await res.json();
+      setUser(data.user);
+      return data.user;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -153,6 +255,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         isLoading,
         refreshUser,
+        // OTP methods
+        sendLoginOtp,
+        verifyLoginOtp,
+        sendSignupOtp,
+        verifySignupOtp,
       }}
     >
       {children}
