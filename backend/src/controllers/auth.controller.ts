@@ -1,4 +1,5 @@
 import { mailService } from '../services/mail.service';
+import { otpService } from '../services/otp.service';
 import crypto from 'crypto';
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
@@ -62,9 +63,9 @@ export const register = async (req: Request, res: Response) => {
         let invitation: Invitation | null = null;
         if (token) {
             invitation = await Invitation.findOne({
-                where: { 
-                    token, 
-                    status: InvitationStatus.PENDING 
+                where: {
+                    token,
+                    status: InvitationStatus.PENDING
                 }
             });
 
@@ -75,8 +76,8 @@ export const register = async (req: Request, res: Response) => {
             if (invitation.email !== email) {
                 return res.status(400).json({ message: 'Email does not match invitation' });
             }
-            
-             if (new Date() > invitation.expires_at) {
+
+            if (new Date() > invitation.expires_at) {
                 return res.status(400).json({ message: 'Invitation expired' });
             }
         }
@@ -164,8 +165,8 @@ export const login = async (req: Request, res: Response) => {
             if (invitation) {
                 // Validate invitation match
                 if (invitation.email === email && new Date() <= invitation.expires_at) {
-                    
-                     // Check if already a member (idempotency)
+
+                    // Check if already a member (idempotency)
                     const existingMembership = await OrganizationMember.findOne({
                         where: {
                             organization_id: invitation.organization_id,
@@ -376,7 +377,7 @@ export const googleAuth = async (req: Request, res: Response) => {
                     return res.status(400).json({ message: 'Invitation expired' });
                 }
             } else {
-                 return res.status(400).json({ message: 'Invalid or expired invitation token' });
+                return res.status(400).json({ message: 'Invalid or expired invitation token' });
             }
         }
 
@@ -397,10 +398,10 @@ export const googleAuth = async (req: Request, res: Response) => {
         if (invitation) {
             // Check if already a member (idempotency)
             const membership = await OrganizationMember.findOne({
-                 where: {
-                     organization_id: invitation.organization_id,
-                     user_id: user.id
-                 }
+                where: {
+                    organization_id: invitation.organization_id,
+                    user_id: user.id
+                }
             });
 
             if (!membership) {
@@ -443,5 +444,284 @@ export const googleAuth = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Google Auth Error:', error);
         res.status(500).json({ message: 'Google authentication failed' });
+    }
+};
+
+// ===== OTP AUTHENTICATION ENDPOINTS =====
+
+/**
+ * Send OTP for login
+ * POST /auth/send-login-otp
+ */
+export const sendLoginOtp = async (req: Request, res: Response) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ message: 'Email is required' });
+        }
+
+        // Check if user exists
+        const user = await User.findOne({ where: { email } });
+        if (!user) {
+            // Return success anyway to prevent email enumeration
+            return res.json({ message: 'If an account exists, an OTP has been sent.' });
+        }
+
+        // Generate and store OTP
+        const otp = await otpService.createLoginOtp(email);
+
+        // Send OTP via email
+        await mailService.sendMail({
+            to: email,
+            subject: 'Your Login OTP',
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #ff9900;">Login Verification</h2>
+                    <p>Your one-time password (OTP) for login is:</p>
+                    <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
+                        <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">${otp}</span>
+                    </div>
+                    <p>This OTP is valid for <strong>5 minutes</strong>.</p>
+                    <p>If you didn't request this OTP, please ignore this email.</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                    <p style="color: #666; font-size: 12px;">This is an automated message from SalesDuo.</p>
+                </div>
+            `,
+        });
+
+        res.json({ message: 'If an account exists, an OTP has been sent.' });
+    } catch (error) {
+        console.error('Send Login OTP Error:', error);
+        res.status(500).json({ message: 'Failed to send OTP' });
+    }
+};
+
+/**
+ * Verify OTP and login
+ * POST /auth/verify-login-otp
+ */
+export const verifyLoginOtp = async (req: Request, res: Response) => {
+    try {
+        const { email, otp } = req.body;
+
+        if (!email || !otp) {
+            return res.status(400).json({ message: 'Email and OTP are required' });
+        }
+
+        // Verify OTP
+        const result = await otpService.verifyLoginOtp(email, otp);
+        if (!result.valid) {
+            return res.status(400).json({ message: result.message });
+        }
+
+        // Find user
+        const user = await User.findOne({ where: { email } });
+        if (!user) {
+            return res.status(401).json({ message: 'User not found' });
+        }
+
+        // Sync superuser status if it changed in config
+        const shouldBeSuperuser = isSuperuserEmail(email);
+        if (user.is_superuser !== shouldBeSuperuser) {
+            user.is_superuser = shouldBeSuperuser;
+            await user.save();
+        }
+
+        // Fetch user with organization
+        const userWithOrg = await User.findByPk(user.id, {
+            include: [{
+                model: OrganizationMember,
+                as: 'memberships',
+                include: [{
+                    model: Organization,
+                    as: 'organization'
+                }, {
+                    model: Role,
+                    as: 'role'
+                }]
+            }]
+        });
+
+        // Create session
+        await createSession(res, user);
+
+        res.json({
+            message: 'Logged in successfully',
+            user: userWithOrg
+        });
+    } catch (error) {
+        console.error('Verify Login OTP Error:', error);
+        res.status(500).json({ message: 'Failed to verify OTP' });
+    }
+};
+
+/**
+ * Send OTP for signup verification
+ * POST /auth/send-signup-otp
+ */
+export const sendSignupOtp = async (req: Request, res: Response) => {
+    try {
+        const { email, password, full_name, token } = req.body;
+
+        if (!email || !password || !full_name) {
+            return res.status(400).json({ message: 'Email, password, and full name are required' });
+        }
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ where: { email } });
+        if (existingUser) {
+            return res.status(400).json({ message: 'An account with this email already exists' });
+        }
+
+        // Validate invitation if token provided
+        if (token) {
+            const invitation = await Invitation.findOne({
+                where: {
+                    token,
+                    status: InvitationStatus.PENDING
+                }
+            });
+
+            if (!invitation) {
+                return res.status(400).json({ message: 'Invalid or expired invitation token' });
+            }
+
+            if (invitation.email !== email) {
+                return res.status(400).json({ message: 'Email does not match invitation' });
+            }
+
+
+            if (new Date() > invitation.expires_at) {
+                return res.status(400).json({ message: 'Invitation expired' });
+            }
+        }
+
+        // Generate and store OTP with user data
+        const otp = await otpService.createSignupOtp(email, password, full_name, token);
+
+        // Send OTP via email
+        await mailService.sendMail({
+            to: email,
+            subject: 'Verify Your Email - SalesDuo',
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #ff9900;">Welcome to SalesDuo!</h2>
+                    <p>To complete your registration, please verify your email with this one-time password:</p>
+                    <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
+                        <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">${otp}</span>
+                    </div>
+                    <p>This OTP is valid for <strong>5 minutes</strong>.</p>
+                    <p>If you didn't create an account, please ignore this email.</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                    <p style="color: #666; font-size: 12px;">This is an automated message from SalesDuo.</p>
+                </div>
+            `,
+        });
+
+        res.json({ message: 'Verification OTP sent to your email' });
+    } catch (error) {
+        console.error('Send Signup OTP Error:', error);
+        res.status(500).json({ message: 'Failed to send verification OTP' });
+    }
+};
+
+/**
+ * Verify OTP and complete registration
+ * POST /auth/verify-signup-otp
+ */
+export const verifySignupOtp = async (req: Request, res: Response) => {
+    try {
+        const { email, otp } = req.body;
+
+        if (!email || !otp) {
+            return res.status(400).json({ message: 'Email and OTP are required' });
+        }
+
+        // Verify OTP and get stored user data
+        const result = await otpService.verifySignupOtp(email, otp);
+        if (!result.valid || !result.userData) {
+            return res.status(400).json({ message: result.message });
+        }
+
+        const { password, full_name, token } = result.userData;
+
+        // Double-check user doesn't exist (race condition protection)
+        const existingUser = await User.findOne({ where: { email } });
+        if (existingUser) {
+            return res.status(400).json({ message: 'An account with this email already exists' });
+        }
+
+        // Check for invitation
+        let invitation: Invitation | null = null;
+        if (token) {
+            invitation = await Invitation.findOne({
+                where: {
+                    token,
+                    status: InvitationStatus.PENDING
+                }
+            });
+
+            if (!invitation) {
+                return res.status(400).json({ message: 'Invalid or expired invitation token' });
+            }
+
+            if (invitation.email !== email) {
+                return res.status(400).json({ message: 'Email does not match invitation' });
+            }
+
+            if (new Date() > invitation.expires_at) {
+                return res.status(400).json({ message: 'Invitation expired' });
+            }
+        }
+
+        // Hash password and create user
+        const salt = await bcrypt.genSalt(10);
+        const password_hash = await bcrypt.hash(password, salt);
+
+        const user = await User.create({
+            email,
+            password_hash,
+            full_name,
+            is_superuser: isSuperuserEmail(email)
+        });
+
+        // Process invitation if exists
+        if (invitation) {
+            await OrganizationMember.create({
+                organization_id: invitation.organization_id,
+                user_id: user.id,
+                role_id: invitation.role_id
+            });
+
+            invitation.status = InvitationStatus.ACCEPTED;
+            await invitation.save();
+        }
+
+        // Fetch user with membership
+        const userWithOrg = await User.findByPk(user.id, {
+            include: [{
+                model: OrganizationMember,
+                as: 'memberships',
+                include: [{
+                    model: Organization,
+                    as: 'organization'
+                }, {
+                    model: Role,
+                    as: 'role'
+                }]
+            }]
+        });
+
+        // Create session
+        await createSession(res, user);
+
+        res.status(201).json({
+            message: 'Account created successfully',
+            user: userWithOrg
+        });
+    } catch (error) {
+        console.error('Verify Signup OTP Error:', error);
+        res.status(500).json({ message: 'Failed to complete registration' });
     }
 };

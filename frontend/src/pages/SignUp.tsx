@@ -7,15 +7,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GoogleButton } from "@/components/auth/GoogleButton";
-// import {
-//   Select,
-//   SelectContent,
-//   SelectItem,
-//   SelectTrigger,
-//   SelectValue,
-// } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Check, X, Lock } from "lucide-react";
+import { OtpInput } from "@/components/auth/OtpInput";
+import { Check, X, Lock, Mail, ArrowLeft, Loader2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+type SignupState = "form" | "otp-sent" | "verifying";
 
 export default function SignUp() {
   const [searchParams] = useSearchParams();
@@ -28,15 +30,13 @@ export default function SignUp() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Organisation info
-  // const [orgName, setOrgName] = useState("");
-  // const [orgSize, setOrgSize] = useState("");
-  // const [orgRole, setOrgRole] = useState("");
-  // const [amazonSellerId, setAmazonSellerId] = useState("");
-
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [error, setError] = useState("");
-  const { signup, loginWithGoogle, isLoading, checkPendingInvites } = useAuth();
+  const [otp, setOtp] = useState("");
+  const [signupState, setSignupState] = useState<SignupState>("form");
+  const [showOtpModal, setShowOtpModal] = useState(false);
+
+  const { sendSignupOtp, verifySignupOtp, isLoading, checkPendingInvites } = useAuth();
   const navigate = useNavigate();
 
   const handleAuthSuccess = async (user: User | void) => {
@@ -57,7 +57,7 @@ export default function SignUp() {
     // Default flow
     // Check if user has organizations
     const hasOrg = (user.memberships && user.memberships.length > 0);
-    
+
     if (hasOrg) {
       navigate("/dashboard");
     } else {
@@ -80,11 +80,60 @@ export default function SignUp() {
     }
 
     try {
-      const user = await signup(fullName, email, password, inviteToken || undefined);
+      // Send OTP to verify email
+      await sendSignupOtp({
+        full_name: fullName,
+        email,
+        password,
+        token: inviteToken || undefined,
+      });
+      setSignupState("otp-sent");
+      setShowOtpModal(true);
+    } catch (err) {
+      setError(err.message || "Failed to send verification code");
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (otp.length !== 6) {
+      setError("Please enter the complete 6-digit OTP");
+      return;
+    }
+
+    try {
+      setSignupState("verifying");
+      const user = await verifySignupOtp(email, otp);
+      setShowOtpModal(false);
       await handleAuthSuccess(user);
     } catch (err) {
-      setError("Failed to create account");
+      setError(err.message || "Invalid OTP");
+      setSignupState("otp-sent");
     }
+  };
+
+  const handleResendOtp = async () => {
+    setError("");
+    setOtp("");
+    try {
+      await sendSignupOtp({
+        full_name: fullName,
+        email,
+        password,
+        token: inviteToken || undefined,
+      });
+    } catch (err) {
+      setError(err.message || "Failed to resend OTP");
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowOtpModal(false);
+    setSignupState("form");
+    setOtp("");
+    setError("");
   };
 
   return (
@@ -95,10 +144,6 @@ export default function SignUp() {
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Personal Information Section */}
         <div className="space-y-4">
-          {/* UNCOMMENT THIS WHEN ADDING ORGANIZATION INPUTS */}
-          {/* <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-            Personal Information
-          </h3> */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="fullName">Full Name</Label>
@@ -178,75 +223,6 @@ export default function SignUp() {
           </div>
         </div>
 
-        {/* <Separator /> */}
-
-        {/* Organisation Information Section */}
-        {/* <div className="space-y-4">
-          <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-            Organisation Information
-          </h3>
-          <div className="space-y-2">
-            <Label htmlFor="orgName">Organisation Name</Label>
-            <Input
-              id="orgName"
-              type="text"
-              placeholder="Acme Sellers Inc."
-              value={orgName}
-              onChange={(e) => setOrgName(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="orgSize">Organisation Size</Label>
-              <Select value={orgSize} onValueChange={setOrgSize}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select size" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">Just me</SelectItem>
-                  <SelectItem value="2-5">2-5 employees</SelectItem>
-                  <SelectItem value="6-20">6-20 employees</SelectItem>
-                  <SelectItem value="21-50">21-50 employees</SelectItem>
-                  <SelectItem value="50+">50+ employees</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="orgRole">Your Role</Label>
-              <Select value={orgRole} onValueChange={setOrgRole}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="owner">Business Owner</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="marketing">Marketing</SelectItem>
-                  <SelectItem value="operations">Operations</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="amazonSellerId">Amazon Seller ID (Optional)</Label>
-            <Input
-              id="amazonSellerId"
-              type="text"
-              placeholder="e.g., A1B2C3D4E5F6G7"
-              value={amazonSellerId}
-              onChange={(e) => setAmazonSellerId(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              You can add this later in your organisation settings
-            </p>
-          </div>
-        </div> */}
-
-        {/* <Separator /> */}
-
         <div className="flex items-center space-x-2">
           <Checkbox
             id="terms"
@@ -268,10 +244,19 @@ export default function SignUp() {
           </label>
         </div>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && !showOtpModal && (
+          <p className="text-sm text-destructive">{error}</p>
+        )}
 
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? "Creating account..." : "Create account"}
+          {isLoading && signupState === "form" ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Sending verification...
+            </>
+          ) : (
+            "Create account"
+          )}
         </Button>
 
         <div className="relative my-6">
@@ -299,6 +284,77 @@ export default function SignUp() {
           </Link>
         </p>
       </form>
+
+      {/* OTP Verification Modal */}
+      <Dialog open={showOtpModal} onOpenChange={handleCloseModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex justify-center mb-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10">
+                <Mail className="h-8 w-8 text-primary" />
+              </div>
+            </div>
+            <DialogTitle className="text-center">Verify your email</DialogTitle>
+            <DialogDescription className="text-center">
+              We've sent a 6-digit verification code to{" "}
+              <span className="font-medium text-foreground">{email}</span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleVerifyOtp} className="space-y-6 py-4">
+            <div className="space-y-2">
+              <Label className="text-center block">Enter verification code</Label>
+              <OtpInput
+                value={otp}
+                onChange={setOtp}
+                disabled={signupState === "verifying"}
+              />
+            </div>
+
+            {error && (
+              <p className="text-sm text-destructive text-center">{error}</p>
+            )}
+
+            <div className="space-y-3">
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading || otp.length !== 6}
+              >
+                {signupState === "verifying" ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating account...
+                  </>
+                ) : (
+                  "Verify & Create Account"
+                )}
+              </Button>
+
+              <p className="text-center text-sm text-muted-foreground">
+                Didn't receive the code?{" "}
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={isLoading}
+                  className="text-primary hover:underline disabled:opacity-50"
+                >
+                  Resend code
+                </button>
+              </p>
+
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="w-full flex items-center justify-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                Back to sign up
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </AuthLayout>
   );
 }

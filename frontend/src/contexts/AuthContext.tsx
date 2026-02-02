@@ -36,6 +36,13 @@ export interface Invitation {
   organization: { name: string };
 }
 
+interface SignupData {
+  full_name: string;
+  email: string;
+  password: string;
+  token?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -51,6 +58,11 @@ interface AuthContextType {
   checkPendingInvites: () => Promise<Invitation[]>;
   acceptInvite: (token: string) => Promise<void>;
   declineInvite: (token: string) => Promise<void>;
+  // OTP methods
+  sendLoginOtp: (email: string) => Promise<void>;
+  verifyLoginOtp: (email: string, otp: string) => Promise<void>;
+  sendSignupOtp: (data: SignupData) => Promise<void>;
+  verifySignupOtp: (email: string, otp: string) => Promise<User | void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -64,27 +76,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const savedOrgId = localStorage.getItem("activeOrganizationId");
     if (user && user.memberships && user.memberships.length > 0) {
-        if (savedOrgId) {
-            const savedOrg = user.memberships.find(m => m.organization.id === savedOrgId)?.organization;
-            if (savedOrg) {
-                setActiveOrganization(savedOrg);
-                return;
-            }
+      if (savedOrgId) {
+        const savedOrg = user.memberships.find(m => m.organization.id === savedOrgId)?.organization;
+        if (savedOrg) {
+          setActiveOrganization(savedOrg);
+          return;
         }
-        // Default to first organization if no saved one found or saved one is invalid
-        setActiveOrganization(user.memberships[0].organization);
+      }
+      // Default to first organization if no saved one found or saved one is invalid
+      setActiveOrganization(user.memberships[0].organization);
     } else {
-        setActiveOrganization(null);
+      setActiveOrganization(null);
     }
   }, [user]);
 
   const switchOrganization = (orgId: string) => {
-      if (!user || !user.memberships) return;
-      const member = user.memberships.find(m => m.organization.id === orgId);
-      if (member) {
-          setActiveOrganization(member.organization);
-          localStorage.setItem("activeOrganizationId", member.organization.id);
-      }
+    if (!user || !user.memberships) return;
+    const member = user.memberships.find(m => m.organization.id === orgId);
+    if (member) {
+      setActiveOrganization(member.organization);
+      localStorage.setItem("activeOrganizationId", member.organization.id);
+    }
   };
 
   const refreshUser = async () => {
@@ -184,45 +196,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkPendingInvites = async () => {
     try {
       const res = await fetch(`${API_URL}/invitations/my-pending`, {
-          credentials: 'include'
+        credentials: 'include'
       });
       if (!res.ok) return [];
       return await res.json();
     } catch (error) {
-       console.error("Check pending invites failed", error);
-       return [];
+      console.error("Check pending invites failed", error);
+      return [];
     }
   };
 
   const acceptInvite = async (token: string) => {
-      const res = await fetch(`${API_URL}/invitations/accept`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: 'include',
-          body: JSON.stringify({ token }),
-      });
+    const res = await fetch(`${API_URL}/invitations/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: 'include',
+      body: JSON.stringify({ token }),
+    });
 
-      if (!res.ok) {
-          const error = await res.json();
-          throw new Error(error.message || "Failed to accept invite");
-      }
-      
-      // Refresh user to get new membership
-      await refreshUser();
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.message || "Failed to accept invite");
+    }
+
+    // Refresh user to get new membership
+    await refreshUser();
   };
 
   const declineInvite = async (token: string) => {
-      const res = await fetch(`${API_URL}/invitations/decline`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: 'include',
-          body: JSON.stringify({ token }),
-      });
+    const res = await fetch(`${API_URL}/invitations/decline`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: 'include',
+      body: JSON.stringify({ token }),
+    });
 
-      if (!res.ok) {
-          const error = await res.json();
-          throw new Error(error.message || "Failed to decline invite");
-      }
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.message || "Failed to decline invite");
+    }
   };
 
   const logout = async () => {
@@ -237,6 +249,96 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setActiveOrganization(null);
     localStorage.removeItem("activeOrganizationId");
+  };
+
+  // ===== OTP METHODS =====
+
+  const sendLoginOtp = async (email: string) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/send-login-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify({ email }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to send OTP");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifyLoginOtp = async (email: string, otp: string) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/verify-login-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify({ email, otp }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Invalid OTP");
+      }
+
+      const data = await res.json();
+      setUser(data.user);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const sendSignupOtp = async (data: SignupData) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/send-signup-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          full_name: data.full_name,
+          token: data.token,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to send verification OTP");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifySignupOtp = async (email: string, otp: string) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/verify-signup-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify({ email, otp }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to verify OTP");
+      }
+
+      const data = await res.json();
+      setUser(data.user);
+      return data.user;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -256,6 +358,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         checkPendingInvites,
         acceptInvite,
         declineInvite,
+        // OTP methods
+        sendLoginOtp,
+        verifyLoginOtp,
+        sendSignupOtp,
+        verifySignupOtp,
       }}
     >
       {children}

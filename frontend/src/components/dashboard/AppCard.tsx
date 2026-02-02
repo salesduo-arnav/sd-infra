@@ -29,7 +29,7 @@ export function AppCard({
   const { label, variant } = statusConfig[status];
 
   return (
-    <Card className={`relative transition-shadow hover:shadow-md ${!isAccessible ? "opacity-75" : ""}`}>
+    <Card className={`relative transition-shadow hover:shadow-lg ${!isAccessible ? "opacity-75" : ""}`}>
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
