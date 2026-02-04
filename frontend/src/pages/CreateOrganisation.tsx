@@ -36,9 +36,9 @@ export default function CreateOrganisation() {
       const data = await res.json();
       await refreshUser();
       if (data.organization && data.organization.id) {
-          switchOrganization(data.organization.id);
+        switchOrganization(data.organization.id);
       }
-      navigate("/dashboard");
+      navigate("/apps");
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);

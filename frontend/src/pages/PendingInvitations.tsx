@@ -24,7 +24,7 @@ export default function PendingInvitations() {
                 const data = await checkPendingInvites();
                 setInvites(data);
                 if (data.length === 0) {
-                    navigate('/dashboard');
+                    navigate('/apps');
                 }
             } catch (err) {
                 console.error(err);
@@ -67,12 +67,12 @@ export default function PendingInvitations() {
             if (invitesToDecline.length > 0) {
                 await Promise.all(invitesToDecline.map(invite => declineInvite(invite.token)));
             }
-            
-            navigate('/dashboard');
+
+            navigate('/apps');
         } catch (error) {
-             console.error(error);
-             setError("Failed to process some invitations. Please try again.");
-             setProcessing(false);
+            console.error(error);
+            setError("Failed to process some invitations. Please try again.");
+            setProcessing(false);
         }
     };
 
@@ -92,7 +92,7 @@ export default function PendingInvitations() {
         <AuthLayout title="Pending Invitations" subtitle="You have been invited to join these organizations.">
             <div className="space-y-4">
                 {error && <p className="text-sm text-red-500">{error}</p>}
-                
+
                 {invites.map(invite => {
                     const isAccepted = acceptedIds.includes(invite.id);
                     const isDeclined = declinedIds.includes(invite.id);
@@ -111,8 +111,8 @@ export default function PendingInvitations() {
                             </CardHeader>
                             <CardFooter>
                                 {isAccepted ? (
-                                    <Button 
-                                        onClick={() => handleAction(invite.id, 'undo')} 
+                                    <Button
+                                        onClick={() => handleAction(invite.id, 'undo')}
                                         variant="outline"
                                         className="w-full text-muted-foreground border-dashed"
                                     >
@@ -120,8 +120,8 @@ export default function PendingInvitations() {
                                         Undo Accept
                                     </Button>
                                 ) : isDeclined ? (
-                                    <Button 
-                                        onClick={() => handleAction(invite.id, 'undo')} 
+                                    <Button
+                                        onClick={() => handleAction(invite.id, 'undo')}
                                         variant="outline"
                                         className="w-full text-muted-foreground border-dashed"
                                     >
@@ -130,14 +130,14 @@ export default function PendingInvitations() {
                                     </Button>
                                 ) : (
                                     <div className="grid grid-cols-2 gap-3 w-full">
-                                        <Button 
-                                            onClick={() => handleAction(invite.id, 'accept')} 
+                                        <Button
+                                            onClick={() => handleAction(invite.id, 'accept')}
                                             className="bg-none bg-green-500/70 hover:bg-green-500/90 text-white"
                                         >
                                             Accept
                                         </Button>
-                                        <Button 
-                                            onClick={() => handleAction(invite.id, 'decline')} 
+                                        <Button
+                                            onClick={() => handleAction(invite.id, 'decline')}
                                             className="bg-none bg-red-500/70 hover:bg-red-500/90 text-white"
                                         >
                                             Decline
@@ -148,15 +148,15 @@ export default function PendingInvitations() {
                         </Card>
                     );
                 })}
-                
+
                 <div className="pt-4 space-y-3">
-                     <Button 
-                        onClick={handleContinue} 
-                        className="w-full" 
+                    <Button
+                        onClick={handleContinue}
+                        className="w-full"
                         disabled={processing}
-                     >
-                         {processing ? "Processing..." : "Continue"}
-                     </Button>
+                    >
+                        {processing ? "Processing..." : "Continue"}
+                    </Button>
                 </div>
             </div>
         </AuthLayout>

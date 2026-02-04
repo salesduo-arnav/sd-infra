@@ -22,11 +22,11 @@ export default function ListingGenerator() {
 
   const handleGenerate = async () => {
     if (!productName) return;
-    
+
     setIsGenerating(true);
     // Simulate AI generation
     await new Promise((resolve) => setTimeout(resolve, 1500));
-    
+
     setGeneratedContent({
       title: `${productName} - Premium Quality | Best Seller | Fast Shipping`,
       bullets: [
@@ -53,10 +53,10 @@ export default function ListingGenerator() {
         <Button
           variant="ghost"
           className="mb-6"
-          onClick={() => navigate("/dashboard")}
+          onClick={() => navigate("/apps")}
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Dashboard
+          Back to Apps
         </Button>
 
         <div className="mb-8">

@@ -4,7 +4,7 @@ import { Layout } from "@/components/layout/Layout";
 import { AppCard } from "@/components/dashboard/AppCard";
 import { FileText, ImageIcon, BarChart, Package } from "lucide-react";
 
-export default function Dashboard() {
+export default function Apps() {
   const { user } = useAuth();
   const navigate = useNavigate();
 

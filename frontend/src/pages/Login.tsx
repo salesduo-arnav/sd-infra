@@ -35,7 +35,7 @@ export default function Login() {
     } catch (e) {
       console.error(e);
     }
-    navigate("/dashboard");
+    navigate("/apps");
   };
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
@@ -74,7 +74,7 @@ export default function Login() {
     try {
       setOtpState("verifying");
       await verifyLoginOtp(email, otp);
-      navigate("/dashboard");
+      navigate("/apps");
     } catch (err) {
       setError(err.message || "Invalid OTP");
       setOtpState("sent");

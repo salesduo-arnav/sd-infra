@@ -8,7 +8,7 @@ import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
-import Dashboard from "./pages/Dashboard";
+import Apps from "./pages/Apps";
 import Plans from "./pages/Plans";
 import Billing from "./pages/Billing";
 import Profile from "./pages/Profile";
@@ -53,7 +53,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
   if (!isAdmin) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/apps" replace />;
   }
   return <>{children}</>;
 }
@@ -61,7 +61,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/apps" replace />;
   }
   return <>{children}</>;
 }
@@ -105,10 +105,10 @@ function AppRoutes() {
 
       {/* Protected routes */}
       <Route
-        path="/dashboard"
+        path="/apps"
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <Apps />
           </ProtectedRoute>
         }
       />
@@ -234,7 +234,7 @@ function AppRoutes() {
       />
 
       {/* Redirect root to dashboard or login */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<Navigate to="/apps" replace />} />
 
       {/* 404 */}
       <Route path="*" element={<NotFound />} />

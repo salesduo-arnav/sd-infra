@@ -33,7 +33,7 @@ export function Layout({ children }: LayoutProps) {
                 <BreadcrumbList>
                   <BreadcrumbItem className="hidden md:block">
                     <BreadcrumbLink asChild>
-                      <Link to="/dashboard">Home</Link>
+                      <Link to="/apps">Home</Link>
                     </BreadcrumbLink>
                   </BreadcrumbItem>
                   {pathSegments.map((segment, index) => {

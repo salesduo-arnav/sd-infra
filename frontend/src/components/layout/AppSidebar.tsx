@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const mainNavItems = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Apps", url: "/apps", icon: LayoutDashboard },
   { title: "Organisation", url: "/organisation", icon: Building2 },
   { title: "Integrations", url: "/integrations", icon: Plug },
   { title: "Plans", url: "/plans", icon: CreditCard },
