@@ -6,6 +6,7 @@ import User from '../models/user';
 import crypto from 'crypto';
 import { mailService } from '../services/mail.service';
 import { Organization } from '../models/organization';
+import sequelize from '../config/db';
 
 export const inviteMember = async (req: Request, res: Response) => {
     try {
@@ -228,15 +229,11 @@ export const acceptInvitation = async (req: Request, res: Response) => {
         }
 
         // Add user to organization
-        await OrganizationMember.create({
-            user_id: userId,
-            organization_id: invitation.organization_id,
-            role_id: invitation.role_id
+        await sequelize.transaction(async (t) => {
+            await OrganizationMember.create({ user_id: userId, organization_id: invitation.organization_id, role_id: invitation.role_id }, { transaction: t });
+            invitation.status = InvitationStatus.ACCEPTED;
+            await invitation.save({ transaction: t });
         });
-
-        // Mark invite as accepted
-        invitation.status = InvitationStatus.ACCEPTED;
-        await invitation.save();
 
         res.json({ message: 'Invitation accepted' });
 
