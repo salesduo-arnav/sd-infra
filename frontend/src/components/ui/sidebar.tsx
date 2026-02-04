@@ -412,13 +412,13 @@ const SidebarMenuItem = React.forwardRef<HTMLLIElement, React.ComponentProps<"li
 SidebarMenuItem.displayName = "SidebarMenuItem";
 
 const sidebarMenuButtonVariants = cva(
-  "flex w-full items-center gap-2 rounded-md px-2 transition-colors data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
+  "flex w-full items-center gap-2 rounded-md px-2 transition-all duration-200 ease-in-out data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "hover:border border-sidebar-border",
+        default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-sm",
         outline:
-          "border border-sidebar-border hover:bg-sidebar-accent",
+          "bg-background shadow-none hover:bg-sidebar-accent hover:shadow-sm",
       },
       size: {
         default: "h-8 text-sm",
@@ -426,15 +426,14 @@ const sidebarMenuButtonVariants = cva(
         lg: "h-12 text-sm",
       },
       active: {
-        true: "bg-sidebar-accent border-l-2 border-[#ff9900] rounded-l-none font-medium",
-      },
-      disabled: {
-        true: "opacity-50 pointer-events-none",
+        true: "bg-gradient-to-r from-sidebar-item/30 via-primary/15 to-sidebar-item/30 text-sidebar-item font-medium shadow-sm hover:bg-sidebar-item/15",
+        false: "",
       },
     },
     defaultVariants: {
       variant: "default",
       size: "default",
+      active: false,
     },
   }
 );
@@ -456,7 +455,7 @@ const SidebarMenuButton = React.forwardRef<
       data-sidebar="menu-button"
       data-size={size}
       data-active={isActive}
-      className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+      className={cn(sidebarMenuButtonVariants({ variant, size, active: isActive }), className)}
       {...props}
     />
   );

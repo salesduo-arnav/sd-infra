@@ -11,7 +11,7 @@ export const inviteMember = async (req: Request, res: Response) => {
     try {
         const { email, role_id } = req.body;
         const userId = req.user?.id;
-        
+
         // Check permission
         const membership = await OrganizationMember.findOne({
             where: { user_id: userId },
@@ -59,15 +59,34 @@ export const inviteMember = async (req: Request, res: Response) => {
 
         // Send Email (Mocked or Real)
         try {
-             // Construct invite link (adjust frontend URL)
-             const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-             const inviteLink = `${frontendUrl}/accept-invite?token=${token}`;
- 
-             await mailService.sendMail({
-                 to: email,
-                 subject: 'You have been invited to join an organization',
-                 html: `<p>Click here to join: <a href="${inviteLink}">${inviteLink}</a></p>`
-             });
+            // Construct invite link (adjust frontend URL)
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+            const inviteLink = `${frontendUrl}/accept-invite?token=${token}`;
+
+            await mailService.sendMail({
+                to: email,
+                subject: "You've Been Invited to Join an Organization - SalesDuo",
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #ff9900;">Organization Invitation</h2>
+                    <p>You've been invited to join an organization on <strong>SalesDuo</strong>.</p>
+
+                    <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
+                        <a 
+                        href="${inviteLink}"
+                        style="display: inline-block; padding: 12px 24px; background-color: #ff9900; color: #fff; text-decoration: none; font-weight: bold; border-radius: 4px;"
+                        >
+                        Accept Invitation
+                        </a>
+                    </div>
+
+                    <p>If you weren't expecting this invite, you can ignore this email.</p>
+
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                    <p style="color: #666; font-size: 12px;">This is an automated message from SalesDuo.</p>
+                    </div>
+                `,
+            });
         } catch (mailError) {
             console.error('Mail Error:', mailError);
             // Don't fail the request, just log it. 
@@ -93,7 +112,7 @@ export const getPendingInvitations = async (req: Request, res: Response) => {
         if (!membership) return res.status(403).json({ message: 'Not in organization' });
 
         const invitations = await Invitation.findAll({
-            where: { 
+            where: {
                 organization_id: membership.organization_id,
                 status: InvitationStatus.PENDING
             },
@@ -146,7 +165,7 @@ export const validateInvitation = async (req: Request, res: Response) => {
         }
 
         const invitation = await Invitation.findOne({
-            where: { 
+            where: {
                 token: token as string,
                 status: InvitationStatus.PENDING
             },
@@ -202,10 +221,10 @@ export const acceptInvitation = async (req: Request, res: Response) => {
         });
 
         if (existingMember) {
-             // Mark invite as accepted if user is already a member
-             invitation.status = InvitationStatus.ACCEPTED;
-             await invitation.save();
-             return res.json({ message: 'Already a member' });
+            // Mark invite as accepted if user is already a member
+            invitation.status = InvitationStatus.ACCEPTED;
+            await invitation.save();
+            return res.json({ message: 'Already a member' });
         }
 
         // Add user to organization
@@ -234,7 +253,7 @@ export const getMyPendingInvitations = async (req: Request, res: Response) => {
         if (!user) return res.status(401).json({ message: 'Not authenticated' });
 
         const invitations = await Invitation.findAll({
-            where: { 
+            where: {
                 email: user.email,
                 status: InvitationStatus.PENDING
             },

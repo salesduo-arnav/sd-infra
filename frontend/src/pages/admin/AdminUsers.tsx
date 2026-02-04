@@ -20,8 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, MoreHorizontal, ArrowLeft, Mail, Ban, UserCheck } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Search, MoreHorizontal, Mail, Ban, UserCheck } from "lucide-react";
 
 interface User {
   id: string;
@@ -123,12 +122,7 @@ export default function AdminUsers() {
     <Layout>
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Link to="/admin">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-          </Link>
+
           <div className="flex-1">
             <h1 className="text-3xl font-bold tracking-tight">Manage Users</h1>
             <p className="text-muted-foreground mt-1">
