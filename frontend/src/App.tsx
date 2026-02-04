@@ -24,6 +24,7 @@ import AdminUsers from "./pages/admin/AdminUsers";
 import AdminOrganizations from "./pages/admin/AdminOrganizations";
 import InviteAccepted from "./pages/InviteAccepted";
 import PendingInvitations from "./pages/PendingInvitations";
+import DesignSystem from "./pages/DesignSystem";
 
 
 const queryClient = new QueryClient();
@@ -220,7 +221,15 @@ function AppRoutes() {
       <Route
         path="/accept-invite"
         element={
-            <InviteAccepted />
+          <InviteAccepted />
+        }
+      />
+
+      {/* Design System */}
+      <Route
+        path="/design"
+        element={
+          <DesignSystem />
         }
       />
 
