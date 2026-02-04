@@ -53,38 +53,38 @@ export default function InviteAccepted() {
     if (!inviteDetails || !token) return;
 
     if (isAuthenticated) {
-        // User is already logged in, accept invite directly
-        try {
-            const res = await fetch(`${API_URL}/invitations/accept`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ token })
-            });
+      // User is already logged in, accept invite directly
+      try {
+        const res = await fetch(`${API_URL}/invitations/accept`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ token })
+        });
 
-            if (!res.ok) {
-                 const data = await res.json();
-                 throw new Error(data.message || "Failed to accept");
-            }
-
-            await refreshUser();
-            navigate("/dashboard");
-        } catch (e) {
-            if (e instanceof Error) {
-                // If already a member, just redirect
-                if (e.message === 'Already a member') {
-                    navigate("/dashboard");
-                    return;
-                }
-                setErrorMsg(e.message);
-            } else {
-                setErrorMsg("Failed to accept invitation");
-            }
-            setStatus("error");
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.message || "Failed to accept");
         }
+
+        await refreshUser();
+        navigate("/apps");
+      } catch (e) {
+        if (e instanceof Error) {
+          // If already a member, just redirect
+          if (e.message === 'Already a member') {
+            navigate("/apps");
+            return;
+          }
+          setErrorMsg(e.message);
+        } else {
+          setErrorMsg("Failed to accept invitation");
+        }
+        setStatus("error");
+      }
     } else {
-        // Not logged in, go to signup
-        navigate(`/signup?email=${encodeURIComponent(inviteDetails.email)}&token=${token}`);
+      // Not logged in, go to signup
+      navigate(`/signup?email=${encodeURIComponent(inviteDetails.email)}&token=${token}`);
     }
   };
 

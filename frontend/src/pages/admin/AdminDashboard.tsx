@@ -1,17 +1,13 @@
 import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Users,
   Building2,
-  Package,
-  CreditCard,
   TrendingUp,
   Activity,
   UserCheck,
   DollarSign,
 } from "lucide-react";
-import { Link } from "react-router-dom";
 
 const stats = [
   {
@@ -44,36 +40,7 @@ const stats = [
   },
 ];
 
-const quickLinks = [
-  {
-    title: "Manage Apps",
-    description: "Create, update, and delete applications",
-    icon: Package,
-    href: "/admin/apps",
-    count: 12,
-  },
-  {
-    title: "Manage Plans",
-    description: "Configure pricing plans and bundles",
-    icon: CreditCard,
-    href: "/admin/plans",
-    count: 8,
-  },
-  {
-    title: "Manage Users",
-    description: "View and manage user accounts",
-    icon: Users,
-    href: "/admin/users",
-    count: 2847,
-  },
-  {
-    title: "Manage Organizations",
-    description: "Oversee organization accounts",
-    icon: Building2,
-    href: "/admin/organizations",
-    count: 456,
-  },
-];
+
 
 const recentActivity = [
   { action: "New user registered", user: "john@example.com", time: "2 minutes ago" },
@@ -113,26 +80,6 @@ export default function AdminDashboard() {
                 </p>
               </CardContent>
             </Card>
-          ))}
-        </div>
-
-        {/* Quick Links */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {quickLinks.map((link) => (
-            <Link key={link.title} to={link.href}>
-              <Card className="hover:shadow-md transition-all hover:border-primary/50 cursor-pointer h-full">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                      <link.icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <Badge variant="secondary">{link.count}</Badge>
-                  </div>
-                  <CardTitle className="text-lg">{link.title}</CardTitle>
-                  <CardDescription>{link.description}</CardDescription>
-                </CardHeader>
-              </Card>
-            </Link>
           ))}
         </div>
 

@@ -59,7 +59,7 @@ export default function SignUp() {
     const hasOrg = (user.memberships && user.memberships.length > 0);
 
     if (hasOrg) {
-      navigate("/dashboard");
+      navigate("/apps");
     } else {
       navigate("/create-organisation");
     }

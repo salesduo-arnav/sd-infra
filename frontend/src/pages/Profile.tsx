@@ -39,10 +39,10 @@ export default function Profile() {
 
   return (
     <Layout>
-      <div className="container max-w-4xl py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">Account Settings</h1>
-          <p className="mt-2 text-muted-foreground">
+      <div className="container max-w-4xl py-10 space-y-8 animate-in fade-in duration-500">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Account Settings</h1>
+          <p className="mt-2 text-muted-foreground text-lg">
             Manage your profile and account preferences
           </p>
         </div>

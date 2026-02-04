@@ -283,12 +283,27 @@ export const forgotPassword = async (req: Request, res: Response) => {
         // Send Email using MailService
         await mailService.sendMail({
             to: user.email,
-            subject: 'Password Reset Request',
+            subject: "Reset Your Password - SalesDuo",
             html: `
-                <p>You requested a password reset.</p>
-                <p>Click this link to reset your password:</p>
-                <a href="${resetLink}">${resetLink}</a>
-                <p>This link expires in 1 hour.</p>
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #ff9900;">Password Reset Request</h2>
+                <p>You requested to reset your SalesDuo password.</p>
+
+                <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
+                    <a 
+                    href="${resetLink}"
+                    style="display: inline-block; padding: 12px 24px; background-color: #ff9900; color: #fff; text-decoration: none; font-weight: bold; border-radius: 4px;"
+                    >
+                    Reset Password
+                    </a>
+                </div>
+
+                <p>This link is valid for <strong>1 hour</strong>.</p>
+                <p>If you didn't request this, you can safely ignore this email.</p>
+
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #666; font-size: 12px;">This is an automated message from SalesDuo.</p>
+                </div>
             `,
         });
 

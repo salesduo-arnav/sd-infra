@@ -19,8 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, MoreHorizontal, ArrowLeft, Building2, Users, Ban, CheckCircle } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Search, MoreHorizontal, Building2, Users, Ban, CheckCircle } from "lucide-react";
 
 interface Organization {
   id: string;
@@ -113,12 +112,7 @@ export default function AdminOrganizations() {
     <Layout>
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Link to="/admin">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-          </Link>
+
           <div className="flex-1">
             <h1 className="text-3xl font-bold tracking-tight">Manage Organizations</h1>
             <p className="text-muted-foreground mt-1">

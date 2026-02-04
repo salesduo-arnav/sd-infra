@@ -19,10 +19,10 @@ export function Header() {
         {isAuthenticated && (
           <nav className="hidden items-center gap-6 md:flex">
             <Link
-              to="/dashboard"
+              to="/apps"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              Dashboard
+              Apps
             </Link>
             <Link
               to="/organisation"

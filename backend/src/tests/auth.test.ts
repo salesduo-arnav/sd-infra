@@ -112,8 +112,8 @@ describe('Authentication API Integration Tests', () => {
         });
 
         it('should fail if email does not match invitation', async () => {
-             // 1. Setup Org and Invitation
-             const ownerRes = await request(app).post('/auth/register').send({
+            // 1. Setup Org and Invitation
+            const ownerRes = await request(app).post('/auth/register').send({
                 email: 'owner2@example.com',
                 password: 'Password123!',
                 full_name: 'Owner User'
@@ -138,7 +138,7 @@ describe('Authentication API Integration Tests', () => {
                 expires_at: new Date(Date.now() + 86400000)
             });
 
-             const res = await request(app)
+            const res = await request(app)
                 .post('/auth/register')
                 .send({
                     email: 'hacker@example.com',
@@ -202,42 +202,42 @@ describe('Authentication API Integration Tests', () => {
         });
 
         it('should return user with membership details after login', async () => {
-             // 1. Register User
-             const reg = await request(app).post('/auth/register').send({
-                 email: 'owner-login@test.com',
-                 password: 'password123',
-                 full_name: 'Owner Only'
-             });
-             const userId = reg.body.user.id;
-             
-             // 2. Create Org and Membership manually
-             const org = await Organization.create({
-                 name: 'Login Org',
-                 slug: 'login-org',
-                 status: OrgStatus.ACTIVE,
-                 website: 'https://login.com',
-                 stripe_customer_id: 'cus_login_123'
-             });
-             
-             const role = await Role.create({ name: 'Owner', description: 'desc' });
-             
-             await OrganizationMember.create({
-                 user_id: userId,
-                 organization_id: org.id,
-                 role_id: role.id
-             });
-             
-             // 3. Login
-             const res = await request(app).post('/auth/login').send({
-                 email: 'owner-login@test.com',
-                 password: 'password123'
-             });
-             
-             expect(res.status).toBe(200);
-             expect(res.body.user.memberships).toBeDefined();
-             expect(res.body.user.memberships.length).toBeGreaterThan(0);
-             expect(res.body.user.memberships[0].organization.slug).toBe('login-org');
-             expect(res.body.user.memberships[0].role.name).toBe('Owner');
+            // 1. Register User
+            const reg = await request(app).post('/auth/register').send({
+                email: 'owner-login@test.com',
+                password: 'password123',
+                full_name: 'Owner Only'
+            });
+            const userId = reg.body.user.id;
+
+            // 2. Create Org and Membership manually
+            const org = await Organization.create({
+                name: 'Login Org',
+                slug: 'login-org',
+                status: OrgStatus.ACTIVE,
+                website: 'https://login.com',
+                stripe_customer_id: 'cus_login_123'
+            });
+
+            const role = await Role.create({ name: 'Owner', description: 'desc' });
+
+            await OrganizationMember.create({
+                user_id: userId,
+                organization_id: org.id,
+                role_id: role.id
+            });
+
+            // 3. Login
+            const res = await request(app).post('/auth/login').send({
+                email: 'owner-login@test.com',
+                password: 'password123'
+            });
+
+            expect(res.status).toBe(200);
+            expect(res.body.user.memberships).toBeDefined();
+            expect(res.body.user.memberships.length).toBeGreaterThan(0);
+            expect(res.body.user.memberships[0].organization.slug).toBe('login-org');
+            expect(res.body.user.memberships[0].role.name).toBe('Owner');
         });
     });
 
@@ -301,35 +301,36 @@ describe('Authentication API Integration Tests', () => {
 
             const sendMailSpy = jest.spyOn(mailService, 'sendMail').mockResolvedValue();
 
-            const res = await request(app)
-                .post('/auth/forgot-password')
-                .send({ email: testUser.email });
+            try {
+                await request(app)
+                    .post('/auth/forgot-password')
+                    .send({ email: testUser.email });
 
-            expect(res.statusCode).toEqual(200);
-            expect(res.body.message).toEqual('If an account exists, a reset link has been sent.');
-
-            expect(sendMailSpy).toHaveBeenCalledTimes(1);
-            expect(sendMailSpy).toHaveBeenCalledWith(expect.objectContaining({
-                to: testUser.email,
-                subject: 'Password Reset Request'
-            }));
-
-            sendMailSpy.mockRestore();
+                expect(sendMailSpy).toHaveBeenCalledTimes(1);
+                expect(sendMailSpy).toHaveBeenCalledWith(expect.objectContaining({
+                    to: testUser.email,
+                    subject: 'Reset Your Password - SalesDuo'
+                }));
+            } finally {
+                sendMailSpy.mockRestore();
+            }
         });
 
         it('should return 200 message even if user does not exist (enumeration protection)', async () => {
             const sendMailSpy = jest.spyOn(mailService, 'sendMail').mockResolvedValue();
 
-            const res = await request(app)
-                .post('/auth/forgot-password')
-                .send({ email: 'nonexistent@example.com' });
+            try {
+                const res = await request(app)
+                    .post('/auth/forgot-password')
+                    .send({ email: 'nonexistent@example.com' });
 
-            expect(res.statusCode).toEqual(200);
-            expect(res.body.message).toEqual('If an account exists, a reset link has been sent.');
+                expect(res.statusCode).toEqual(200);
+                expect(res.body.message).toEqual('If an account exists, a reset link has been sent.');
 
-            expect(sendMailSpy).not.toHaveBeenCalled();
-
-            sendMailSpy.mockRestore();
+                expect(sendMailSpy).not.toHaveBeenCalled();
+            } finally {
+                sendMailSpy.mockRestore();
+            }
         });
     });
 
@@ -534,8 +535,8 @@ describe('Authentication API Integration Tests', () => {
         });
 
         it('should join organization if invite token is provided during Google Auth', async () => {
-             // 1. Setup Org and Invitation
-             const ownerRes = await request(app).post('/auth/register').send({
+            // 1. Setup Org and Invitation
+            const ownerRes = await request(app).post('/auth/register').send({
                 email: 'owner-google-invite@example.com',
                 password: 'Password123!',
                 full_name: 'Owner User'
@@ -564,7 +565,7 @@ describe('Authentication API Integration Tests', () => {
 
             const res = await request(app)
                 .post('/auth/google')
-                .send({ 
+                .send({
                     code: 'valid_auth_code',
                     token: token
                 });
@@ -579,8 +580,8 @@ describe('Authentication API Integration Tests', () => {
         });
 
         it('should return 400 if google email does not match invite email', async () => {
-             // 1. Setup Org and Invitation
-             const ownerRes = await request(app).post('/auth/register').send({
+            // 1. Setup Org and Invitation
+            const ownerRes = await request(app).post('/auth/register').send({
                 email: 'owner-google-fail@example.com',
                 password: 'Password123!',
                 full_name: 'Owner User'
@@ -609,7 +610,7 @@ describe('Authentication API Integration Tests', () => {
 
             const res = await request(app)
                 .post('/auth/google')
-                .send({ 
+                .send({
                     code: 'valid_auth_code',
                     token: token
                 });
