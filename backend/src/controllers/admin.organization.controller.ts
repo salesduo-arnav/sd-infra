@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import { Organization, OrgStatus, OrganizationMember } from '../models/organization';
 import { Invitation } from '../models/invitation';
+import { User } from '../models/user';
+import { Role } from '../models/role';
 import sequelize from '../config/db';
 
 export const getOrganizations = async (req: Request, res: Response) => {
@@ -31,10 +33,31 @@ export const getOrganizations = async (req: Request, res: Response) => {
             order: [[sortBy, sortOrder]],
         });
 
+        // Get member counts for all organizations in this page
+        const orgIds = rows.map(org => org.id);
+        const memberCounts = await OrganizationMember.findAll({
+            where: { organization_id: orgIds },
+            attributes: [
+                'organization_id',
+                [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+            ],
+            group: ['organization_id'],
+            raw: true
+        }) as unknown as { organization_id: string; count: string }[];
+
+        // Create a map for quick lookup
+        const countMap = new Map(memberCounts.map(mc => [mc.organization_id, parseInt(mc.count)]));
+
+        // Add memberCount to each organization
+        const organizationsWithCount = rows.map(org => ({
+            ...org.toJSON(),
+            memberCount: countMap.get(org.id) || 0
+        }));
+
         const totalPages = Math.ceil(count / limit);
 
         res.status(200).json({
-            organizations: rows,
+            organizations: organizationsWithCount,
             meta: {
                 totalItems: count,
                 totalPages,
@@ -109,6 +132,65 @@ export const deleteOrganization = async (req: Request, res: Response) => {
         res.status(200).json({ message: 'Organization deleted successfully' });
     } catch (error) {
         console.error('Delete Organization Error:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+export const getOrganizationDetails = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const organization = await Organization.findByPk(id);
+
+        if (!organization) {
+            return res.status(404).json({ message: 'Organization not found' });
+        }
+
+        // Get all members with user and role info
+        const members = await OrganizationMember.findAll({
+            where: { organization_id: id },
+            include: [
+                {
+                    model: User,
+                    as: 'user',
+                    attributes: ['id', 'email', 'full_name']
+                },
+                {
+                    model: Role,
+                    as: 'role',
+                    attributes: ['id', 'name']
+                }
+            ]
+        });
+
+        // Find the owner (member with 'Owner' role)
+        const owner = members.find(m => m.role?.name === 'Owner');
+
+        res.status(200).json({
+            organization: {
+                id: organization.id,
+                name: organization.name,
+                slug: organization.slug,
+                website: organization.website,
+                status: organization.status,
+                created_at: organization.created_at
+            },
+            owner: owner ? {
+                id: owner.user?.id,
+                email: owner.user?.email,
+                full_name: owner.user?.full_name
+            } : null,
+            members: members.map(m => ({
+                id: m.user?.id,
+                email: m.user?.email,
+                full_name: m.user?.full_name,
+                role: m.role?.name,
+                joined_at: m.joined_at
+            })),
+            memberCount: members.length
+        });
+    } catch (error) {
+        console.error('Get Organization Details Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 };

@@ -13,9 +13,10 @@ router.patch('/users/:id', updateUser);
 router.delete('/users/:id', deleteUser);
 
 // Organization Routes
-import { getOrganizations, updateOrganization, deleteOrganization } from '../controllers/admin.organization.controller';
+import { getOrganizations, getOrganizationDetails, updateOrganization, deleteOrganization } from '../controllers/admin.organization.controller';
 
 router.get('/organizations', getOrganizations);
+router.get('/organizations/:id', getOrganizationDetails);
 router.patch('/organizations/:id', updateOrganization);
 router.delete('/organizations/:id', deleteOrganization);
 

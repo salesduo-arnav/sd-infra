@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@/contexts/AuthContext";
 import { Layout } from "@/components/layout/Layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +19,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { MoreHorizontal, Trash2, Building2, Pencil } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { MoreHorizontal, Trash2, Building2, Pencil, Eye, Users, Crown, User } from "lucide-react";
 import { DataTable, DataTableColumnHeader, DataTableStaticHeader } from "@/components/ui/data-table";
 import { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
 import { API_URL } from "@/lib/api";
@@ -41,7 +47,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner"; // Assuming sonner is available based on App.tsx
+import { toast } from "sonner";
 
 interface Organization {
   id: string;
@@ -50,10 +56,34 @@ interface Organization {
   website: string;
   status: 'active' | 'suspended' | 'archived';
   created_at: string;
+  memberCount: number;
+}
+
+interface OrganizationDetails {
+  organization: {
+    id: string;
+    name: string;
+    slug: string;
+    website: string;
+    status: string;
+    created_at: string;
+  };
+  owner: {
+    id: string;
+    email: string;
+    full_name: string;
+  } | null;
+  members: {
+    id: string;
+    email: string;
+    full_name: string;
+    role: string;
+    joined_at: string;
+  }[];
+  memberCount: number;
 }
 
 export default function AdminOrganizations() {
-  const { user: currentUser } = useAuth();
   const [data, setData] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [pageCount, setPageCount] = useState(1);
@@ -80,6 +110,11 @@ export default function AdminOrganizations() {
     website: "",
     status: "active" as "active" | "suspended" | "archived"
   });
+
+  // Details Sheet State
+  const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
+  const [orgDetails, setOrgDetails] = useState<OrganizationDetails | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -210,6 +245,32 @@ export default function AdminOrganizations() {
     }
   };
 
+  const handleViewDetails = async (org: Organization) => {
+    setDetailsSheetOpen(true);
+    setLoadingDetails(true);
+    setOrgDetails(null);
+
+    try {
+      const response = await fetch(`${API_URL}/admin/organizations/${org.id}`, {
+        method: 'GET',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setOrgDetails(data);
+      } else {
+        toast.error("Failed to fetch organization details");
+        setDetailsSheetOpen(false);
+      }
+    } catch (error) {
+      console.error("Error fetching organization details", error);
+      toast.error("An error occurred while fetching details");
+      setDetailsSheetOpen(false);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
 
   const columns: ColumnDef<Organization>[] = [
     {
@@ -254,6 +315,16 @@ export default function AdminOrganizations() {
       }
     },
     {
+      accessorKey: "memberCount",
+      header: () => <DataTableStaticHeader title="Members" />,
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4 text-muted-foreground" />
+          <span className="text-muted-foreground">{row.original.memberCount}</span>
+        </div>
+      ),
+    },
+    {
       accessorKey: "created_at",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Created" />,
       cell: ({ row }) => (
@@ -280,6 +351,10 @@ export default function AdminOrganizations() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem onClick={() => handleViewDetails(org)} className="cursor-pointer">
+                  <Eye className="h-4 w-4 mr-2" />
+                  View Details
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleEditClick(org)} className="cursor-pointer">
                   <Pencil className="h-4 w-4 mr-2" />
                   Edit Details
@@ -429,6 +504,104 @@ export default function AdminOrganizations() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Organization Details Sheet */}
+      <Sheet open={detailsSheetOpen} onOpenChange={setDetailsSheetOpen}>
+        <SheetContent className="sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              {loadingDetails ? "Loading..." : orgDetails?.organization.name || "Organization Details"}
+            </SheetTitle>
+            <SheetDescription>
+              {orgDetails?.organization.slug || "View organization information and members"}
+            </SheetDescription>
+          </SheetHeader>
+
+          {loadingDetails ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : orgDetails ? (
+            <div className="mt-6 space-y-6">
+              {/* Organization Info */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Organization Info</h4>
+                <div className="grid gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Status</span>
+                    <Badge variant={orgDetails.organization.status === 'active' ? 'default' : 'destructive'} className="capitalize">
+                      {orgDetails.organization.status}
+                    </Badge>
+                  </div>
+                  {orgDetails.organization.website && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Website</span>
+                      <a
+                        href={orgDetails.organization.website.startsWith('http') ? orgDetails.organization.website : `https://${orgDetails.organization.website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        {orgDetails.organization.website}
+                      </a>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Created</span>
+                    <span>{new Date(orgDetails.organization.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Owner Section */}
+              {orgDetails.owner && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                    <Crown className="h-4 w-4 text-amber-500" />
+                    Owner
+                  </h4>
+                  <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <User className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{orgDetails.owner.full_name || "No name"}</p>
+                      <p className="text-sm text-muted-foreground">{orgDetails.owner.email}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Members Section */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Members ({orgDetails.memberCount})
+                </h4>
+                <div className="space-y-2">
+                  {orgDetails.members.map((member) => (
+                    <div key={member.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                          <User className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{member.full_name || "No name"}</p>
+                          <p className="text-xs text-muted-foreground">{member.email}</p>
+                        </div>
+                      </div>
+                      <Badge variant={member.role === 'Owner' ? 'default' : 'secondary'} className="text-xs">
+                        {member.role}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
 
     </Layout>
   );
