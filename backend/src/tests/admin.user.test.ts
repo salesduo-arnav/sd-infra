@@ -4,7 +4,7 @@ import app from '../app';
 import sequelize from '../config/db';
 import redisClient from '../config/redis';
 import User from '../models/user';
-import { Organization, OrganizationMember } from '../models/organization'; // Ensure named export if that's how it is
+
 import path from 'path';
 import dotenv from 'dotenv';
 
@@ -99,7 +99,7 @@ describe('Admin User Management', () => {
             // Should match 'User 1', 'User 10', 'User 11'...
             expect(res.status).toBe(200);
             expect(res.body.users.length).toBeGreaterThan(0);
-            res.body.users.forEach((u: any) => {
+            res.body.users.forEach((u: User) => {
                 expect(u.full_name).toContain('User 1');
             });
         });
@@ -112,7 +112,7 @@ describe('Admin User Management', () => {
             expect(res.status).toBe(200);
             const users = res.body.users;
             // Check if sorted by email
-            const emails = users.map((u: any) => u.email);
+            const emails = users.map((u: User) => u.email);
             const sortedEmails = [...emails].sort();
             expect(emails).toEqual(sortedEmails);
         });

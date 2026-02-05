@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Layout } from "@/components/layout/Layout";
 import { Badge } from "@/components/ui/badge";
@@ -63,7 +63,7 @@ export default function AdminUsers() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const page = pagination.pageIndex + 1;
@@ -102,11 +102,11 @@ export default function AdminUsers() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pagination, sorting, debouncedSearch]);
 
   useEffect(() => {
     fetchUsers();
-  }, [pagination, sorting, debouncedSearch]);
+  }, [fetchUsers]);
 
   const handleDeleteClick = (user: User) => {
     setUserToDelete(user);

@@ -13,6 +13,7 @@ export const getUsers = async (req: Request, res: Response) => {
         const sortBy = (req.query.sortBy as string) || 'created_at';
         const sortOrder = (req.query.sortOrder as string) === 'asc' ? 'ASC' : 'DESC';
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const whereClause: any = {};
 
         if (search) {
