@@ -69,7 +69,7 @@ export const updateOrganization = async (req: Request, res: Response) => {
         res.status(200).json({ message: 'Organization updated successfully', organization });
     } catch (error) {
         console.error('Update Organization Error:', error);
-        if ((error as any).name === 'SequelizeUniqueConstraintError') {
+        if (error instanceof Error && error.name === 'SequelizeUniqueConstraintError') {
             return res.status(409).json({ message: 'Slug already in use' });
         }
         res.status(500).json({ message: 'Internal server error' });
@@ -77,38 +77,37 @@ export const updateOrganization = async (req: Request, res: Response) => {
 };
 
 export const deleteOrganization = async (req: Request, res: Response) => {
-    const transaction = await sequelize.transaction();
-
     try {
         const { id } = req.params;
 
-        const organization = await Organization.findByPk(id, { transaction });
+        // Early validation before starting transaction
+        const organization = await Organization.findByPk(id);
 
         if (!organization) {
-            await transaction.rollback();
             return res.status(404).json({ message: 'Organization not found' });
         }
 
-        // Explicitly delete related records for logging
-        // (CASCADE will handle this at DB level, but explicit is better for tracking)
-        const deletedMembers = await OrganizationMember.destroy({
-            where: { organization_id: id },
-            transaction
+        // Perform all mutations inside managed transaction
+        await sequelize.transaction(async (t) => {
+            // Explicitly delete related records for logging
+            // (CASCADE will handle this at DB level, but explicit is better for tracking)
+            const deletedMembers = await OrganizationMember.destroy({
+                where: { organization_id: id },
+                transaction: t
+            });
+            console.log(`Deleted ${deletedMembers} organization members`);
+
+            const deletedInvitations = await Invitation.destroy({
+                where: { organization_id: id },
+                transaction: t
+            });
+            console.log(`Deleted ${deletedInvitations} invitations`);
+
+            await organization.destroy({ transaction: t });
         });
-        console.log(`Deleted ${deletedMembers} organization members`);
 
-        const deletedInvitations = await Invitation.destroy({
-            where: { organization_id: id },
-            transaction
-        });
-        console.log(`Deleted ${deletedInvitations} invitations`);
-
-        await organization.destroy({ transaction });
-
-        await transaction.commit();
         res.status(200).json({ message: 'Organization deleted successfully' });
     } catch (error) {
-        await transaction.rollback();
         console.error('Delete Organization Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }

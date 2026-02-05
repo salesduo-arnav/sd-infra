@@ -87,25 +87,22 @@ export const updateUser = async (req: Request, res: Response) => {
 };
 
 export const deleteUser = async (req: Request, res: Response) => {
-    const transaction = await sequelize.transaction();
-
     try {
         const { id } = req.params;
 
-        const user = await User.findByPk(id, { transaction });
+        // Early validation before starting transaction
+        const user = await User.findByPk(id);
 
         if (!user) {
-            await transaction.rollback();
             return res.status(404).json({ message: 'User not found' });
         }
 
         // Prevent admin from deleting themselves
         if (req.user?.id === user.id) {
-            await transaction.rollback();
             return res.status(403).json({ message: 'You cannot delete your own account' });
         }
 
-        // Check for organization ownerships
+        // Check for organization ownerships before transaction
         const ownedMemberships = await OrganizationMember.findAll({
             where: {
                 user_id: id
@@ -117,8 +114,7 @@ export const deleteUser = async (req: Request, res: Response) => {
             }, {
                 model: Organization,
                 as: 'organization'
-            }],
-            transaction
+            }]
         });
 
         const distinctOwnedOrgs = ownedMemberships.map(m => m.organization!);
@@ -130,62 +126,75 @@ export const deleteUser = async (req: Request, res: Response) => {
                 where: {
                     organization_id: org.id,
                     user_id: { [Op.ne]: id }
-                },
-                transaction
+                }
             });
 
-            if (otherMembersCount > 0) {
-                // Transfer ownership to oldest member
-                const oldestMember = await OrganizationMember.findOne({
-                    where: {
-                        organization_id: org.id,
-                        user_id: { [Op.ne]: id }
-                    },
-                    order: [['created_at', 'ASC']],
-                    transaction
-                });
-
-                if (oldestMember) {
-                    await oldestMember.update({ role_id: ownedMemberships[0].role_id }, { transaction });
-                    console.log(`Transferred ownership of org ${org.id} to user ${oldestMember.user_id}`);
-                }
-            } else {
+            if (otherMembersCount === 0) {
                 // No other members - this is a sole owner situation
                 conflicts.push({ id: org.id, name: org.name });
             }
         }
 
+        // Check for conflicts before starting transaction
         if (conflicts.length > 0) {
             const force = req.query.force === 'true';
             if (!force) {
-                await transaction.rollback();
                 return res.status(409).json({
                     message: 'User is the sole owner of one or more organizations.',
                     organizations: conflicts
                 });
             }
-
-            // Force delete: Delete the organizations
-            for (const conflict of conflicts) {
-                await Organization.destroy({ where: { id: conflict.id }, transaction });
-                console.log(`Force deleted organization ${conflict.id}`);
-            }
         }
 
-        // Clean up user's organization memberships
-        // (CASCADE will handle this at DB level, but explicit is better for tracking)
-        const deletedMemberships = await OrganizationMember.destroy({
-            where: { user_id: id },
-            transaction
+        // Perform all mutations inside managed transaction
+        await sequelize.transaction(async (t) => {
+            // Transfer ownership for orgs with other members
+            for (const org of distinctOwnedOrgs) {
+                const otherMembersCount = await OrganizationMember.count({
+                    where: {
+                        organization_id: org.id,
+                        user_id: { [Op.ne]: id }
+                    },
+                    transaction: t
+                });
+
+                if (otherMembersCount > 0) {
+                    // Transfer ownership to oldest member
+                    const oldestMember = await OrganizationMember.findOne({
+                        where: {
+                            organization_id: org.id,
+                            user_id: { [Op.ne]: id }
+                        },
+                        order: [['created_at', 'ASC']],
+                        transaction: t
+                    });
+
+                    if (oldestMember) {
+                        await oldestMember.update({ role_id: ownedMemberships[0].role_id }, { transaction: t });
+                        console.log(`Transferred ownership of org ${org.id} to user ${oldestMember.user_id}`);
+                    }
+                }
+            }
+
+            // Force delete organizations where user is sole owner
+            for (const conflict of conflicts) {
+                await Organization.destroy({ where: { id: conflict.id }, transaction: t });
+                console.log(`Force deleted organization ${conflict.id}`);
+            }
+
+            // Clean up user's organization memberships
+            // (CASCADE will handle this at DB level, but explicit is better for tracking)
+            const deletedMemberships = await OrganizationMember.destroy({
+                where: { user_id: id },
+                transaction: t
+            });
+            console.log(`Deleted ${deletedMemberships} organization memberships for user`);
+
+            await user.destroy({ transaction: t });
         });
-        console.log(`Deleted ${deletedMemberships} organization memberships for user`);
 
-        await user.destroy({ transaction });
-
-        await transaction.commit();
         res.status(200).json({ message: 'User deleted successfully' });
     } catch (error) {
-        await transaction.rollback();
         console.error('Delete User Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }

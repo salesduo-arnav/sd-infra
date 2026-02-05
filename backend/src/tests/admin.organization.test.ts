@@ -145,6 +145,7 @@ describe('Admin Organization Management', () => {
                 invited_by: adminUser.id,
                 status: 'pending',
                 expires_at: new Date()
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any);
 
             const res = await request(app)

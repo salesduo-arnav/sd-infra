@@ -2,57 +2,58 @@ import sequelize from '../config/db';
 import { QueryTypes } from 'sequelize';
 
 const cleanupOrphanedData = async () => {
-    const transaction = await sequelize.transaction();
-
     try {
         console.log('Starting cleanup of orphaned data...');
-        const results = {
-            orphanedMembers: 0,
-            orphanedInvitations: 0,
-            expiredInvitations: 0
-        };
 
-        // Delete orphaned OrganizationMembers
-        // Members associated with organizations that are either hard deleted (not in table) or soft deleted (deleted_at is not null)
-        const activeOrgIdsQuery = 'SELECT "id" FROM "organizations" WHERE "deleted_at" IS NULL';
+        const results = await sequelize.transaction(async (t) => {
+            const stats = {
+                orphanedMembers: 0,
+                orphanedInvitations: 0,
+                expiredInvitations: 0
+            };
 
-        const deleteMembersResult = await sequelize.query(`
-            DELETE FROM "organization_members" 
-            WHERE "organization_id" NOT IN (${activeOrgIdsQuery})
-            RETURNING id;
-        `, { type: QueryTypes.DELETE, transaction });
+            // Delete orphaned OrganizationMembers
+            // Members associated with organizations that are either hard deleted (not in table) or soft deleted (deleted_at is not null)
+            const activeOrgIdsQuery = 'SELECT "id" FROM "organizations" WHERE "deleted_at" IS NULL';
 
-        results.orphanedMembers = Array.isArray(deleteMembersResult) ? deleteMembersResult.length : 0;
-        console.log(`Deleted ${results.orphanedMembers} orphaned OrganizationMembers.`);
+            const deleteMembersResult = await sequelize.query(`
+                DELETE FROM "organization_members" 
+                WHERE "organization_id" NOT IN (${activeOrgIdsQuery})
+                RETURNING id;
+            `, { type: QueryTypes.DELETE, transaction: t });
 
-        // Delete orphaned Invitations
-        const deleteInvitationsResult = await sequelize.query(`
-            DELETE FROM "invitations" 
-            WHERE "organization_id" NOT IN (${activeOrgIdsQuery})
-            RETURNING id;
-        `, { type: QueryTypes.DELETE, transaction });
+            stats.orphanedMembers = Array.isArray(deleteMembersResult) ? deleteMembersResult.length : 0;
+            console.log(`Deleted ${stats.orphanedMembers} orphaned OrganizationMembers.`);
 
-        results.orphanedInvitations = Array.isArray(deleteInvitationsResult) ? deleteInvitationsResult.length : 0;
-        console.log(`Deleted ${results.orphanedInvitations} orphaned Invitations.`);
+            // Delete orphaned Invitations
+            const deleteInvitationsResult = await sequelize.query(`
+                DELETE FROM "invitations" 
+                WHERE "organization_id" NOT IN (${activeOrgIdsQuery})
+                RETURNING id;
+            `, { type: QueryTypes.DELETE, transaction: t });
 
-        // Delete expired invitations that are still pending
-        const deleteExpiredResult = await sequelize.query(`
-            DELETE FROM "invitations"
-            WHERE "expires_at" < NOW()
-            AND "status" = 'pending'
-            RETURNING id;
-        `, { type: QueryTypes.DELETE, transaction });
+            stats.orphanedInvitations = Array.isArray(deleteInvitationsResult) ? deleteInvitationsResult.length : 0;
+            console.log(`Deleted ${stats.orphanedInvitations} orphaned Invitations.`);
 
-        results.expiredInvitations = Array.isArray(deleteExpiredResult) ? deleteExpiredResult.length : 0;
-        console.log(`Deleted ${results.expiredInvitations} expired pending Invitations.`);
+            // Delete expired invitations that are still pending
+            const deleteExpiredResult = await sequelize.query(`
+                DELETE FROM "invitations"
+                WHERE "expires_at" < NOW()
+                AND "status" = 'pending'
+                RETURNING id;
+            `, { type: QueryTypes.DELETE, transaction: t });
 
-        await transaction.commit();
+            stats.expiredInvitations = Array.isArray(deleteExpiredResult) ? deleteExpiredResult.length : 0;
+            console.log(`Deleted ${stats.expiredInvitations} expired pending Invitations.`);
+
+            return stats;
+        });
+
         console.log('Cleanup completed successfully.');
         console.log('Summary:', results);
 
         return results;
     } catch (error) {
-        await transaction.rollback();
         console.error('Error during cleanup:', error);
         throw error;
     } finally {
