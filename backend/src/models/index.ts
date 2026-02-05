@@ -14,6 +14,20 @@ OrganizationMember.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 Organization.hasMany(OrganizationMember, { foreignKey: 'organization_id', as: 'members' });
 OrganizationMember.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
 
+// User <-> Organization (Many-to-Many Shortcut)
+User.belongsToMany(Organization, {
+  through: OrganizationMember,
+  foreignKey: 'user_id',
+  otherKey: 'organization_id',
+  as: 'organizations'
+});
+Organization.belongsToMany(User, {
+  through: OrganizationMember,
+  foreignKey: 'organization_id',
+  otherKey: 'user_id',
+  as: 'users'
+});
+
 // OrganizationMember <-> Role
 OrganizationMember.belongsTo(Role, { foreignKey: 'role_id', as: 'role' });
 Role.hasMany(OrganizationMember, { foreignKey: 'role_id' });
