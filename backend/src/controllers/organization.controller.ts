@@ -124,6 +124,14 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
 
         const orgId = req.headers['x-organization-id'] as string;
 
+        // Pagination and sorting params
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const search = req.query.search as string || '';
+        const sortBy = req.query.sortBy as string || 'joined_at';
+        const sortOrder = (req.query.sortOrder as string || 'desc').toUpperCase();
+        const offset = (page - 1) * limit;
+
         // Get user's organization
         // Must filter by the active organization context
         const whereClause: { user_id: string; organization_id?: string } = { user_id: userId };
@@ -139,28 +147,74 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Organization not found' });
         }
 
+        // Build the query with search
+        const { Op } = await import('sequelize');
+
+        // Get total count first
+        const totalCount = await OrganizationMember.count({
+            where: { organization_id: membership.organization_id },
+            include: search ? [
+                {
+                    model: User,
+                    as: 'user',
+                    where: {
+                        [Op.or]: [
+                            { full_name: { [Op.iLike]: `%${search}%` } },
+                            { email: { [Op.iLike]: `%${search}%` } }
+                        ]
+                    }
+                }
+            ] : undefined
+        });
+
+        // Determine order based on sortBy
+        let order: [string, string][] | [[{ model: typeof User; as: string }, string, string]] = [['joined_at', sortOrder]];
+        if (sortBy === 'full_name' || sortBy === 'email') {
+            order = [[{ model: User, as: 'user' }, sortBy, sortOrder]] as [[{ model: typeof User; as: string }, string, string]];
+        } else if (sortBy === 'role') {
+            order = [[{ model: Role, as: 'role' }, 'name', sortOrder]] as unknown as [[{ model: typeof User; as: string }, string, string]];
+        }
+
         const members = await OrganizationMember.findAll({
             where: { organization_id: membership.organization_id },
             include: [
                 {
                     model: User,
                     as: 'user',
-                    attributes: ['id', 'full_name', 'email']
+                    attributes: ['id', 'full_name', 'email'],
+                    where: search ? {
+                        [Op.or]: [
+                            { full_name: { [Op.iLike]: `%${search}%` } },
+                            { email: { [Op.iLike]: `%${search}%` } }
+                        ]
+                    } : undefined
                 },
                 {
                     model: Role,
                     as: 'role'
                 }
-            ]
+            ],
+            order,
+            limit,
+            offset
         });
 
-        res.json(members);
+        res.json({
+            members,
+            meta: {
+                total: totalCount,
+                page,
+                limit,
+                totalPages: Math.ceil(totalCount / limit)
+            }
+        });
 
     } catch (error) {
         console.error('Get Members Error:', error);
         res.status(500).json({ message: 'Server error fetching members' });
     }
 };
+
 
 export const updateOrganization = async (req: Request, res: Response) => {
     try {
@@ -207,5 +261,262 @@ export const updateOrganization = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Update Org Error:', error);
         res.status(500).json({ message: 'Server error updating organization' });
+    }
+};
+
+// Helper to get user's role in an organization
+const getUserMembership = async (userId: string, orgId: string) => {
+    return OrganizationMember.findOne({
+        where: { user_id: userId, organization_id: orgId },
+        include: [{ model: Role, as: 'role' }]
+    });
+};
+
+export const removeMember = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+        const { memberId } = req.params;
+        const orgId = req.headers['x-organization-id'] as string;
+
+        if (!orgId) {
+            return res.status(400).json({ message: 'Organization ID required' });
+        }
+
+        // Get current user's membership
+        const currentUserMembership = await getUserMembership(userId, orgId);
+        if (!currentUserMembership) {
+            return res.status(404).json({ message: 'Organization not found' });
+        }
+
+        // Only Owner or Admin can remove members
+        const currentRole = currentUserMembership.role?.name;
+        if (currentRole !== 'Owner' && currentRole !== 'Admin') {
+            return res.status(403).json({ message: 'Insufficient permissions' });
+        }
+
+        // Get the member to remove
+        const memberToRemove = await OrganizationMember.findOne({
+            where: { id: memberId, organization_id: orgId },
+            include: [{ model: Role, as: 'role' }]
+        });
+
+        if (!memberToRemove) {
+            return res.status(404).json({ message: 'Member not found' });
+        }
+
+        // Cannot remove the Owner
+        if (memberToRemove.role?.name === 'Owner') {
+            return res.status(403).json({ message: 'Cannot remove the organization owner' });
+        }
+
+        // Admin cannot remove other Admins (only Owner can)
+        if (currentRole === 'Admin' && memberToRemove.role?.name === 'Admin') {
+            return res.status(403).json({ message: 'Only the owner can remove admins' });
+        }
+
+        // Cannot remove yourself
+        if (memberToRemove.user_id === userId) {
+            return res.status(403).json({ message: 'Cannot remove yourself from the organization' });
+        }
+
+        await memberToRemove.destroy();
+
+        res.json({ message: 'Member removed successfully' });
+
+    } catch (error) {
+        console.error('Remove Member Error:', error);
+        res.status(500).json({ message: 'Server error removing member' });
+    }
+};
+
+export const updateMemberRole = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+        const { memberId } = req.params;
+        const { role_id } = req.body;
+        const orgId = req.headers['x-organization-id'] as string;
+
+        if (!orgId) {
+            return res.status(400).json({ message: 'Organization ID required' });
+        }
+
+        if (!role_id) {
+            return res.status(400).json({ message: 'Role ID required' });
+        }
+
+        // Get current user's membership
+        const currentUserMembership = await getUserMembership(userId, orgId);
+        if (!currentUserMembership) {
+            return res.status(404).json({ message: 'Organization not found' });
+        }
+
+        // Only Owner can change roles
+        if (currentUserMembership.role?.name !== 'Owner') {
+            return res.status(403).json({ message: 'Only the owner can change member roles' });
+        }
+
+        // Get the member to update
+        const memberToUpdate = await OrganizationMember.findOne({
+            where: { id: memberId, organization_id: orgId },
+            include: [{ model: Role, as: 'role' }]
+        });
+
+        if (!memberToUpdate) {
+            return res.status(404).json({ message: 'Member not found' });
+        }
+
+        // Cannot change Owner's role directly (use transfer ownership instead)
+        if (memberToUpdate.role?.name === 'Owner') {
+            return res.status(403).json({ message: 'Cannot change owner role. Use transfer ownership instead.' });
+        }
+
+        // Validate the new role exists and is not Owner
+        const newRole = await Role.findByPk(role_id);
+        if (!newRole) {
+            return res.status(400).json({ message: 'Invalid role' });
+        }
+        if (newRole.name === 'Owner') {
+            return res.status(403).json({ message: 'Cannot assign Owner role. Use transfer ownership instead.' });
+        }
+
+        memberToUpdate.role_id = role_id;
+        await memberToUpdate.save();
+
+        res.json({
+            message: 'Member role updated successfully',
+            member: {
+                id: memberToUpdate.id,
+                role_id: memberToUpdate.role_id,
+                role_name: newRole.name
+            }
+        });
+
+    } catch (error) {
+        console.error('Update Member Role Error:', error);
+        res.status(500).json({ message: 'Server error updating member role' });
+    }
+};
+
+export const transferOwnership = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+        const { new_owner_id } = req.body;
+        const orgId = req.headers['x-organization-id'] as string;
+
+        if (!orgId) {
+            return res.status(400).json({ message: 'Organization ID required' });
+        }
+
+        if (!new_owner_id) {
+            return res.status(400).json({ message: 'New owner ID required' });
+        }
+
+        // Get current user's membership
+        const currentOwnerMembership = await getUserMembership(userId, orgId);
+        if (!currentOwnerMembership) {
+            return res.status(404).json({ message: 'Organization not found' });
+        }
+
+        // Only Owner can transfer ownership
+        if (currentOwnerMembership.role?.name !== 'Owner') {
+            return res.status(403).json({ message: 'Only the owner can transfer ownership' });
+        }
+
+        // Get the new owner's membership
+        const newOwnerMembership = await OrganizationMember.findOne({
+            where: { user_id: new_owner_id, organization_id: orgId }
+        });
+
+        if (!newOwnerMembership) {
+            return res.status(404).json({ message: 'New owner must be an existing member of the organization' });
+        }
+
+        // Cannot transfer to yourself
+        if (new_owner_id === userId) {
+            return res.status(400).json({ message: 'You are already the owner' });
+        }
+
+        // Get role IDs
+        const ownerRole = await Role.findOne({ where: { name: 'Owner' } });
+        const adminRole = await Role.findOne({ where: { name: 'Admin' } });
+
+        if (!ownerRole || !adminRole) {
+            return res.status(500).json({ message: 'Required roles not found' });
+        }
+
+        // Use managed transaction to swap roles atomically
+        await sequelize.transaction(async (t) => {
+            // Current owner becomes Admin
+            currentOwnerMembership.role_id = adminRole.id;
+            await currentOwnerMembership.save({ transaction: t });
+
+            // New owner becomes Owner
+            newOwnerMembership.role_id = ownerRole.id;
+            await newOwnerMembership.save({ transaction: t });
+        });
+
+        res.json({ message: 'Ownership transferred successfully' });
+
+    } catch (error) {
+        console.error('Transfer Ownership Error:', error);
+        res.status(500).json({ message: 'Server error transferring ownership' });
+    }
+};
+
+export const deleteOrganization = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+        const orgId = req.headers['x-organization-id'] as string;
+
+        if (!orgId) {
+            return res.status(400).json({ message: 'Organization ID required' });
+        }
+
+        // Get current user's membership
+        const currentUserMembership = await getUserMembership(userId, orgId);
+        if (!currentUserMembership) {
+            return res.status(404).json({ message: 'Organization not found' });
+        }
+
+        // Only Owner can delete organization
+        if (currentUserMembership.role?.name !== 'Owner') {
+            return res.status(403).json({ message: 'Only the owner can delete the organization' });
+        }
+
+        // Use managed transaction to delete org and all related data
+        await sequelize.transaction(async (t) => {
+            // Delete all invitations first (due to foreign key constraints)
+            const { Invitation } = await import('../models/invitation');
+            await Invitation.destroy({
+                where: { organization_id: orgId },
+                transaction: t
+            });
+
+            // Delete all members
+            await OrganizationMember.destroy({
+                where: { organization_id: orgId },
+                transaction: t
+            });
+
+            // Delete the organization (soft delete due to paranoid: true)
+            await Organization.destroy({
+                where: { id: orgId },
+                transaction: t
+            });
+        });
+
+        res.json({ message: 'Organization deleted successfully' });
+
+    } catch (error) {
+        console.error('Delete Organization Error:', error);
+        res.status(500).json({ message: 'Server error deleting organization' });
     }
 };
