@@ -32,7 +32,7 @@ export class Invitation extends Model<InvitationAttributes, InvitationCreationAt
   public invited_by!: string;
   public status!: InvitationStatus;
   public expires_at!: Date;
-  
+
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 
@@ -53,6 +53,8 @@ Invitation.init(
         model: 'organizations',
         key: 'id',
       },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE',
     },
     email: {
       type: DataTypes.STRING,
@@ -65,6 +67,8 @@ Invitation.init(
         model: 'roles',
         key: 'id',
       },
+      onDelete: 'RESTRICT',
+      onUpdate: 'CASCADE',
     },
     token: {
       type: DataTypes.STRING,
@@ -73,12 +77,14 @@ Invitation.init(
     },
     invited_by: {
       type: DataTypes.UUID,
-      allowNull: false,
-      comment: 'User ID of sender',
+      allowNull: true,
+      comment: 'User ID of sender (nullable if user is deleted)',
       references: {
         model: 'users',
         key: 'id',
       },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
     },
     status: {
       type: DataTypes.ENUM(...Object.values(InvitationStatus)),

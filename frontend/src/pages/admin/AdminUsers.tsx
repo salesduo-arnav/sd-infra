@@ -53,6 +53,15 @@ export default function AdminUsers() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [conflictOrgs, setConflictOrgs] = useState<{ id: string; name: string }[] | null>(null);
+
+  // Reset state when dialog closes
+  useEffect(() => {
+    if (!deleteDialogOpen) {
+      setConflictOrgs(null);
+      setIsDeleting(false);
+    }
+  }, [deleteDialogOpen]);
 
   // Debounce search
   useEffect(() => {
@@ -113,28 +122,36 @@ export default function AdminUsers() {
     setDeleteDialogOpen(true);
   };
 
-  const handleDeleteConfirm = async () => {
+  const handleDeleteConfirm = async (force: boolean = false) => {
     if (!userToDelete) return;
 
     setIsDeleting(true);
     try {
-      const response = await fetch(`${API_URL}/admin/users/${userToDelete.id}`, {
+      const url = `${API_URL}/admin/users/${userToDelete.id}${force ? '?force=true' : ''}`;
+      const response = await fetch(url, {
         method: 'DELETE',
         credentials: 'include'
       });
 
       if (response.ok) {
         fetchUsers();
+        setDeleteDialogOpen(false);
+        setUserToDelete(null);
+        setConflictOrgs(null);
+      } else if (response.status === 409) {
+        const result = await response.json();
+        if (result.organizations) {
+          setConflictOrgs(result.organizations);
+        } else {
+          console.error("409 response missing organizations", result);
+        }
       }
     } catch (error) {
       console.error("Error deleting user", error);
     } finally {
       setIsDeleting(false);
-      setDeleteDialogOpen(false);
-      setUserToDelete(null);
     }
   };
-
 
 
   const handleSendEmail = (user: User) => {
@@ -271,20 +288,44 @@ export default function AdminUsers() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogTitle>
+              {conflictOrgs ? "Warning: Organization Ownership" : "Delete User"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <span className="font-medium text-foreground">{userToDelete?.full_name || userToDelete?.email}</span>?
-              This action cannot be undone and will permanently remove the user and all their data.
+              {conflictOrgs ? (
+                <div className="space-y-2">
+                  <p className="text-destructive font-semibold">
+                    This user is the sole owner of the following organizations:
+                  </p>
+                  <ul className="list-disc pl-5 text-sm text-foreground">
+                    {conflictOrgs.map(org => (
+                      <li key={org.id}>{org.name}</li>
+                    ))}
+                  </ul>
+                  <p>
+                    Deleting this user will also <span className="font-bold text-destructive">permanently delete these organizations</span> and all their data.
+                  </p>
+                  <p>Are you absolutely sure you want to proceed?</p>
+                </div>
+              ) : (
+                <span>
+                  Are you sure you want to delete <span className="font-medium text-foreground">{userToDelete?.full_name || userToDelete?.email}</span>?
+                  This action cannot be undone and will permanently remove the user and all their data.
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDeleteConfirm}
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteConfirm(!!conflictOrgs);
+              }}
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeleting ? "Deleting..." : "Delete"}
+              {isDeleting ? "Deleting..." : (conflictOrgs ? "Confirm & Delete Everything" : "Delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

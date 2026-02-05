@@ -35,7 +35,7 @@ export class Organization extends Model<OrganizationAttributes, OrganizationCrea
   public stripe_customer_id!: string;
   public status!: OrgStatus;
   public deleted_at!: Date | null;
-  
+
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 }
@@ -109,7 +109,7 @@ export class OrganizationMember extends Model<OrganizationMemberAttributes, Orga
   public role_id!: number;
   public is_active!: boolean;
   public readonly joined_at!: Date;
-  
+
   public readonly role?: Role;
   public readonly user?: User;
   public readonly organization?: Organization;
@@ -129,6 +129,8 @@ OrganizationMember.init(
         model: 'organizations',
         key: 'id',
       },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE',
     },
     user_id: {
       type: DataTypes.UUID,
@@ -137,6 +139,8 @@ OrganizationMember.init(
         model: 'users',
         key: 'id',
       },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE',
     },
     role_id: {
       type: DataTypes.INTEGER,
@@ -145,6 +149,8 @@ OrganizationMember.init(
         model: 'roles',
         key: 'id',
       },
+      onDelete: 'RESTRICT',
+      onUpdate: 'CASCADE',
     },
     is_active: {
       type: DataTypes.BOOLEAN,

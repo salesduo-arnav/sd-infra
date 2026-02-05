@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import User from '../models/user';
-import { Organization } from '../models/organization';
+import { Organization, OrganizationMember } from '../models/organization';
+import { Role } from '../models/role';
+import sequelize from '../config/db';
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
@@ -88,6 +90,7 @@ export const deleteUser = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
+        // Early validation before starting transaction
         const user = await User.findByPk(id);
 
         if (!user) {
@@ -99,7 +102,96 @@ export const deleteUser = async (req: Request, res: Response) => {
             return res.status(403).json({ message: 'You cannot delete your own account' });
         }
 
-        await user.destroy();
+        // Check for organization ownerships before transaction
+        const ownedMemberships = await OrganizationMember.findAll({
+            where: {
+                user_id: id
+            },
+            include: [{
+                model: Role,
+                as: 'role',
+                where: { name: 'Owner' }
+            }, {
+                model: Organization,
+                as: 'organization'
+            }]
+        });
+
+        const distinctOwnedOrgs = ownedMemberships.map(m => m.organization!);
+        const conflicts: { id: string; name: string }[] = [];
+
+        for (const org of distinctOwnedOrgs) {
+            // Count other members
+            const otherMembersCount = await OrganizationMember.count({
+                where: {
+                    organization_id: org.id,
+                    user_id: { [Op.ne]: id }
+                }
+            });
+
+            if (otherMembersCount === 0) {
+                // No other members - this is a sole owner situation
+                conflicts.push({ id: org.id, name: org.name });
+            }
+        }
+
+        // Check for conflicts before starting transaction
+        if (conflicts.length > 0) {
+            const force = req.query.force === 'true';
+            if (!force) {
+                return res.status(409).json({
+                    message: 'User is the sole owner of one or more organizations.',
+                    organizations: conflicts
+                });
+            }
+        }
+
+        // Perform all mutations inside managed transaction
+        await sequelize.transaction(async (t) => {
+            // Transfer ownership for orgs with other members
+            for (const org of distinctOwnedOrgs) {
+                const otherMembersCount = await OrganizationMember.count({
+                    where: {
+                        organization_id: org.id,
+                        user_id: { [Op.ne]: id }
+                    },
+                    transaction: t
+                });
+
+                if (otherMembersCount > 0) {
+                    // Transfer ownership to oldest member
+                    const oldestMember = await OrganizationMember.findOne({
+                        where: {
+                            organization_id: org.id,
+                            user_id: { [Op.ne]: id }
+                        },
+                        order: [['created_at', 'ASC']],
+                        transaction: t
+                    });
+
+                    if (oldestMember) {
+                        await oldestMember.update({ role_id: ownedMemberships[0].role_id }, { transaction: t });
+                        console.log(`Transferred ownership of org ${org.id} to user ${oldestMember.user_id}`);
+                    }
+                }
+            }
+
+            // Force delete organizations where user is sole owner
+            for (const conflict of conflicts) {
+                await Organization.destroy({ where: { id: conflict.id }, transaction: t });
+                console.log(`Force deleted organization ${conflict.id}`);
+            }
+
+            // Clean up user's organization memberships
+            // (CASCADE will handle this at DB level, but explicit is better for tracking)
+            const deletedMemberships = await OrganizationMember.destroy({
+                where: { user_id: id },
+                transaction: t
+            });
+            console.log(`Deleted ${deletedMemberships} organization memberships for user`);
+
+            await user.destroy({ transaction: t });
+        });
 
         res.status(200).json({ message: 'User deleted successfully' });
     } catch (error) {

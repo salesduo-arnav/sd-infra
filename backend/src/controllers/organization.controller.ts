@@ -5,7 +5,6 @@ import { User } from '../models/user'; // Import User if needed for typing or ch
 import sequelize from '../config/db';
 
 export const createOrganization = async (req: Request, res: Response) => {
-    const transaction = await sequelize.transaction();
     try {
         const { name, website } = req.body;
         const userId = req.user?.id;
@@ -22,30 +21,33 @@ export const createOrganization = async (req: Request, res: Response) => {
             slug = `${slug}-${Math.floor(Math.random() * 10000)}`;
         }
 
-        // Create Organization
-        const organization = await Organization.create({
-            name,
-            website,
-            slug,
-            status: OrgStatus.ACTIVE
-        }, { transaction });
+        // Perform all mutations inside managed transaction
+        const organization = await sequelize.transaction(async (t) => {
+            // Create Organization
+            const org = await Organization.create({
+                name,
+                website,
+                slug,
+                status: OrgStatus.ACTIVE
+            }, { transaction: t });
 
-        // Find or Create Owner Role
-        // Ideally roles are seeded, but fail-safe here
-        let ownerRole = await Role.findOne({ where: { name: 'Owner' } });
-        if (!ownerRole) {
-            ownerRole = await Role.create({ name: 'Owner', description: 'Organization Owner' }, { transaction });
-        }
+            // Find or Create Owner Role
+            // Ideally roles are seeded, but fail-safe here
+            let ownerRole = await Role.findOne({ where: { name: 'Owner' } });
+            if (!ownerRole) {
+                ownerRole = await Role.create({ name: 'Owner', description: 'Organization Owner' }, { transaction: t });
+            }
 
-        // Add User as Owner
-        await OrganizationMember.create({
-            organization_id: organization.id,
-            user_id: userId,
-            role_id: ownerRole.id,
-            is_active: true
-        }, { transaction });
+            // Add User as Owner
+            await OrganizationMember.create({
+                organization_id: org.id,
+                user_id: userId,
+                role_id: ownerRole.id,
+                is_active: true
+            }, { transaction: t });
 
-        await transaction.commit();
+            return org;
+        });
 
         res.status(201).json({
             message: 'Organization created successfully',
@@ -53,7 +55,6 @@ export const createOrganization = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        await transaction.rollback();
         console.error('Create Org Error:', error);
         res.status(500).json({ message: 'Server error creating organization' });
     }
@@ -67,9 +68,9 @@ export const getMyOrganization = async (req: Request, res: Response) => {
         const orgId = req.headers['x-organization-id'] as string;
 
         let membership;
-        
+
         if (orgId) {
-             membership = await OrganizationMember.findOne({
+            membership = await OrganizationMember.findOne({
                 where: { user_id: userId, organization_id: orgId },
                 include: [
                     {
@@ -83,10 +84,10 @@ export const getMyOrganization = async (req: Request, res: Response) => {
                 ]
             });
         }
-        
+
         // Fallback to first found if no specific org requested (or invalid)
         if (!membership) {
-             membership = await OrganizationMember.findOne({
+            membership = await OrganizationMember.findOne({
                 where: { user_id: userId },
                 include: [
                     {
@@ -122,7 +123,7 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
         if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
         const orgId = req.headers['x-organization-id'] as string;
-        
+
         // Get user's organization
         // Must filter by the active organization context
         const whereClause: { user_id: string; organization_id?: string } = { user_id: userId };

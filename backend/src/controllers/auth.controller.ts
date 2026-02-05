@@ -407,6 +407,13 @@ export const googleAuth = async (req: Request, res: Response) => {
                 password_hash: null, // No password for Google users
                 is_superuser: isSuperuserEmail(email),
             });
+        } else {
+            // Sync superuser status if it changed in config
+            const shouldBeSuperuser = isSuperuserEmail(email);
+            if (user.is_superuser !== shouldBeSuperuser) {
+                user.is_superuser = shouldBeSuperuser;
+                await user.save();
+            }
         }
 
         // 6. Process Invitation if exists

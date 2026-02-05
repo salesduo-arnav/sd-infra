@@ -4,6 +4,8 @@ import app from '../app';
 import sequelize from '../config/db';
 import redisClient from '../config/redis';
 import User from '../models/user';
+import { Organization, OrganizationMember, OrgStatus } from '../models/organization';
+import { Role } from '../models/role';
 
 import path from 'path';
 import dotenv from 'dotenv';
@@ -21,6 +23,12 @@ describe('Admin User Management', () => {
         if (!redisClient.isOpen) {
             await redisClient.connect();
         }
+
+        // Create Roles
+        await Role.bulkCreate([
+            { name: 'Owner', description: 'Organization Owner' },
+            { name: 'Member', description: 'Organization Member' }
+        ]);
 
         // Create Admin User
         adminUser = await User.create({
@@ -177,6 +185,75 @@ describe('Admin User Management', () => {
 
             const refetchedAdmin = await User.findByPk(adminUser.id);
             expect(refetchedAdmin).not.toBeNull();
+        });
+
+        it('should transfer ownership if other members exist', async () => {
+            // Setup: Org with Owner A and Member B
+            const ownerA = await User.create({ email: 'ownerA@example.com', full_name: 'Owner A', is_superuser: false });
+            const memberB = await User.create({ email: 'memberB@example.com', full_name: 'Member B', is_superuser: false });
+
+            const org = await Organization.create({ name: 'Test Org 1', slug: 'test-org-1', status: OrgStatus.ACTIVE });
+            const ownerRole = await Role.findOne({ where: { name: 'Owner' } });
+            const memberRole = await Role.findOne({ where: { name: 'Member' } }) || await Role.create({ name: 'Member', description: 'Member' });
+
+            await OrganizationMember.create({ organization_id: org.id, user_id: ownerA.id, role_id: ownerRole!.id, is_active: true });
+            await OrganizationMember.create({ organization_id: org.id, user_id: memberB.id, role_id: memberRole!.id, is_active: true });
+
+            const res = await request(app)
+                .delete(`/admin/users/${ownerA.id}`)
+                .set('Cookie', [`session_id=${adminSession}`]);
+
+            expect(res.status).toBe(200);
+
+            // Verify Member B is now Owner
+            const newOwnerMembership = await OrganizationMember.findOne({ where: { organization_id: org.id, user_id: memberB.id } });
+            expect(newOwnerMembership?.role_id).toBe(ownerRole!.id);
+        });
+
+        it('should prevent deleting sole owner without force flag', async () => {
+            // Setup: Org with Owner C only
+            const ownerC = await User.create({ email: 'ownerC@example.com', full_name: 'Owner C', is_superuser: false });
+            const org = await Organization.create({ name: 'Solo Org', slug: 'solo-org', status: OrgStatus.ACTIVE });
+            const ownerRole = await Role.findOne({ where: { name: 'Owner' } });
+
+            await OrganizationMember.create({ organization_id: org.id, user_id: ownerC.id, role_id: ownerRole!.id, is_active: true });
+
+            const res = await request(app)
+                .delete(`/admin/users/${ownerC.id}`)
+                .set('Cookie', [`session_id=${adminSession}`]);
+
+            expect(res.status).toBe(409);
+            expect(res.body.message).toContain('sole owner');
+            expect(res.body.organizations).toBeDefined();
+            expect(res.body.organizations.length).toBe(1);
+            expect(res.body.organizations[0].id).toBe(org.id);
+
+            // Verify User and Org still exist
+            const checkUser = await User.findByPk(ownerC.id);
+            expect(checkUser).not.toBeNull();
+            const checkOrg = await Organization.findByPk(org.id);
+            expect(checkOrg).not.toBeNull();
+        });
+
+        it('should delete sole owner and org with force flag', async () => {
+            // Setup: Org with Owner D only
+            const ownerD = await User.create({ email: 'ownerD@example.com', full_name: 'Owner D', is_superuser: false });
+            const org = await Organization.create({ name: 'Solo Org 2', slug: 'solo-org-2', status: OrgStatus.ACTIVE });
+            const ownerRole = await Role.findOne({ where: { name: 'Owner' } });
+
+            await OrganizationMember.create({ organization_id: org.id, user_id: ownerD.id, role_id: ownerRole!.id, is_active: true });
+
+            const res = await request(app)
+                .delete(`/admin/users/${ownerD.id}?force=true`)
+                .set('Cookie', [`session_id=${adminSession}`]);
+
+            expect(res.status).toBe(200);
+
+            // Verify User and Org are gone
+            const checkUser = await User.findByPk(ownerD.id);
+            expect(checkUser).toBeNull();
+            const checkOrg = await Organization.findByPk(org.id);
+            expect(checkOrg).toBeNull();
         });
     });
 });
