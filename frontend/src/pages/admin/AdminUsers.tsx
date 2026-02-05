@@ -254,16 +254,11 @@ export default function AdminUsers() {
     <Layout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 text-primary">
-            <Users className="h-6 w-6" />
-          </div>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold tracking-tight">Manage Users</h1>
-            <p className="text-muted-foreground text-sm">
-              View and manage all user accounts across the platform
-            </p>
-          </div>
+        <div className="flex-1">
+          <h1 className="text-3xl font-bold tracking-tight">Manage Users</h1>
+          <p className="text-muted-foreground mt-1">
+            View and manage all user accounts across the platform
+          </p>
         </div>
 
         {/* Data Table Card */}

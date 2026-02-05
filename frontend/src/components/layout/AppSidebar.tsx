@@ -193,7 +193,7 @@ export function AppSidebar() {
                     >
                       <Link to="/admin/plans">
                         <CreditCard className="h-4 w-4 opacity-70" />
-                        <span>Manage Plans</span>
+                        <span>Manage Plans & Bundles</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
