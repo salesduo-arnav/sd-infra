@@ -22,8 +22,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -31,12 +41,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Package, Settings, Bolt, MoreHorizontal } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, Bolt } from "lucide-react";
 import * as AdminService from "@/services/admin.service";
 import { Tool, Feature } from "@/services/admin.service";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 
 export default function AdminApps() {
   const [apps, setApps] = useState<Tool[]>([]);
@@ -96,6 +106,132 @@ export default function AdminApps() {
   }, [pagination.pageIndex, pagination.pageSize, sorting, search]);
 
   // ==============================
+  // Tool Handlers
+  // ==============================
+
+  const handleOpenDialog = (app?: Tool) => {
+    if (app) {
+      setEditingApp(app);
+      setFormData({
+        name: app.name,
+        slug: app.slug,
+        description: app.description || "",
+        is_active: app.is_active,
+      });
+    } else {
+      setEditingApp(null);
+      setFormData({ name: "", slug: "", description: "", is_active: true });
+    }
+    setIsDialogOpen(true);
+  };
+
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)+/g, "");
+  };
+
+  const handleNameChange = (name: string) => {
+      if (!editingApp) {
+          setFormData(prev => ({ ...prev, name, slug: generateSlug(name) }));
+      } else {
+          setFormData(prev => ({ ...prev, name }));
+      }
+  };
+
+  const handleSave = async () => {
+    try {
+      if (editingApp) {
+        await AdminService.updateTool(editingApp.id, formData);
+      } else {
+        await AdminService.createTool(formData);
+      }
+      setIsDialogOpen(false);
+      fetchData();
+      toast.success(editingApp ? "App updated" : "App created");
+    } catch (error) {
+      console.error("Failed to save tool", error);
+      toast.error("Failed to save tool.");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await AdminService.deleteTool(id);
+      fetchData();
+      toast.success("App deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete tool", error);
+      toast.error("Failed to delete tool. It may have active dependencies.");
+    }
+  };
+
+  // ==============================
+  // Feature Handlers
+  // ==============================
+
+  const handleManageFeatures = async (tool: Tool) => {
+      setSelectedToolForFeatures(tool);
+      setIsFeatureDialogOpen(true);
+      refreshFeatures(tool.id);
+      setEditingFeature(null);
+      setFeatureFormData({ name: "", slug: "", type: "boolean", description: "" });
+  };
+
+  const refreshFeatures = async (toolId: string) => {
+      try {
+          const data = await AdminService.getFeatures(toolId);
+          setFeatures(data.features || []);
+      } catch (error) {
+          console.error("Failed to fetch features", error);
+      }
+  };
+
+  const handleFeatureSave = async () => {
+    if (!selectedToolForFeatures) return;
+    try {
+        if (editingFeature) {
+            await AdminService.updateFeature(editingFeature.id, featureFormData);
+        } else {
+            await AdminService.createFeature({
+                ...featureFormData,
+                tool_id: selectedToolForFeatures.id
+            });
+        }
+        setEditingFeature(null);
+        setFeatureFormData({ name: "", slug: "", type: "boolean", description: "" });
+        refreshFeatures(selectedToolForFeatures.id);
+        toast.success(editingFeature ? "Feature updated" : "Feature added");
+    } catch (error) {
+        console.error("Failed to save feature", error);
+        toast.error("Failed to save feature.");
+    }
+  };
+
+  const handleEditFeature = (feature: Feature) => {
+      setEditingFeature(feature);
+      setFeatureFormData({
+          name: feature.name,
+          slug: feature.slug,
+          type: feature.type,
+          description: feature.description || ""
+      });
+  };
+
+  const handleDeleteFeature = async (featureId: string) => {
+      if (!selectedToolForFeatures) return;
+      try {
+          await AdminService.deleteFeature(featureId);
+          refreshFeatures(selectedToolForFeatures.id);
+          toast.success("Feature deleted");
+      } catch (error) {
+          console.error("Failed to delete feature", error);
+          toast.error("Failed to delete feature.");
+      }
+  };
+
+  // ==============================
   // Columns Definition
   // ==============================
   const columns: ColumnDef<Tool>[] = useMemo(() => [
@@ -140,137 +276,31 @@ export default function AdminApps() {
                        <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(tool)}>
                            <Pencil className="h-4 w-4" />
                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(tool.id)} className="text-destructive hover:text-destructive">
-                           <Trash2 className="h-4 w-4" />
-                       </Button>
+                       <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the app <strong>{tool.name}</strong>.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDelete(tool.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                       </AlertDialog>
                   </div>
               )
           }
       }
-  ], []);
+  ], [apps, pagination]);
 
-  // ==============================
-  // Tool Handlers
-  // ==============================
-
-  const handleOpenDialog = (app?: Tool) => {
-    if (app) {
-      setEditingApp(app);
-      setFormData({
-        name: app.name,
-        slug: app.slug,
-        description: app.description || "",
-        is_active: app.is_active,
-      });
-    } else {
-      setEditingApp(null);
-      setFormData({ name: "", slug: "", description: "", is_active: true });
-    }
-    setIsDialogOpen(true);
-  };
-
-  const generateSlug = (name: string) => {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)+/g, "");
-  };
-
-  const handleNameChange = (name: string) => {
-      if (!editingApp) {
-          setFormData(prev => ({ ...prev, name, slug: generateSlug(name) }));
-      } else {
-          setFormData(prev => ({ ...prev, name }));
-      }
-  };
-
-  const handleSave = async () => {
-    try {
-      if (editingApp) {
-        await AdminService.updateTool(editingApp.id, formData);
-      } else {
-        await AdminService.createTool(formData);
-      }
-      setIsDialogOpen(false);
-      fetchData();
-    } catch (error) {
-      console.error("Failed to save tool", error);
-      alert("Failed to save tool.");
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if(!confirm("Delete this tool?")) return;
-    try {
-      await AdminService.deleteTool(id);
-      fetchData();
-    } catch (error) {
-      console.error("Failed to delete tool", error);
-      alert("Failed to delete tool.");
-    }
-  };
-
-  // ==============================
-  // Feature Handlers
-  // ==============================
-
-  const handleManageFeatures = async (tool: Tool) => {
-      setSelectedToolForFeatures(tool);
-      setIsFeatureDialogOpen(true);
-      refreshFeatures(tool.id);
-      setEditingFeature(null);
-      setFeatureFormData({ name: "", slug: "", type: "boolean", description: "" });
-  };
-
-  const refreshFeatures = async (toolId: string) => {
-      try {
-          const data = await AdminService.getFeatures(toolId);
-          setFeatures(data.features || []);
-      } catch (error) {
-          console.error("Failed to fetch features", error);
-      }
-  };
-
-  const handleFeatureSave = async () => {
-    if (!selectedToolForFeatures) return;
-    try {
-        if (editingFeature) {
-            await AdminService.updateFeature(editingFeature.id, featureFormData);
-        } else {
-            await AdminService.createFeature({
-                ...featureFormData,
-                tool_id: selectedToolForFeatures.id
-            });
-        }
-        setEditingFeature(null);
-        setFeatureFormData({ name: "", slug: "", type: "boolean", description: "" });
-        refreshFeatures(selectedToolForFeatures.id);
-    } catch (error) {
-        console.error("Failed to save feature", error);
-        alert("Failed to save feature.");
-    }
-  };
-
-  const handleEditFeature = (feature: Feature) => {
-      setEditingFeature(feature);
-      setFeatureFormData({
-          name: feature.name,
-          slug: feature.slug,
-          type: feature.type,
-          description: feature.description || ""
-      });
-  };
-
-  const handleDeleteFeature = async (featureId: string) => {
-      if(!confirm("Delete this feature?")) return;
-      if (!selectedToolForFeatures) return;
-      try {
-          await AdminService.deleteFeature(featureId);
-          refreshFeatures(selectedToolForFeatures.id);
-      } catch (error) {
-          console.error("Failed to delete feature", error);
-      }
-  };
 
   return (
     <Layout>
@@ -393,9 +423,25 @@ export default function AdminApps() {
                                                 <Button variant="ghost" size="sm" onClick={() => handleEditFeature(f)}>
                                                     <Pencil className="h-4 w-4" />
                                                 </Button>
-                                                <Button variant="ghost" size="sm" onClick={() => handleDeleteFeature(f.id)} className="text-destructive">
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
+                                                <AlertDialog>
+                                                  <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="sm" className="text-destructive">
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                  </AlertDialogTrigger>
+                                                  <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                      <AlertDialogDescription>
+                                                        This will delete feature <strong>{f.name}</strong>.
+                                                      </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                      <AlertDialogAction onClick={() => handleDeleteFeature(f.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                  </AlertDialogContent>
+                                                </AlertDialog>
                                             </div>
                                         </TableCell>
                                     </TableRow>

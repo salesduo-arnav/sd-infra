@@ -23,6 +23,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -34,6 +45,7 @@ import * as AdminService from "@/services/admin.service";
 import { Plan, Tool, PlanLimit, Bundle } from "@/services/admin.service";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
+import { toast } from "sonner";
 
 export default function AdminPlans() {
   const [tools, setTools] = useState<Tool[]>([]);
@@ -162,122 +174,7 @@ export default function AdminPlans() {
     fetchBundles();
   }, [bundlesPagination.pageIndex, bundlesPagination.pageSize, bundlesSorting, bundlesSearch]);
 
-
-  // ==========================
-  // Column Definitions
-  // ==========================
-
-  const planColumns: ColumnDef<Plan>[] = useMemo(() => [
-      {
-          accessorKey: "name",
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Plan Name" />,
-          cell: ({ row }) => (
-            <div className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-muted-foreground"/>
-                <div className="flex flex-col">
-                    <span className="font-medium">{row.getValue("name")}</span>
-                    <span className="text-xs text-muted-foreground capitalize">{row.original.tier}</span>
-                </div>
-            </div>
-          )
-      },
-      {
-          accessorKey: "tool.name", // Access nested
-          id: "tool_name", // ID required for sorting if accessorKey is nested or specialized?
-          header: "Tool",
-          cell: ({ row }) => row.original.tool?.name
-      },
-      {
-          accessorKey: "price",
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Price" />,
-          cell: ({ row }) => `$${row.original.price}/${row.original.interval}`
-      },
-      {
-          accessorKey: "active",
-          header: "Status",
-          cell: ({ row }) => (
-              <Badge variant={row.original.active ? "default" : "secondary"}>
-                  {row.original.active ? "Active" : "Inactive"}
-              </Badge>
-          )
-      },
-       {
-          id: "actions",
-          cell: ({ row }) => {
-              const plan = row.original;
-              return (
-                <div className="flex justify-end gap-2">
-                    <Button size="icon" variant="ghost" title="Limits" onClick={() => handleManageLimits(plan)}><Settings className="h-4 w-4"/></Button>
-                    <Button size="icon" variant="ghost" onClick={() => handleOpenPlanDialog(plan)}><Pencil className="h-4 w-4"/></Button>
-                    <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handlePlanDelete(plan.id)}><Trash2 className="h-4 w-4"/></Button>
-                </div>
-              )
-          }
-      }
-  ], []);
-
-  const bundleColumns: ColumnDef<Bundle>[] = useMemo(() => [
-        {
-            accessorKey: "name",
-            header: ({ column }) => <DataTableColumnHeader column={column} title="Bundle Name" />,
-            cell: ({ row }) => (
-                <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4 text-muted-foreground"/>
-                    <span className="font-medium">{row.getValue("name")}</span>
-                </div>
-            )
-        },
-        {
-            accessorKey: "slug",
-            header: "Slug",
-            cell: ({ row }) => <span className="font-mono text-xs">{row.getValue("slug")}</span>
-        },
-        {
-            id: "plans",
-            header: "Plans",
-            cell: ({ row }) => {
-                const plans = row.original.plans;
-                if (!plans || plans.length === 0) return <span className="text-muted-foreground text-xs">No plans</span>;
-                return (
-                    <div className="flex flex-wrap gap-1">
-                        {plans.map(p => (
-                            <Badge key={p.id} variant="outline" className="text-xs">
-                                {p.name}
-                            </Badge>
-                        ))}
-                    </div>
-                );
-            }
-        },
-        {
-            accessorKey: "price",
-            header: ({ column }) => <DataTableColumnHeader column={column} title="Price" />,
-             cell: ({ row }) => `$${row.original.price}/${row.original.interval}`
-        },
-        {
-            accessorKey: "active",
-            header: "Status",
-            cell: ({ row }) => (
-                <Badge variant={row.original.active ? "default" : "secondary"}>
-                    {row.original.active ? "Active" : "Inactive"}
-                </Badge>
-            )
-        },
-        {
-            id: "actions",
-            cell: ({ row }) => {
-                const bundle = row.original;
-                return (
-                    <div className="flex justify-end gap-2">
-                        <Button size="icon" variant="ghost" title="Manage Plans" onClick={() => handleManageBundlePlans(bundle)}><LinkIcon className="h-4 w-4"/></Button>
-                        <Button size="icon" variant="ghost" onClick={() => handleOpenBundleDialog(bundle)}><Pencil className="h-4 w-4"/></Button>
-                        <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleBundleDelete(bundle.id)}><Trash2 className="h-4 w-4"/></Button>
-                    </div>
-                )
-            }
-        }
-  ], []);
-
+  
   // ==========================
   // Plan Handlers
   // ==========================
@@ -331,12 +228,13 @@ export default function AdminPlans() {
   };
 
   const handlePlanDelete = async (id: string) => {
-    if(!confirm("Delete this plan?")) return;
     try {
       await AdminService.deletePlan(id);
       fetchPlans();
+      toast.success("Plan deleted successfully");
     } catch (error) {
       console.error("Failed to delete plan", error);
+      toast.error("Failed to delete plan. It may have active subscribers.");
     }
   };
 
@@ -387,12 +285,13 @@ export default function AdminPlans() {
   };
 
   const handleBundleDelete = async (id: string) => {
-      if(!confirm("Delete this bundle?")) return;
       try {
           await AdminService.deleteBundle(id);
           fetchBundles();
+          toast.success("Bundle deleted successfully");
       } catch (error) {
           console.error("Failed to delete bundle", error);
+          toast.error("Failed to delete bundle. It may have active subscribers.");
       }
   };
 
@@ -472,6 +371,154 @@ export default function AdminPlans() {
           console.error("Failed to remove plan", error);
       }
   };
+
+  // ==========================
+  // Column Definitions
+  // ==========================
+
+  const planColumns: ColumnDef<Plan>[] = useMemo(() => [
+      {
+          accessorKey: "name",
+          header: ({ column }) => <DataTableColumnHeader column={column} title="Plan Name" />,
+          cell: ({ row }) => (
+            <div className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-muted-foreground"/>
+                <div className="flex flex-col">
+                    <span className="font-medium">{row.getValue("name")}</span>
+                    <span className="text-xs text-muted-foreground capitalize">{row.original.tier}</span>
+                </div>
+            </div>
+          )
+      },
+      {
+          accessorKey: "tool.name", // Access nested
+          id: "tool_name", // ID required for sorting if accessorKey is nested or specialized?
+          header: "Tool",
+          cell: ({ row }) => row.original.tool?.name
+      },
+      {
+          accessorKey: "price",
+          header: ({ column }) => <DataTableColumnHeader column={column} title="Price" />,
+          cell: ({ row }) => `$${row.original.price}/${row.original.interval}`
+      },
+      {
+          accessorKey: "active",
+          header: "Status",
+          cell: ({ row }) => (
+              <Badge variant={row.original.active ? "default" : "secondary"}>
+                  {row.original.active ? "Active" : "Inactive"}
+              </Badge>
+          )
+      },
+       {
+          id: "actions",
+          cell: ({ row }) => {
+              const plan = row.original;
+              return (
+                <div className="flex justify-end gap-2">
+                    <Button size="icon" variant="ghost" title="Limits" onClick={() => handleManageLimits(plan)}><Settings className="h-4 w-4"/></Button>
+                    <Button size="icon" variant="ghost" onClick={() => handleOpenPlanDialog(plan)}><Pencil className="h-4 w-4"/></Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="icon" variant="ghost" className="text-destructive"><Trash2 className="h-4 w-4"/></Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the plan <strong>{plan.name}</strong>.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handlePlanDelete(plan.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                </div>
+              )
+          }
+      }
+  ], [plans, plansPagination]); // Dependencies for actions
+
+  const bundleColumns: ColumnDef<Bundle>[] = useMemo(() => [
+        {
+            accessorKey: "name",
+            header: ({ column }) => <DataTableColumnHeader column={column} title="Bundle Name" />,
+            cell: ({ row }) => (
+                <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 text-muted-foreground"/>
+                    <span className="font-medium">{row.getValue("name")}</span>
+                </div>
+            )
+        },
+        {
+            accessorKey: "slug",
+            header: "Slug",
+            cell: ({ row }) => <span className="font-mono text-xs">{row.getValue("slug")}</span>
+        },
+        {
+            id: "plans",
+            header: "Plans",
+            cell: ({ row }) => {
+                const plans = row.original.plans;
+                if (!plans || plans.length === 0) return <span className="text-muted-foreground text-xs">No plans</span>;
+                return (
+                    <div className="flex flex-wrap gap-1">
+                        {plans.map(p => (
+                            <Badge key={p.id} variant="outline" className="text-xs">
+                                {p.name}
+                            </Badge>
+                        ))}
+                    </div>
+                );
+            }
+        },
+        {
+            accessorKey: "price",
+            header: ({ column }) => <DataTableColumnHeader column={column} title="Price" />,
+             cell: ({ row }) => `$${row.original.price}/${row.original.interval}`
+        },
+        {
+            accessorKey: "active",
+            header: "Status",
+            cell: ({ row }) => (
+                <Badge variant={row.original.active ? "default" : "secondary"}>
+                    {row.original.active ? "Active" : "Inactive"}
+                </Badge>
+            )
+        },
+        {
+            id: "actions",
+            cell: ({ row }) => {
+                const bundle = row.original;
+                return (
+                    <div className="flex justify-end gap-2">
+                        <Button size="icon" variant="ghost" title="Manage Plans" onClick={() => handleManageBundlePlans(bundle)}><LinkIcon className="h-4 w-4"/></Button>
+                        <Button size="icon" variant="ghost" onClick={() => handleOpenBundleDialog(bundle)}><Pencil className="h-4 w-4"/></Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="icon" variant="ghost" className="text-destructive"><Trash2 className="h-4 w-4"/></Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the bundle <strong>{bundle.name}</strong>.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleBundleDelete(bundle.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
+                )
+            }
+        }
+  ], [bundles, bundlesPagination]);
+
 
   return (
     <Layout>
