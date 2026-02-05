@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import User from '../models/user';
 import { Organization, OrganizationMember } from '../models/organization';
+import { Role } from '../models/role';
 import sequelize from '../config/db';
 
 export const getUsers = async (req: Request, res: Response) => {
@@ -102,6 +103,73 @@ export const deleteUser = async (req: Request, res: Response) => {
         if (req.user?.id === user.id) {
             await transaction.rollback();
             return res.status(403).json({ message: 'You cannot delete your own account' });
+        }
+
+        // Check for organization ownerships
+        const ownedMemberships = await OrganizationMember.findAll({
+            where: {
+                user_id: id
+            },
+            include: [{
+                model: Role,
+                as: 'role',
+                where: { name: 'Owner' }
+            }, {
+                model: Organization,
+                as: 'organization'
+            }],
+            transaction
+        });
+
+        const distinctOwnedOrgs = ownedMemberships.map(m => m.organization!);
+        const conflicts: { id: string; name: string }[] = [];
+
+        for (const org of distinctOwnedOrgs) {
+            // Count other members
+            const otherMembersCount = await OrganizationMember.count({
+                where: {
+                    organization_id: org.id,
+                    user_id: { [Op.ne]: id }
+                },
+                transaction
+            });
+
+            if (otherMembersCount > 0) {
+                // Transfer ownership to oldest member
+                const oldestMember = await OrganizationMember.findOne({
+                    where: {
+                        organization_id: org.id,
+                        user_id: { [Op.ne]: id }
+                    },
+                    order: [['created_at', 'ASC']],
+                    transaction
+                });
+
+                if (oldestMember) {
+                    await oldestMember.update({ role_id: ownedMemberships[0].role_id }, { transaction });
+                    console.log(`Transferred ownership of org ${org.id} to user ${oldestMember.user_id}`);
+                }
+            } else {
+                // No other members - this is a sole owner situation
+                conflicts.push({ id: org.id, name: org.name });
+            }
+        }
+
+        if (conflicts.length > 0) {
+            const force = req.query.force === 'true';
+            if (!force) {
+                await transaction.rollback();
+                return res.status(409).json({
+                    message: 'User is the sole owner of one or more organizations.',
+                    organizations: conflicts
+                });
+            }
+
+            // Force delete: Delete the organizations
+            for (const conflict of conflicts) {
+                await Organization.destroy({ where: { id: conflict.id }, transaction });
+                console.log(`Force deleted organization ${conflict.id}`);
+            }
         }
 
         // Clean up user's organization memberships
