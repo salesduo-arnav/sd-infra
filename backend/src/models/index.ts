@@ -11,7 +11,7 @@ import { Invitation } from './invitation';
 User.hasMany(OrganizationMember, { foreignKey: 'user_id', as: 'memberships' });
 OrganizationMember.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
-Organization.hasMany(OrganizationMember, { foreignKey: 'organization_id', as: 'members' });
+Organization.hasMany(OrganizationMember, { foreignKey: 'organization_id', as: 'members', onDelete: 'CASCADE' });
 OrganizationMember.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
 
 // User <-> Organization (Many-to-Many Shortcut)
@@ -47,13 +47,13 @@ Permission.belongsToMany(Role, {
 });
 
 // Invitation Associations
-Organization.hasMany(Invitation, { foreignKey: 'organization_id', as: 'invitations' });
+Organization.hasMany(Invitation, { foreignKey: 'organization_id', as: 'invitations', onDelete: 'CASCADE' });
 Invitation.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
 
 Role.hasMany(Invitation, { foreignKey: 'role_id' });
 Invitation.belongsTo(Role, { foreignKey: 'role_id', as: 'role' });
 
-User.hasMany(Invitation, { foreignKey: 'invited_by', as: 'sent_invitations' });
+User.hasMany(Invitation, { foreignKey: 'invited_by', as: 'sent_invitations', onDelete: 'SET NULL' });
 Invitation.belongsTo(User, { foreignKey: 'invited_by', as: 'sender' });
 
 

@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import User from '../models/user';
-import { Organization } from '../models/organization';
+import { Organization, OrganizationMember } from '../models/organization';
+import sequelize from '../config/db';
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
@@ -85,24 +86,38 @@ export const updateUser = async (req: Request, res: Response) => {
 };
 
 export const deleteUser = async (req: Request, res: Response) => {
+    const transaction = await sequelize.transaction();
+
     try {
         const { id } = req.params;
 
-        const user = await User.findByPk(id);
+        const user = await User.findByPk(id, { transaction });
 
         if (!user) {
+            await transaction.rollback();
             return res.status(404).json({ message: 'User not found' });
         }
 
         // Prevent admin from deleting themselves
         if (req.user?.id === user.id) {
+            await transaction.rollback();
             return res.status(403).json({ message: 'You cannot delete your own account' });
         }
 
-        await user.destroy();
+        // Clean up user's organization memberships
+        // (CASCADE will handle this at DB level, but explicit is better for tracking)
+        const deletedMemberships = await OrganizationMember.destroy({
+            where: { user_id: id },
+            transaction
+        });
+        console.log(`Deleted ${deletedMemberships} organization memberships for user`);
 
+        await user.destroy({ transaction });
+
+        await transaction.commit();
         res.status(200).json({ message: 'User deleted successfully' });
     } catch (error) {
+        await transaction.rollback();
         console.error('Delete User Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }

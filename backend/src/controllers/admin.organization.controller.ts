@@ -1,0 +1,115 @@
+import { Request, Response } from 'express';
+import { Op } from 'sequelize';
+import { Organization, OrgStatus, OrganizationMember } from '../models/organization';
+import { Invitation } from '../models/invitation';
+import sequelize from '../config/db';
+
+export const getOrganizations = async (req: Request, res: Response) => {
+    try {
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const offset = (page - 1) * limit;
+
+        const search = req.query.search as string;
+        const sortBy = (req.query.sortBy as string) || 'created_at';
+        const sortOrder = (req.query.sortOrder as string) === 'asc' ? 'ASC' : 'DESC';
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const whereClause: any = {};
+
+        if (search) {
+            whereClause[Op.or] = [
+                { name: { [Op.iLike]: `%${search}%` } },
+                { slug: { [Op.iLike]: `%${search}%` } }
+            ];
+        }
+
+        const { count, rows } = await Organization.findAndCountAll({
+            where: whereClause,
+            limit,
+            offset,
+            order: [[sortBy, sortOrder]],
+        });
+
+        const totalPages = Math.ceil(count / limit);
+
+        res.status(200).json({
+            organizations: rows,
+            meta: {
+                totalItems: count,
+                totalPages,
+                currentPage: page,
+                itemsPerPage: limit
+            }
+        });
+    } catch (error) {
+        console.error('Get Organizations Error:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+export const updateOrganization = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { name, slug, website, status } = req.body;
+
+        const organization = await Organization.findByPk(id);
+
+        if (!organization) {
+            return res.status(404).json({ message: 'Organization not found' });
+        }
+
+        await organization.update({
+            name: name !== undefined ? name : organization.name,
+            slug: slug !== undefined ? slug : organization.slug,
+            website: website !== undefined ? website : organization.website,
+            status: status !== undefined ? status as OrgStatus : organization.status
+        });
+
+        res.status(200).json({ message: 'Organization updated successfully', organization });
+    } catch (error) {
+        console.error('Update Organization Error:', error);
+        if ((error as any).name === 'SequelizeUniqueConstraintError') {
+            return res.status(409).json({ message: 'Slug already in use' });
+        }
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+export const deleteOrganization = async (req: Request, res: Response) => {
+    const transaction = await sequelize.transaction();
+
+    try {
+        const { id } = req.params;
+
+        const organization = await Organization.findByPk(id, { transaction });
+
+        if (!organization) {
+            await transaction.rollback();
+            return res.status(404).json({ message: 'Organization not found' });
+        }
+
+        // Explicitly delete related records for logging
+        // (CASCADE will handle this at DB level, but explicit is better for tracking)
+        const deletedMembers = await OrganizationMember.destroy({
+            where: { organization_id: id },
+            transaction
+        });
+        console.log(`Deleted ${deletedMembers} organization members`);
+
+        const deletedInvitations = await Invitation.destroy({
+            where: { organization_id: id },
+            transaction
+        });
+        console.log(`Deleted ${deletedInvitations} invitations`);
+
+        await organization.destroy({ transaction });
+
+        await transaction.commit();
+        res.status(200).json({ message: 'Organization deleted successfully' });
+    } catch (error) {
+        await transaction.rollback();
+        console.error('Delete Organization Error:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};

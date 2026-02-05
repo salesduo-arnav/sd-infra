@@ -1,17 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Layout } from "@/components/layout/Layout";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,197 +10,426 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, MoreHorizontal, Building2, Users, Ban, CheckCircle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { MoreHorizontal, Trash2, Building2, Pencil } from "lucide-react";
+import { DataTable, DataTableColumnHeader, DataTableStaticHeader } from "@/components/ui/data-table";
+import { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
+import { API_URL } from "@/lib/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner"; // Assuming sonner is available based on App.tsx
 
 interface Organization {
   id: string;
   name: string;
-  owner: string;
-  membersCount: number;
-  plan: string;
-  status: "active" | "inactive" | "suspended";
-  createdAt: string;
+  slug: string;
+  website: string;
+  status: 'active' | 'suspended' | 'archived';
+  created_at: string;
 }
 
-const mockOrganizations: Organization[] = [
-  {
-    id: "1",
-    name: "Acme Sellers Inc.",
-    owner: "john@example.com",
-    membersCount: 12,
-    plan: "Enterprise",
-    status: "active",
-    createdAt: "2024-01-15",
-  },
-  {
-    id: "2",
-    name: "Smith Co",
-    owner: "jane@company.com",
-    membersCount: 5,
-    plan: "Professional",
-    status: "active",
-    createdAt: "2024-02-01",
-  },
-  {
-    id: "3",
-    name: "Startup Inc",
-    owner: "mike@startup.io",
-    membersCount: 3,
-    plan: "Starter",
-    status: "active",
-    createdAt: "2024-03-10",
-  },
-  {
-    id: "4",
-    name: "Wilson Sellers",
-    owner: "sarah@sellers.com",
-    membersCount: 8,
-    plan: "Professional",
-    status: "suspended",
-    createdAt: "2024-01-20",
-  },
-  {
-    id: "5",
-    name: "Brown LLC",
-    owner: "tom@amazon-seller.com",
-    membersCount: 2,
-    plan: "Starter",
-    status: "inactive",
-    createdAt: "2024-04-01",
-  },
-];
-
 export default function AdminOrganizations() {
-  const [organizations, setOrganizations] = useState<Organization[]>(mockOrganizations);
+  const { user: currentUser } = useAuth();
+  const [data, setData] = useState<Organization[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pageCount, setPageCount] = useState(1);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const filteredOrganizations = organizations.filter(
-    (org) =>
-      org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      org.owner.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Delete confirmation state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [orgToDelete, setOrgToDelete] = useState<Organization | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleStatusChange = (orgId: string, newStatus: Organization["status"]) => {
-    setOrganizations(
-      organizations.map((org) =>
-        org.id === orgId ? { ...org, status: newStatus } : org
-      )
-    );
+  // Edit Dialog State
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [orgToEdit, setOrgToEdit] = useState<Organization | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    slug: "",
+    website: "",
+    status: "active" as "active" | "suspended" | "archived"
+  });
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPagination(prev => ({ ...prev, pageIndex: 0 }));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const fetchOrganizations = useCallback(async () => {
+    setLoading(true);
+    try {
+      const page = pagination.pageIndex + 1;
+      const limit = pagination.pageSize;
+      const sortField = sorting.length > 0 ? sorting[0].id : "created_at";
+      const sortOrder = sorting.length > 0 && sorting[0].desc ? "desc" : "asc";
+
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+        sortBy: sortField,
+        sortOrder: sortOrder,
+      });
+
+      if (debouncedSearch) {
+        params.append("search", debouncedSearch);
+      }
+
+      const response = await fetch(`${API_URL}/admin/organizations?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch organizations');
+      }
+
+      const result = await response.json();
+      setData(result.organizations);
+      setPageCount(result.meta.totalPages);
+    } catch (error) {
+      console.error("Error fetching organizations:", error);
+      toast.error("Failed to fetch organizations");
+    } finally {
+      setLoading(false);
+    }
+  }, [pagination, sorting, debouncedSearch]);
+
+  useEffect(() => {
+    fetchOrganizations();
+  }, [fetchOrganizations]);
+
+  const handleDeleteClick = (org: Organization) => {
+    setOrgToDelete(org);
+    setDeleteDialogOpen(true);
   };
 
-  const getStatusBadge = (status: Organization["status"]) => {
-    switch (status) {
-      case "active":
-        return <Badge className="bg-green-500/10 text-green-600">Active</Badge>;
-      case "inactive":
-        return <Badge variant="secondary">Inactive</Badge>;
-      case "suspended":
-        return <Badge variant="destructive">Suspended</Badge>;
+  const handleDeleteConfirm = async () => {
+    if (!orgToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`${API_URL}/admin/organizations/${orgToDelete.id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        toast.success("Organization deleted successfully");
+        fetchOrganizations();
+      } else {
+        toast.error("Failed to delete organization");
+      }
+    } catch (error) {
+      console.error("Error deleting organization", error);
+      toast.error("An error occurred while deleting");
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setOrgToDelete(null);
     }
   };
+
+  const handleEditClick = (org: Organization) => {
+    setOrgToEdit(org);
+    setEditFormData({
+      name: org.name,
+      slug: org.slug,
+      website: org.website || "",
+      status: org.status
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!orgToEdit) return;
+
+    setIsSaving(true);
+    try {
+      const response = await fetch(`${API_URL}/admin/organizations/${orgToEdit.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(editFormData),
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        toast.success("Organization updated successfully");
+        fetchOrganizations();
+        setEditDialogOpen(false);
+        setOrgToEdit(null);
+      } else {
+        // Handle error (e.g., slug conflict)
+        const errorData = await response.json();
+        toast.error(errorData.message || "Failed to update organization");
+      }
+    } catch (error) {
+      console.error("Error updating organization", error);
+      toast.error("An error occurred while updating");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+
+  const columns: ColumnDef<Organization>[] = [
+    {
+      accessorKey: "name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Organization" />,
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-muted/50">
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="font-medium text-foreground">{row.original.name}</p>
+            <p className="text-sm text-muted-foreground">{row.original.slug}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "website",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Website" />,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {row.original.website ? (
+            <a href={row.original.website.startsWith('http') ? row.original.website : `https://${row.original.website}`} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-primary">
+              {row.original.website}
+            </a>
+          ) : "—"}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "status",
+      header: () => <DataTableStaticHeader title="Status" />,
+      cell: ({ row }) => {
+        const status = row.original.status;
+        let variant: "default" | "secondary" | "destructive" | "outline" = "outline";
+        if (status === 'active') variant = "default"; // Or success-like if available, default is usually primary
+        // Using outline for suspended for now, or maybe destructive for archived
+        if (status === 'suspended') variant = "destructive";
+
+        return <Badge variant={variant} className="capitalize">{status}</Badge>;
+      }
+    },
+    {
+      accessorKey: "created_at",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Created" />,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {new Date(row.original.created_at).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          })}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: () => <DataTableStaticHeader title="Actions" srOnly />,
+      cell: ({ row }) => {
+        const org = row.original;
+        return (
+          <div className="text-right">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-muted">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem onClick={() => handleEditClick(org)} className="cursor-pointer">
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit Details
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => handleDeleteClick(org)}
+                  className="text-destructive focus:text-destructive cursor-pointer"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Org
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
     <Layout>
       <div className="space-y-6">
+        {/* Page Header */}
         <div className="flex items-center gap-4">
-
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 text-primary">
+            <Building2 className="h-6 w-6" />
+          </div>
           <div className="flex-1">
-            <h1 className="text-3xl font-bold tracking-tight">Manage Organizations</h1>
-            <p className="text-muted-foreground mt-1">
-              Oversee organization accounts
+            <h1 className="text-2xl font-bold tracking-tight">Manage Organizations</h1>
+            <p className="text-muted-foreground text-sm">
+              View and manage all customer organizations
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search organizations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+        {/* Data Table Card */}
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <DataTable
+            columns={columns}
+            data={data}
+            pageCount={pageCount}
+            pagination={pagination}
+            onPaginationChange={setPagination}
+            sorting={sorting}
+            onSortingChange={setSorting}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            placeholder="Search organizations..."
+            isLoading={loading}
+          />
         </div>
-
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Organization</TableHead>
-                  <TableHead>Owner</TableHead>
-                  <TableHead>Members</TableHead>
-                  <TableHead>Plan</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredOrganizations.map((org) => (
-                  <TableRow key={org.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                          <Building2 className="h-5 w-5 text-primary" />
-                        </div>
-                        <p className="font-medium">{org.name}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{org.owner}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        {org.membersCount}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{org.plan}</Badge>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(org.status)}</TableCell>
-                    <TableCell>{org.createdAt}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <Building2 className="h-4 w-4 mr-2" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {org.status !== "active" && (
-                            <DropdownMenuItem
-                              onClick={() => handleStatusChange(org.id, "active")}
-                            >
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Activate
-                            </DropdownMenuItem>
-                          )}
-                          {org.status !== "suspended" && (
-                            <DropdownMenuItem
-                              onClick={() => handleStatusChange(org.id, "suspended")}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Ban className="h-4 w-4 mr-2" />
-                              Suspend
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Organization</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <span className="font-medium text-foreground">{orgToDelete?.name}</span>?
+              This will permanently remove the organization and could affect all associated users.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Organization</DialogTitle>
+            <DialogDescription>
+              Update organization details. Slug must be unique.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Name
+              </Label>
+              <Input
+                id="name"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="slug" className="text-right">
+                Slug
+              </Label>
+              <Input
+                id="slug"
+                value={editFormData.slug}
+                onChange={(e) => setEditFormData({ ...editFormData, slug: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="website" className="text-right">
+                Website
+              </Label>
+              <Input
+                id="website"
+                value={editFormData.website}
+                onChange={(e) => setEditFormData({ ...editFormData, website: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="status" className="text-right">
+                Status
+              </Label>
+              <Select
+                value={editFormData.status}
+                onValueChange={(value: "active" | "suspended" | "archived") =>
+                  setEditFormData({ ...editFormData, status: value })
+                }
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleEditSave} disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </Layout>
   );
 }
