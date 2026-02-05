@@ -13,18 +13,17 @@ export const createOrganization = async (req: Request, res: Response) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
-        // Generate slug from name
-        let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-        // Append random string if slug exists (simple collision handling)
-        const slugExists = await Organization.findOne({ where: { slug } });
-        if (slugExists) {
-            slug = `${slug}-${Math.floor(Math.random() * 10000)}`;
-        }
+        const result = await sequelize.transaction(async (t) => {
+            // Generate slug from name
+            let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            // Append random string if slug exists (simple collision handling)
+            const slugExists = await Organization.findOne({ where: { slug }, transaction: t });
+            if (slugExists) {
+                slug = `${slug}-${Math.floor(Math.random() * 10000)}`;
+            }
 
-        // Perform all mutations inside managed transaction
-        const organization = await sequelize.transaction(async (t) => {
             // Create Organization
-            const org = await Organization.create({
+            const organization = await Organization.create({
                 name,
                 website,
                 slug,
@@ -33,25 +32,25 @@ export const createOrganization = async (req: Request, res: Response) => {
 
             // Find or Create Owner Role
             // Ideally roles are seeded, but fail-safe here
-            let ownerRole = await Role.findOne({ where: { name: 'Owner' } });
+            let ownerRole = await Role.findOne({ where: { name: 'Owner' }, transaction: t });
             if (!ownerRole) {
                 ownerRole = await Role.create({ name: 'Owner', description: 'Organization Owner' }, { transaction: t });
             }
 
             // Add User as Owner
             await OrganizationMember.create({
-                organization_id: org.id,
+                organization_id: organization.id,
                 user_id: userId,
                 role_id: ownerRole.id,
                 is_active: true
             }, { transaction: t });
 
-            return org;
+            return organization;
         });
 
         res.status(201).json({
             message: 'Organization created successfully',
-            organization
+            organization: result
         });
 
     } catch (error) {
@@ -224,41 +223,52 @@ export const updateOrganization = async (req: Request, res: Response) => {
 
         const orgId = req.headers['x-organization-id'] as string;
 
-        const whereClause: { user_id: string; organization_id?: string } = { user_id: userId };
-        if (orgId) {
-            whereClause.organization_id = orgId;
-        }
+        const updatedOrg = await sequelize.transaction(async (t) => {
+            const whereClause: { user_id: string; organization_id?: string } = { user_id: userId };
+            if (orgId) {
+                whereClause.organization_id = orgId;
+            }
 
-        const membership = await OrganizationMember.findOne({
-            where: whereClause,
-            include: [{ model: Role, as: 'role' }]
+            const membership = await OrganizationMember.findOne({
+                where: whereClause,
+                include: [{ model: Role, as: 'role' }],
+                transaction: t
+            });
+
+            if (!membership) {
+                throw new Error('ORG_NOT_FOUND');
+            }
+
+            // Check permissions (Owner only)
+            if (membership.role?.name !== 'Owner') {
+                throw new Error('FORBIDDEN');
+            }
+
+            const organization = await Organization.findByPk(membership.organization_id, { transaction: t });
+            if (!organization) {
+                throw new Error('ORG_NOT_FOUND');
+            }
+
+            if (name) organization.name = name;
+            if (website !== undefined) organization.website = website;
+
+            await organization.save({ transaction: t });
+
+            return organization;
         });
-
-        if (!membership) {
-            return res.status(404).json({ message: 'Organization not found' });
-        }
-
-        // Check permissions (Owner only)
-        if (membership.role?.name !== 'Owner') {
-            return res.status(403).json({ message: 'Insufficient permissions' });
-        }
-
-        const organization = await Organization.findByPk(membership.organization_id);
-        if (!organization) {
-            return res.status(404).json({ message: 'Organization not found' });
-        }
-
-        if (name) organization.name = name;
-        if (website !== undefined) organization.website = website;
-
-        await organization.save();
 
         res.json({
             message: 'Organization updated successfully',
-            organization
+            organization: updatedOrg
         });
 
-    } catch (error) {
+    } catch (error: any) {
+        if (error.message === 'ORG_NOT_FOUND') {
+            return res.status(404).json({ message: 'Organization not found' });
+        }
+        if (error.message === 'FORBIDDEN') {
+            return res.status(403).json({ message: 'Insufficient permissions' });
+        }
         console.error('Update Org Error:', error);
         res.status(500).json({ message: 'Server error updating organization' });
     }

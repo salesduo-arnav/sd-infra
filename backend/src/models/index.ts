@@ -18,10 +18,10 @@ import { PriceInterval, TierType, SubStatus, FeatureType, FeatureResetPeriod } f
 // =====================
 
 // User <-> Organization (via OrganizationMember)
-User.hasMany(OrganizationMember, { foreignKey: 'user_id', as: 'memberships' });
+User.hasMany(OrganizationMember, { foreignKey: 'user_id', as: 'memberships', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 OrganizationMember.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
-Organization.hasMany(OrganizationMember, { foreignKey: 'organization_id', as: 'members', onDelete: 'CASCADE' });
+Organization.hasMany(OrganizationMember, { foreignKey: 'organization_id', as: 'members', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 OrganizationMember.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
 
 // User <-> Organization (Many-to-Many Shortcut)
@@ -57,13 +57,13 @@ Permission.belongsToMany(Role, {
 });
 
 // Invitation Associations
-Organization.hasMany(Invitation, { foreignKey: 'organization_id', as: 'invitations', onDelete: 'CASCADE' });
+Organization.hasMany(Invitation, { foreignKey: 'organization_id', as: 'invitations', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 Invitation.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
 
-Role.hasMany(Invitation, { foreignKey: 'role_id' });
+Role.hasMany(Invitation, { foreignKey: 'role_id', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 Invitation.belongsTo(Role, { foreignKey: 'role_id', as: 'role' });
 
-User.hasMany(Invitation, { foreignKey: 'invited_by', as: 'sent_invitations', onDelete: 'SET NULL' });
+User.hasMany(Invitation, { foreignKey: 'invited_by', as: 'sent_invitations', onUpdate: 'CASCADE', onDelete: 'SET NULL' });
 Invitation.belongsTo(User, { foreignKey: 'invited_by', as: 'sender' });
 
 // =====================
@@ -71,35 +71,35 @@ Invitation.belongsTo(User, { foreignKey: 'invited_by', as: 'sender' });
 // =====================
 
 // Tool <-> Plan
-Tool.hasMany(Plan, { foreignKey: 'tool_id', as: 'plans' });
+Tool.hasMany(Plan, { foreignKey: 'tool_id', as: 'plans', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 Plan.belongsTo(Tool, { foreignKey: 'tool_id', as: 'tool' });
 
 // Tool <-> Feature
-Tool.hasMany(Feature, { foreignKey: 'tool_id', as: 'features' });
+Tool.hasMany(Feature, { foreignKey: 'tool_id', as: 'features', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 Feature.belongsTo(Tool, { foreignKey: 'tool_id', as: 'tool' });
 
 // Tool <-> OrganizationEntitlement
-Tool.hasMany(OrganizationEntitlement, { foreignKey: 'tool_id', as: 'entitlements' });
+Tool.hasMany(OrganizationEntitlement, { foreignKey: 'tool_id', as: 'entitlements', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 OrganizationEntitlement.belongsTo(Tool, { foreignKey: 'tool_id', as: 'tool' });
 
 // Plan <-> PlanLimit
-Plan.hasMany(PlanLimit, { foreignKey: 'plan_id', as: 'limits' });
+Plan.hasMany(PlanLimit, { foreignKey: 'plan_id', as: 'limits', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 PlanLimit.belongsTo(Plan, { foreignKey: 'plan_id', as: 'plan' });
 
 // Feature <-> PlanLimit
-Feature.hasMany(PlanLimit, { foreignKey: 'feature_id', as: 'plan_limits' });
+Feature.hasMany(PlanLimit, { foreignKey: 'feature_id', as: 'plan_limits', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 PlanLimit.belongsTo(Feature, { foreignKey: 'feature_id', as: 'feature' });
 
 // Plan <-> Subscription
-Plan.hasMany(Subscription, { foreignKey: 'plan_id', as: 'subscriptions' });
+Plan.hasMany(Subscription, { foreignKey: 'plan_id', as: 'subscriptions', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
 Subscription.belongsTo(Plan, { foreignKey: 'plan_id', as: 'plan' });
 
 // Bundle <-> Subscription
-Bundle.hasMany(Subscription, { foreignKey: 'bundle_id', as: 'subscriptions' });
+Bundle.hasMany(Subscription, { foreignKey: 'bundle_id', as: 'subscriptions', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
 Subscription.belongsTo(Bundle, { foreignKey: 'bundle_id', as: 'bundle' });
 
 // Organization <-> Subscription
-Organization.hasMany(Subscription, { foreignKey: 'organization_id', as: 'subscriptions' });
+Organization.hasMany(Subscription, { foreignKey: 'organization_id', as: 'subscriptions', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 Subscription.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
 
 // Bundle <-> BundlePlan (Junction)
@@ -108,32 +108,36 @@ Bundle.belongsToMany(Plan, {
   foreignKey: 'bundle_id',
   otherKey: 'plan_id',
   as: 'plans',
+  onDelete: 'CASCADE',
+  onUpdate: 'CASCADE',
 });
 Plan.belongsToMany(Bundle, {
   through: BundlePlan,
   foreignKey: 'plan_id',
   otherKey: 'bundle_id',
   as: 'bundles',
+  onDelete: 'CASCADE',
+  onUpdate: 'CASCADE',
 });
 
 // Organization <-> OrganizationEntitlement
-Organization.hasMany(OrganizationEntitlement, { foreignKey: 'organization_id', as: 'entitlements' });
+Organization.hasMany(OrganizationEntitlement, { foreignKey: 'organization_id', as: 'entitlements', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 OrganizationEntitlement.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
 
 // Feature <-> OrganizationEntitlement
-Feature.hasMany(OrganizationEntitlement, { foreignKey: 'feature_id', as: 'entitlements' });
+Feature.hasMany(OrganizationEntitlement, { foreignKey: 'feature_id', as: 'entitlements', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 OrganizationEntitlement.belongsTo(Feature, { foreignKey: 'feature_id', as: 'feature' });
 
 // Organization <-> OneTimePurchase
-Organization.hasMany(OneTimePurchase, { foreignKey: 'organization_id', as: 'one_time_purchases' });
+Organization.hasMany(OneTimePurchase, { foreignKey: 'organization_id', as: 'one_time_purchases', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 OneTimePurchase.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
 
 // Plan <-> OneTimePurchase
-Plan.hasMany(OneTimePurchase, { foreignKey: 'plan_id', as: 'one_time_purchases' });
+Plan.hasMany(OneTimePurchase, { foreignKey: 'plan_id', as: 'one_time_purchases', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
 OneTimePurchase.belongsTo(Plan, { foreignKey: 'plan_id', as: 'plan' });
 
 // Bundle <-> OneTimePurchase
-Bundle.hasMany(OneTimePurchase, { foreignKey: 'bundle_id', as: 'one_time_purchases' });
+Bundle.hasMany(OneTimePurchase, { foreignKey: 'bundle_id', as: 'one_time_purchases', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
 OneTimePurchase.belongsTo(Bundle, { foreignKey: 'bundle_id', as: 'bundle' });
 
 // Export all models

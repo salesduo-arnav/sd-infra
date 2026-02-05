@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
+import sequelize from '../config/db';
 import { Bundle } from '../models/bundle';
 import { Plan } from '../models/plan';
 import { BundlePlan } from '../models/bundle_plan';
@@ -94,23 +95,28 @@ export const createBundle = async (req: Request, res: Response) => {
              return res.status(400).json({ message: 'Invalid price interval' });
         }
 
-        const existingBundle = await Bundle.findOne({ where: { slug } });
-        if (existingBundle) {
-            return res.status(400).json({ message: 'Bundle with this slug already exists' });
-        }
+        const bundle = await sequelize.transaction(async (t) => {
+            const existingBundle = await Bundle.findOne({ where: { slug }, transaction: t });
+            if (existingBundle) {
+                throw new Error('ALREADY_EXISTS');
+            }
 
-        const bundle = await Bundle.create({
-            name,
-            slug,
-            price,
-            currency,
-            interval,
-            description,
-            active: active ?? true
+            return await Bundle.create({
+                name,
+                slug,
+                price,
+                currency,
+                interval,
+                description,
+                active: active ?? true
+            }, { transaction: t });
         });
 
         res.status(201).json(bundle);
-    } catch (error) {
+    } catch (error: any) {
+        if (error.message === 'ALREADY_EXISTS') {
+            return res.status(400).json({ message: 'Bundle with this slug already exists' });
+        }
         console.error('Create Bundle Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -121,31 +127,39 @@ export const updateBundle = async (req: Request, res: Response) => {
         const { id } = req.params;
         const { name, slug, price, currency, interval, description, active } = req.body;
 
-        const bundle = await Bundle.findByPk(id);
+        const updatedBundle = await sequelize.transaction(async (t) => {
+            const bundle = await Bundle.findByPk(id, { transaction: t });
 
-        if (!bundle) {
-            return res.status(404).json({ message: 'Bundle not found' });
-        }
-
-        if (slug && slug !== bundle.slug) {
-            const existingBundle = await Bundle.findOne({ where: { slug } });
-            if (existingBundle) {
-                return res.status(400).json({ message: 'Bundle with this slug already exists' });
+            if (!bundle) {
+                throw new Error('NOT_FOUND');
             }
-        }
 
-        await bundle.update({
-            name: name ?? bundle.name,
-            slug: slug ?? bundle.slug,
-            price: price !== undefined ? price : bundle.price,
-            currency: currency ?? bundle.currency,
-            interval: interval ?? bundle.interval,
-            description: description ?? bundle.description,
-            active: active ?? bundle.active
+            if (slug && slug !== bundle.slug) {
+                const existingBundle = await Bundle.findOne({ where: { slug }, transaction: t });
+                if (existingBundle) {
+                    throw new Error('SLUG_EXISTS');
+                }
+            }
+
+            return await bundle.update({
+                name: name ?? bundle.name,
+                slug: slug ?? bundle.slug,
+                price: price !== undefined ? price : bundle.price,
+                currency: currency ?? bundle.currency,
+                interval: interval ?? bundle.interval,
+                description: description ?? bundle.description,
+                active: active ?? bundle.active
+            }, { transaction: t });
         });
 
-        res.status(200).json(bundle);
-    } catch (error) {
+        res.status(200).json(updatedBundle);
+    } catch (error: any) {
+        if (error.message === 'NOT_FOUND') {
+            return res.status(404).json({ message: 'Bundle not found' });
+        }
+        if (error.message === 'SLUG_EXISTS') {
+            return res.status(400).json({ message: 'Bundle with this slug already exists' });
+        }
         console.error('Update Bundle Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -154,15 +168,22 @@ export const updateBundle = async (req: Request, res: Response) => {
 export const deleteBundle = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const bundle = await Bundle.findByPk(id);
+        
+        await sequelize.transaction(async (t) => {
+            const bundle = await Bundle.findByPk(id, { transaction: t });
 
-        if (!bundle) {
+            if (!bundle) {
+                throw new Error('NOT_FOUND');
+            }
+
+            await bundle.destroy({ transaction: t });
+        });
+
+        res.status(200).json({ message: 'Bundle deleted successfully' });
+    } catch (error: any) {
+        if (error.message === 'NOT_FOUND') {
             return res.status(404).json({ message: 'Bundle not found' });
         }
-
-        await bundle.destroy();
-        res.status(200).json({ message: 'Bundle deleted successfully' });
-    } catch (error) {
         console.error('Delete Bundle Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -181,21 +202,27 @@ export const addPlanToBundle = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Plan ID is required' });
         }
 
-        const bundle = await Bundle.findByPk(id);
-        if (!bundle) return res.status(404).json({ message: 'Bundle not found' });
+        await sequelize.transaction(async (t) => {
+            const bundle = await Bundle.findByPk(id, { transaction: t });
+            if (!bundle) throw new Error('BUNDLE_NOT_FOUND');
 
-        const plan = await Plan.findByPk(plan_id);
-        if (!plan) return res.status(404).json({ message: 'Plan not found' });
+            const plan = await Plan.findByPk(plan_id, { transaction: t });
+            if (!plan) throw new Error('PLAN_NOT_FOUND');
 
-        await BundlePlan.findOrCreate({
-            where: {
-                bundle_id: id,
-                plan_id: plan_id
-            }
+            await BundlePlan.findOrCreate({
+                where: {
+                    bundle_id: id,
+                    plan_id: plan_id
+                },
+                transaction: t
+            });
         });
 
         res.status(200).json({ message: 'Plan added to bundle' });
-    } catch (error) {
+    } catch (error: any) {
+        if (error.message === 'BUNDLE_NOT_FOUND') return res.status(404).json({ message: 'Bundle not found' });
+        if (error.message === 'PLAN_NOT_FOUND') return res.status(404).json({ message: 'Plan not found' });
+        
         console.error('Add Plan to Bundle Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -205,22 +232,28 @@ export const removePlanFromBundle = async (req: Request, res: Response) => {
     try {
         const { id, planId } = req.params; // Bundle ID, Plan ID
 
-        const bundle = await Bundle.findByPk(id);
-        if (!bundle) return res.status(404).json({ message: 'Bundle not found' });
+        await sequelize.transaction(async (t) => {
+            const bundle = await Bundle.findByPk(id, { transaction: t });
+            if (!bundle) throw new Error('BUNDLE_NOT_FOUND');
 
-        const deleted = await BundlePlan.destroy({
-            where: {
-                bundle_id: id,
-                plan_id: planId
+            const deleted = await BundlePlan.destroy({
+                where: {
+                    bundle_id: id,
+                    plan_id: planId
+                },
+                transaction: t
+            });
+
+            if (deleted === 0) {
+                throw new Error('NOT_ASSOCIATED');
             }
         });
 
-        if (deleted === 0) {
-            return res.status(404).json({ message: 'Plan not associated with this bundle' });
-        }
-
         res.status(200).json({ message: 'Plan removed from bundle' });
-    } catch (error) {
+    } catch (error: any) {
+        if (error.message === 'BUNDLE_NOT_FOUND') return res.status(404).json({ message: 'Bundle not found' });
+        if (error.message === 'NOT_ASSOCIATED') return res.status(404).json({ message: 'Plan not associated with this bundle' });
+        
         console.error('Remove Plan from Bundle Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }

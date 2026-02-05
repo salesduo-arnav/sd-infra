@@ -3,6 +3,7 @@ import { Feature } from '../models/feature';
 import { Tool } from '../models/tool';
 import { FeatureType } from '../models/enums';
 import { Op } from 'sequelize';
+import sequelize from '../config/db';
 
 // ==========================
 // Feature Config Controllers
@@ -88,21 +89,26 @@ export const createFeature = async (req: Request, res: Response) => {
              return res.status(400).json({ message: 'Invalid feature type' });
         }
 
-        const existingFeature = await Feature.findOne({ where: { slug } });
-        if (existingFeature) {
-            return res.status(400).json({ message: 'Feature with this slug already exists globally' });
-        }
+        const feature = await sequelize.transaction(async (t) => {
+            const existingFeature = await Feature.findOne({ where: { slug }, transaction: t });
+            if (existingFeature) {
+                throw new Error('ALREADY_EXISTS');
+            }
 
-        const feature = await Feature.create({
-            tool_id,
-            name,
-            slug,
-            type,
-            description
+            return await Feature.create({
+                tool_id,
+                name,
+                slug,
+                type,
+                description
+            }, { transaction: t });
         });
 
         res.status(201).json(feature);
-    } catch (error) {
+    } catch (error: any) {
+        if (error.message === 'ALREADY_EXISTS') {
+             return res.status(400).json({ message: 'Feature with this slug already exists globally' });
+        }
         console.error('Create Feature Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -113,28 +119,36 @@ export const updateFeature = async (req: Request, res: Response) => {
         const { id } = req.params;
         const { name, slug, type, description } = req.body;
 
-        const feature = await Feature.findByPk(id);
+        const updatedFeature = await sequelize.transaction(async (t) => {
+            const feature = await Feature.findByPk(id, { transaction: t });
 
-        if (!feature) {
-            return res.status(404).json({ message: 'Feature not found' });
-        }
-
-         if (slug && slug !== feature.slug) {
-            const existingFeature = await Feature.findOne({ where: { slug } });
-            if (existingFeature) {
-                return res.status(400).json({ message: 'Feature with this slug already exists' });
+            if (!feature) {
+                throw new Error('NOT_FOUND');
             }
-        }
 
-        await feature.update({
-            name: name ?? feature.name,
-            slug: slug ?? feature.slug,
-            type: type ?? feature.type, // Be careful updating type if data depends on it
-            description: description ?? feature.description
+            if (slug && slug !== feature.slug) {
+                const existingFeature = await Feature.findOne({ where: { slug }, transaction: t });
+                if (existingFeature) {
+                    throw new Error('SLUG_EXISTS');
+                }
+            }
+
+            return await feature.update({
+                name: name ?? feature.name,
+                slug: slug ?? feature.slug,
+                type: type ?? feature.type, // Be careful updating type if data depends on it
+                description: description ?? feature.description
+            }, { transaction: t });
         });
 
-        res.status(200).json(feature);
-    } catch (error) {
+        res.status(200).json(updatedFeature);
+    } catch (error: any) {
+        if (error.message === 'NOT_FOUND') {
+            return res.status(404).json({ message: 'Feature not found' });
+        }
+        if (error.message === 'SLUG_EXISTS') {
+            return res.status(400).json({ message: 'Feature with this slug already exists' });
+        }
         console.error('Update Feature Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -143,15 +157,22 @@ export const updateFeature = async (req: Request, res: Response) => {
 export const deleteFeature = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const feature = await Feature.findByPk(id);
+        
+        await sequelize.transaction(async (t) => {
+            const feature = await Feature.findByPk(id, { transaction: t });
 
-        if (!feature) {
+            if (!feature) {
+                throw new Error('NOT_FOUND');
+            }
+
+            await feature.destroy({ transaction: t });
+        });
+        
+        res.status(200).json({ message: 'Feature deleted successfully' });
+    } catch (error: any) {
+        if (error.message === 'NOT_FOUND') {
             return res.status(404).json({ message: 'Feature not found' });
         }
-
-        await feature.destroy();
-        res.status(200).json({ message: 'Feature deleted successfully' });
-    } catch (error) {
         console.error('Delete Feature Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }

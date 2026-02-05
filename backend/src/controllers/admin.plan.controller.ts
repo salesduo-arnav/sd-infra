@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
+import sequelize from '../config/db';
 import { Plan } from '../models/plan';
 import { PlanLimit } from '../models/plan_limit';
 import { Tool } from '../models/tool';
@@ -114,17 +115,19 @@ export const createPlan = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Invalid price interval' });
         }
 
-        const plan = await Plan.create({
-            name,
-            description,
-            tool_id,
-            tier,
-            price,
-            currency,
-            interval,
-            trial_period_days: trial_period_days ?? 0,
-            is_public: is_public ?? true,
-            active: active ?? true
+        const plan = await sequelize.transaction(async (t) => {
+            return await Plan.create({
+                name,
+                description,
+                tool_id,
+                tier,
+                price,
+                currency,
+                interval,
+                trial_period_days: trial_period_days ?? 0,
+                is_public: is_public ?? true,
+                active: active ?? true
+            }, { transaction: t });
         });
 
         res.status(201).json(plan);
@@ -139,16 +142,21 @@ export const updatePlan = async (req: Request, res: Response) => {
         const { id } = req.params;
         const updates = req.body;
 
-        const plan = await Plan.findByPk(id);
+        const updatedPlan = await sequelize.transaction(async (t) => {
+            const plan = await Plan.findByPk(id, { transaction: t });
 
-        if (!plan) {
+            if (!plan) {
+                throw new Error('NOT_FOUND');
+            }
+
+            return await plan.update(updates, { transaction: t });
+        });
+
+        res.status(200).json(updatedPlan);
+    } catch (error: any) {
+        if (error.message === 'NOT_FOUND') {
             return res.status(404).json({ message: 'Plan not found' });
         }
-
-        await plan.update(updates);
-
-        res.status(200).json(plan);
-    } catch (error) {
         console.error('Update Plan Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -157,15 +165,22 @@ export const updatePlan = async (req: Request, res: Response) => {
 export const deletePlan = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const plan = await Plan.findByPk(id);
+        
+        await sequelize.transaction(async (t) => {
+            const plan = await Plan.findByPk(id, { transaction: t });
 
-        if (!plan) {
+            if (!plan) {
+                throw new Error('NOT_FOUND');
+            }
+
+            await plan.destroy({ transaction: t });
+        });
+        
+        res.status(200).json({ message: 'Plan deleted successfully' });
+    } catch (error: any) {
+        if (error.message === 'NOT_FOUND') {
             return res.status(404).json({ message: 'Plan not found' });
         }
-
-        await plan.destroy();
-        res.status(200).json({ message: 'Plan deleted successfully' });
-    } catch (error) {
         console.error('Delete Plan Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -184,31 +199,39 @@ export const upsertPlanLimit = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Feature ID is required' });
         }
 
-        const plan = await Plan.findByPk(plan_id);
-        if (!plan) {
-            return res.status(404).json({ message: 'Plan not found' });
-        }
-
-        // Check if limit exists
-        const [limit, created] = await PlanLimit.findOrCreate({
-            where: { plan_id, feature_id },
-            defaults: {
-                plan_id,
-                feature_id,
-                default_limit,
-                reset_period: reset_period || FeatureResetPeriod.MONTHLY
+        const limit = await sequelize.transaction(async (t) => {
+            const plan = await Plan.findByPk(plan_id, { transaction: t });
+            if (!plan) {
+                throw new Error('PLAN_NOT_FOUND');
             }
+
+            // Check if limit exists
+            const [limitInstance, created] = await PlanLimit.findOrCreate({
+                where: { plan_id, feature_id },
+                defaults: {
+                    plan_id,
+                    feature_id,
+                    default_limit,
+                    reset_period: reset_period || FeatureResetPeriod.MONTHLY
+                },
+                transaction: t
+            });
+
+            if (!created) {
+                return await limitInstance.update({
+                    default_limit: default_limit !== undefined ? default_limit : limitInstance.default_limit,
+                    reset_period: reset_period || limitInstance.reset_period
+                }, { transaction: t });
+            }
+            
+            return limitInstance;
         });
 
-        if (!created) {
-            await limit.update({
-                default_limit: default_limit !== undefined ? default_limit : limit.default_limit,
-                reset_period: reset_period || limit.reset_period
-            });
-        }
-
         res.status(200).json(limit);
-    } catch (error) {
+    } catch (error: any) {
+        if (error.message === 'PLAN_NOT_FOUND') {
+             return res.status(404).json({ message: 'Plan not found' });
+        }
         console.error('Upsert Plan Limit Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -218,15 +241,21 @@ export const deletePlanLimit = async (req: Request, res: Response) => {
     try {
         const { plan_id, feature_id } = req.params;
 
-        const limit = await PlanLimit.findOne({ where: { plan_id, feature_id } });
+        await sequelize.transaction(async (t) => {
+            const limit = await PlanLimit.findOne({ where: { plan_id, feature_id }, transaction: t });
 
-        if (!limit) {
+            if (!limit) {
+                throw new Error('NOT_FOUND');
+            }
+
+            await limit.destroy({ transaction: t });
+        });
+
+        res.status(200).json({ message: 'Plan Limit deleted successfully' });
+    } catch (error: any) {
+        if (error.message === 'NOT_FOUND') {
             return res.status(404).json({ message: 'Plan Limit not found' });
         }
-
-        await limit.destroy();
-        res.status(200).json({ message: 'Plan Limit deleted successfully' });
-    } catch (error) {
         console.error('Delete Plan Limit Error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
