@@ -25,6 +25,7 @@ export interface Tool {
   name: string;
   slug: string;
   description: string;
+  tool_link?: string;
   is_active: boolean;
   features?: Feature[];
   created_at: string;

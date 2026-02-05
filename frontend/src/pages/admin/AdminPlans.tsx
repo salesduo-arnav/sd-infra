@@ -40,7 +40,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, CreditCard, Settings, Package, Link as LinkIcon, X } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Plus, Pencil, Trash2, CreditCard, Settings, Package, Link as LinkIcon, X, Eye, Layers } from "lucide-react";
 import * as AdminService from "@/services/admin.service";
 import { Plan, Tool, PlanLimit, Bundle } from "@/services/admin.service";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
@@ -65,6 +72,13 @@ export default function AdminPlans() {
   const [bundlesSorting, setBundlesSorting] = useState<SortingState>([]);
   const [bundlesRowCount, setBundlesRowCount] = useState(0);
   const [bundlesSearch, setBundlesSearch] = useState("");
+
+  // View Details State
+  const [viewingPlan, setViewingPlan] = useState<Plan | null>(null);
+  const [isPlanSheetOpen, setIsPlanSheetOpen] = useState(false);
+
+  const [viewingBundle, setViewingBundle] = useState<Bundle | null>(null);
+  const [isBundleSheetOpen, setIsBundleSheetOpen] = useState(false);
 
   // Dialog State
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
@@ -227,6 +241,11 @@ export default function AdminPlans() {
     }
   };
 
+  const handleViewPlanDetails = (plan: Plan) => {
+      setViewingPlan(plan);
+      setIsPlanSheetOpen(true);
+  };
+
   const handlePlanDelete = async (id: string) => {
     try {
       await AdminService.deletePlan(id);
@@ -282,6 +301,11 @@ export default function AdminPlans() {
           console.error("Failed to save bundle", error);
           alert("Failed to save bundle.");
       }
+  };
+
+  const handleViewBundleDetails = (bundle: Bundle) => {
+      setViewingBundle(bundle);
+      setIsBundleSheetOpen(true);
   };
 
   const handleBundleDelete = async (id: string) => {
@@ -416,6 +440,7 @@ export default function AdminPlans() {
               const plan = row.original;
               return (
                 <div className="flex justify-end gap-2">
+                    <Button size="icon" variant="ghost" title="View Details" onClick={() => handleViewPlanDetails(plan)}><Eye className="h-4 w-4"/></Button>
                     <Button size="icon" variant="ghost" title="Limits" onClick={() => handleManageLimits(plan)}><Settings className="h-4 w-4"/></Button>
                     <Button size="icon" variant="ghost" onClick={() => handleOpenPlanDialog(plan)}><Pencil className="h-4 w-4"/></Button>
                     <AlertDialog>
@@ -494,6 +519,7 @@ export default function AdminPlans() {
                 const bundle = row.original;
                 return (
                     <div className="flex justify-end gap-2">
+                         <Button size="icon" variant="ghost" title="View Details" onClick={() => handleViewBundleDetails(bundle)}><Eye className="h-4 w-4"/></Button>
                         <Button size="icon" variant="ghost" title="Manage Plans" onClick={() => handleManageBundlePlans(bundle)}><LinkIcon className="h-4 w-4"/></Button>
                         <Button size="icon" variant="ghost" onClick={() => handleOpenBundleDialog(bundle)}><Pencil className="h-4 w-4"/></Button>
                         <AlertDialog>
@@ -799,7 +825,7 @@ export default function AdminPlans() {
                                  {allActivePlans
                                     .filter(p => !bundlePlans.find(bp => bp.id === p.id))
                                     .map(p => (
-                                     <SelectItem key={p.id} value={p.id}>{p.name} ({p.tool?.name}) - ${p.price}</SelectItem>
+                                     <SelectItem key={p.id} value={p.id}>{p.name} ({p.tool?.name})</SelectItem>
                                  ))}
                              </SelectContent>
                          </Select>
@@ -809,32 +835,202 @@ export default function AdminPlans() {
                          <Table>
                              <TableHeader>
                                  <TableRow>
-                                     <TableHead>Included Plan</TableHead>
+                                     <TableHead>Plan</TableHead>
                                      <TableHead>Tool</TableHead>
-                                     <TableHead className="text-right">Action</TableHead>
+                                     <TableHead></TableHead>
                                  </TableRow>
                              </TableHeader>
                              <TableBody>
-                                 {bundlePlans.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">No plans in this bundle</TableCell></TableRow>}
                                  {bundlePlans.map(p => (
                                      <TableRow key={p.id}>
                                          <TableCell>{p.name}</TableCell>
-                                         <TableCell>{p.tool?.name || "Unknown"}</TableCell>
+                                         <TableCell className="text-muted-foreground text-sm">{p.tool?.name}</TableCell>
                                          <TableCell className="text-right">
-                                             <Button variant="ghost" size="sm" onClick={() => handleRemovePlanFromBundle(p.id)}>
-                                                 <X className="h-4 w-4"/>
+                                             <Button variant="ghost" size="sm" className="text-destructive h-8 w-8 p-0" onClick={() => handleRemovePlanFromBundle(p.id)}>
+                                                 <X className="h-4 w-4" />
                                              </Button>
                                          </TableCell>
                                      </TableRow>
                                  ))}
+                                 {bundlePlans.length === 0 && <TableRow><TableCell colSpan={3} className="text-center py-4 text-muted-foreground">No plans in bundle</TableCell></TableRow>}
                              </TableBody>
                          </Table>
                      </div>
                  </div>
+                 <DialogFooter>
+                    <Button onClick={() => setIsBundlePlansDialogOpen(false)}>Done</Button>
+                 </DialogFooter>
             </DialogContent>
         </Dialog>
 
+        {/* Plan Details Sheet */}
+        <Sheet open={isPlanSheetOpen} onOpenChange={setIsPlanSheetOpen}>
+            <SheetContent className="sm:max-w-xl overflow-y-auto">
+                <SheetHeader>
+                    <SheetTitle>Plan Details</SheetTitle>
+                    <SheetDescription>{viewingPlan?.name}</SheetDescription>
+                </SheetHeader>
+                {viewingPlan && (
+                    <div className="space-y-6 py-6">
+                         <section className="space-y-3">
+                            <h3 className="font-semibold text-lg flex items-center gap-2">
+                                <CreditCard className="h-5 w-5" />
+                                Plan Info
+                            </h3>
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span className="text-muted-foreground block">Name</span>
+                                    <span className="font-medium">{viewingPlan.name}</span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Tier</span>
+                                    <Badge variant="outline" className="capitalize">{viewingPlan.tier}</Badge>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Price</span>
+                                    <span className="font-medium text-lg">${viewingPlan.price} / {viewingPlan.interval}</span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Tool</span>
+                                    <span className="font-medium">{viewingPlan.tool?.name}</span>
+                                </div>
+                                <div className="col-span-2">
+                                    <span className="text-muted-foreground block">Description</span>
+                                    <span>{viewingPlan.description || "No description"}</span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Status</span>
+                                    <Badge variant={viewingPlan.active ? "default" : "secondary"}>
+                                        {viewingPlan.active ? "Active" : "Inactive"}
+                                    </Badge>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Public</span>
+                                    <Badge variant={viewingPlan.is_public ? "outline" : "secondary"}>
+                                        {viewingPlan.is_public ? "Public" : "Private"}
+                                    </Badge>
+                                </div>
+                            </div>
+                        </section>
+                        
+                        <div className="h-px bg-border" />
+
+                         <section className="space-y-3">
+                            <h3 className="font-semibold text-lg flex items-center gap-2">
+                                <Settings className="h-5 w-5" />
+                                Limits & Features
+                            </h3>
+                            {viewingPlan.limits && viewingPlan.limits.length > 0 ? (
+                                <div className="border rounded-md">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Feature</TableHead>
+                                                <TableHead>Limit</TableHead>
+                                                <TableHead>Reset</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {viewingPlan.limits.map(l => (
+                                                <TableRow key={l.id}>
+                                                     <TableCell className="font-medium">{(l as any).feature?.name || 'Feature'}</TableCell> 
+                                                     <TableCell>{l.default_limit === null ? "Unlimited" : l.default_limit}</TableCell>
+                                                     <TableCell className="capitalize">{l.reset_period}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            ) : (
+                                <div className="text-center py-6 text-muted-foreground bg-muted/20 rounded-lg">
+                                    No specific limits configured.
+                                </div>
+                            )}
+                        </section>
+                    </div>
+                )}
+            </SheetContent>
+        </Sheet>
+
+        {/* Bundle Details Sheet */}
+        <Sheet open={isBundleSheetOpen} onOpenChange={setIsBundleSheetOpen}>
+            <SheetContent className="sm:max-w-xl overflow-y-auto">
+                <SheetHeader>
+                    <SheetTitle>Bundle Details</SheetTitle>
+                    <SheetDescription>{viewingBundle?.name}</SheetDescription>
+                </SheetHeader>
+                {viewingBundle && (
+                    <div className="space-y-6 py-6">
+                         <section className="space-y-3">
+                            <h3 className="font-semibold text-lg flex items-center gap-2">
+                                <Package className="h-5 w-5" />
+                                Bundle Info
+                            </h3>
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span className="text-muted-foreground block">Name</span>
+                                    <span className="font-medium">{viewingBundle.name}</span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Slug</span>
+                                    <span className="font-mono bg-muted px-2 py-0.5 rounded text-xs">{viewingBundle.slug}</span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Price</span>
+                                    <span className="font-medium text-lg">${viewingBundle.price} / {viewingBundle.interval}</span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Status</span>
+                                    <Badge variant={viewingBundle.active ? "default" : "secondary"}>
+                                        {viewingBundle.active ? "Active" : "Inactive"}
+                                    </Badge>
+                                </div>
+                                <div className="col-span-2">
+                                    <span className="text-muted-foreground block">Description</span>
+                                    <span>{viewingBundle.description || "No description"}</span>
+                                </div>
+                            </div>
+                        </section>
+
+                        <div className="h-px bg-border" />
+
+                         <section className="space-y-3">
+                            <h3 className="font-semibold text-lg flex items-center gap-2">
+                                <Layers className="h-5 w-5" />
+                                Included Plans
+                            </h3>
+                            {viewingBundle.plans && viewingBundle.plans.length > 0 ? (
+                                <div className="space-y-2">
+                                    {viewingBundle.plans.map(p => (
+                                        <Card key={p.id} className="overflow-hidden">
+                                            <CardContent className="p-3 flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="bg-primary/10 p-2 rounded-md">
+                                                        <CreditCard className="h-4 w-4 text-primary" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-medium">{p.name}</div>
+                                                        <div className="text-xs text-muted-foreground">{p.tool?.name}</div>
+                                                    </div>
+                                                </div>
+                                                <Badge variant="outline">{p.tier}</Badge>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-6 text-muted-foreground bg-muted/20 rounded-lg">
+                                    No plans included in this bundle.
+                                </div>
+                            )}
+                        </section>
+                    </div>
+                )}
+            </SheetContent>
+        </Sheet>
       </div>
     </Layout>
   );
 }
+
+

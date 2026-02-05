@@ -32,6 +32,7 @@ BundlePlan.init(
     bundle_id: {
       type: DataTypes.UUID,
       allowNull: false,
+      primaryKey: true,
       references: {
         model: 'bundles',
         key: 'id',
@@ -40,6 +41,7 @@ BundlePlan.init(
     plan_id: {
       type: DataTypes.UUID,
       allowNull: false,
+      primaryKey: true,
       references: {
         model: 'plans',
         key: 'id',

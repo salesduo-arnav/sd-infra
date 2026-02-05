@@ -41,7 +41,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Package, Bolt } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Plus, Pencil, Trash2, Package, Bolt, Eye } from "lucide-react";
 import * as AdminService from "@/services/admin.service";
 import { Tool, Feature } from "@/services/admin.service";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
@@ -66,6 +73,7 @@ export default function AdminApps() {
     name: "",
     slug: "",
     description: "",
+    tool_link: "",
     is_active: true,
   });
 
@@ -79,6 +87,11 @@ export default function AdminApps() {
     type: "boolean" as "boolean" | "metered",
     description: "",
   });
+
+  // View Details State
+  const [viewingTool, setViewingTool] = useState<Tool | null>(null);
+  const [viewingFeatures, setViewingFeatures] = useState<Feature[]>([]);
+  const [isViewSheetOpen, setIsViewSheetOpen] = useState(false);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -116,11 +129,12 @@ export default function AdminApps() {
         name: app.name,
         slug: app.slug,
         description: app.description || "",
+        tool_link: app.tool_link || "",
         is_active: app.is_active,
       });
     } else {
       setEditingApp(null);
-      setFormData({ name: "", slug: "", description: "", is_active: true });
+      setFormData({ name: "", slug: "", description: "", tool_link: "", is_active: true });
     }
     setIsDialogOpen(true);
   };
@@ -231,6 +245,18 @@ export default function AdminApps() {
       }
   };
 
+  const handleViewDetails = async (tool: Tool) => {
+      setViewingTool(tool);
+      setIsViewSheetOpen(true);
+      try {
+          const data = await AdminService.getFeatures(tool.id);
+          setViewingFeatures(data.features || []);
+      } catch (error) {
+          console.error("Failed to fetch features for view", error);
+          setViewingFeatures([]);
+      }
+  };
+
   // ==============================
   // Columns Definition
   // ==============================
@@ -260,6 +286,18 @@ export default function AdminApps() {
           )
       },
       {
+        accessorKey: "tool_link",
+        header: "Link",
+        cell: ({ row }) => {
+            const link = row.getValue("tool_link") as string;
+            return link ? (
+                <a href={link} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline underline-offset-4 truncate max-w-[150px] block" title={link}>
+                    Link
+                </a>
+            ) : <span className="text-muted-foreground text-xs">-</span>;
+        }
+      },
+      {
           accessorKey: "created_at",
           header: ({ column }) => <DataTableColumnHeader column={column} title="Created" />,
           cell: ({ row }) => new Date(row.getValue("created_at")).toLocaleDateString()
@@ -273,6 +311,9 @@ export default function AdminApps() {
                        <Button variant="ghost" size="sm" onClick={() => handleManageFeatures(tool)} title="Manage Features">
                            <Bolt className="h-4 w-4" />
                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleViewDetails(tool)} title="View Details">
+                            <Eye className="h-4 w-4" />
+                        </Button>
                        <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(tool)}>
                            <Pencil className="h-4 w-4" />
                        </Button>
@@ -364,6 +405,15 @@ export default function AdminApps() {
                         placeholder="app-slug"
                     />
                     <p className="text-xs text-muted-foreground">Unique identifier for URLs and DB lookups.</p>
+                    </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="tool_link">Tool Link</Label>
+                    <Input
+                        id="tool_link"
+                        value={formData.tool_link}
+                        onChange={(e) => setFormData({ ...formData, tool_link: e.target.value })}
+                        placeholder="https://example.com"
+                    />
                     </div>
                     <div className="space-y-2">
                     <Label htmlFor="description">Description</Label>
@@ -506,6 +556,96 @@ export default function AdminApps() {
                 </div>
             </DialogContent>
         </Dialog>
+
+        {/* View Details Sheet */}
+        <Sheet open={isViewSheetOpen} onOpenChange={setIsViewSheetOpen}>
+            <SheetContent className="sm:max-w-xl overflow-y-auto">
+                <SheetHeader>
+                    <SheetTitle>Tool Details</SheetTitle>
+                    <SheetDescription>Detailed information about {viewingTool?.name}</SheetDescription>
+                </SheetHeader>
+                
+                {viewingTool && (
+                    <div className="space-y-6 py-6">
+                        <section className="space-y-3">
+                            <h3 className="font-semibold text-lg flex items-center gap-2">
+                                <Package className="h-5 w-5" />
+                                Basic Info
+                            </h3>
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span className="text-muted-foreground block">Name</span>
+                                    <span className="font-medium">{viewingTool.name}</span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Slug</span>
+                                    <span className="font-mono bg-muted px-2 py-0.5 rounded">{viewingTool.slug}</span>
+                                </div>
+                                <div className="col-span-2">
+                                    <span className="text-muted-foreground block">Description</span>
+                                    <span>{viewingTool.description || "No description provided."}</span>
+                                </div>
+                                <div className="col-span-2">
+                                    <span className="text-muted-foreground block">Tool Link</span>
+                                    {viewingTool.tool_link ? (
+                                        <a href={viewingTool.tool_link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline underline-offset-4">
+                                            {viewingTool.tool_link}
+                                        </a>
+                                    ) : (
+                                        <span className="text-muted-foreground italic">No link provided</span>
+                                    )}
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Status</span>
+                                    <Badge variant={viewingTool.is_active ? "default" : "secondary"}>
+                                        {viewingTool.is_active ? "Active" : "Inactive"}
+                                    </Badge>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Created At</span>
+                                    <span>{new Date(viewingTool.created_at).toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </section>
+
+                        <div className="h-px bg-border" />
+
+                        <section className="space-y-3">
+                            <h3 className="font-semibold text-lg flex items-center gap-2">
+                                <Bolt className="h-5 w-5" />
+                                Features
+                            </h3>
+                            {viewingFeatures.length > 0 ? (
+                                <div className="border rounded-md">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Name</TableHead>
+                                                <TableHead>Type</TableHead>
+                                                <TableHead>Slug</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {viewingFeatures.map(f => (
+                                                <TableRow key={f.id}>
+                                                    <TableCell className="font-medium">{f.name}</TableCell>
+                                                    <TableCell><Badge variant="outline">{f.type}</Badge></TableCell>
+                                                    <TableCell className="text-xs font-mono">{f.slug}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-muted-foreground bg-muted/20 rounded-lg">
+                                    No features configured for this tool.
+                                </div>
+                            )}
+                        </section>
+                    </div>
+                )}
+            </SheetContent>
+        </Sheet>
       </div>
     </Layout>
   );

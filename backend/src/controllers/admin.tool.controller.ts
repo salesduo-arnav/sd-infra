@@ -83,7 +83,7 @@ export const getToolById = async (req: Request, res: Response) => {
 export const createTool = async (req: Request, res: Response) => {
   const t = await sequelize.transaction();
   try {
-    const { name, slug, description, is_active } = req.body;
+    const { name, slug, description, tool_link, is_active } = req.body;
 
     if (!name || !slug) {
         await t.rollback();
@@ -100,6 +100,7 @@ export const createTool = async (req: Request, res: Response) => {
       name,
       slug,
       description,
+      tool_link,
       is_active: is_active !== undefined ? is_active : true,
     }, { transaction: t });
 
@@ -116,7 +117,7 @@ export const updateTool = async (req: Request, res: Response) => {
   const t = await sequelize.transaction();
   try {
     const { id } = req.params;
-    const { name, slug, description, is_active } = req.body;
+    const { name, slug, description, tool_link, is_active } = req.body;
 
     const tool = await Tool.findByPk(id, { transaction: t });
 
@@ -137,6 +138,7 @@ export const updateTool = async (req: Request, res: Response) => {
       name: name ?? tool.name,
       slug: slug ?? tool.slug,
       description: description ?? tool.description,
+      tool_link: tool_link ?? tool.tool_link,
       is_active: is_active ?? tool.is_active,
     }, { transaction: t });
 

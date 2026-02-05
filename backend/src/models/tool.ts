@@ -10,18 +10,20 @@ export interface ToolAttributes {
   name: string;
   slug: string;
   description?: string;
+  tool_link?: string;
   is_active: boolean;
   created_at?: Date;
   updated_at?: Date;
 }
 
-export type ToolCreationAttributes = Optional<ToolAttributes, 'id' | 'description' | 'is_active' | 'created_at' | 'updated_at'>;
+export type ToolCreationAttributes = Optional<ToolAttributes, 'id' | 'description' | 'tool_link' | 'is_active' | 'created_at' | 'updated_at'>;
 
 export class Tool extends Model<ToolAttributes, ToolCreationAttributes> implements ToolAttributes {
   public id!: string;
   public name!: string;
   public slug!: string;
   public description!: string;
+  public tool_link!: string;
   public is_active!: boolean;
   
   public readonly created_at!: Date;
@@ -47,6 +49,10 @@ Tool.init(
     },
     description: {
       type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    tool_link: {
+      type: DataTypes.STRING,
       allowNull: true,
     },
     is_active: {

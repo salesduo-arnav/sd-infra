@@ -109,7 +109,7 @@ Bundle.belongsToMany(Plan, {
   otherKey: 'plan_id',
   as: 'plans',
   onDelete: 'CASCADE',
-  onUpdate: 'CASCADE',
+  onUpdate: 'CASCADE'
 });
 Plan.belongsToMany(Bundle, {
   through: BundlePlan,
@@ -117,8 +117,15 @@ Plan.belongsToMany(Bundle, {
   otherKey: 'bundle_id',
   as: 'bundles',
   onDelete: 'CASCADE',
-  onUpdate: 'CASCADE',
+  onUpdate: 'CASCADE'
 });
+
+// Explicit BundlePlan Associations (Super Many-to-Many)
+Bundle.hasMany(BundlePlan, { foreignKey: 'bundle_id', as: 'bundle_plans' });
+BundlePlan.belongsTo(Bundle, { foreignKey: 'bundle_id', as: 'bundle' });
+
+Plan.hasMany(BundlePlan, { foreignKey: 'plan_id', as: 'bundle_plans' });
+BundlePlan.belongsTo(Plan, { foreignKey: 'plan_id', as: 'plan' });
 
 // Organization <-> OrganizationEntitlement
 Organization.hasMany(OrganizationEntitlement, { foreignKey: 'organization_id', as: 'entitlements', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
