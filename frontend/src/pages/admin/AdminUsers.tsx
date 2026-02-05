@@ -1,18 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Layout } from "@/components/layout/Layout";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,204 +11,284 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, MoreHorizontal, Mail, Ban, UserCheck } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { MoreHorizontal, Mail, Trash2, Users } from "lucide-react";
+import { DataTable, DataTableColumnHeader, DataTableStaticHeader } from "@/components/ui/data-table";
+import { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
+import { API_URL } from "@/lib/api";
+import { getInitials } from "@/lib/utils";
 
 interface User {
   id: string;
-  name: string;
+  full_name: string;
   email: string;
-  organization: string;
-  plan: string;
-  status: "active" | "inactive" | "suspended";
-  joinedAt: string;
+  is_superuser: boolean;
+  created_at: string;
+  organizations?: { name: string }[];
 }
 
-const mockUsers: User[] = [
-  {
-    id: "1",
-    name: "John Doe",
-    email: "john@example.com",
-    organization: "Acme Sellers",
-    plan: "Professional",
-    status: "active",
-    joinedAt: "2024-01-15",
-  },
-  {
-    id: "2",
-    name: "Jane Smith",
-    email: "jane@company.com",
-    organization: "Smith Co",
-    plan: "Enterprise",
-    status: "active",
-    joinedAt: "2024-02-01",
-  },
-  {
-    id: "3",
-    name: "Mike Johnson",
-    email: "mike@startup.io",
-    organization: "Startup Inc",
-    plan: "Starter",
-    status: "active",
-    joinedAt: "2024-03-10",
-  },
-  {
-    id: "4",
-    name: "Sarah Wilson",
-    email: "sarah@sellers.com",
-    organization: "Wilson Sellers",
-    plan: "Professional",
-    status: "suspended",
-    joinedAt: "2024-01-20",
-  },
-  {
-    id: "5",
-    name: "Tom Brown",
-    email: "tom@amazon-seller.com",
-    organization: "Brown LLC",
-    plan: "Starter",
-    status: "inactive",
-    joinedAt: "2024-04-01",
-  },
-];
-
 export default function AdminUsers() {
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const { user: currentUser } = useAuth();
+  const [data, setData] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pageCount, setPageCount] = useState(1);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const filteredUsers = users.filter(
-    (user) =>
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.organization.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Delete confirmation state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleStatusChange = (userId: string, newStatus: User["status"]) => {
-    setUsers(
-      users.map((user) =>
-        user.id === userId ? { ...user, status: newStatus } : user
-      )
-    );
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPagination(prev => ({ ...prev, pageIndex: 0 }));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const page = pagination.pageIndex + 1;
+      const limit = pagination.pageSize;
+      const sortField = sorting.length > 0 ? sorting[0].id : "created_at";
+      const sortOrder = sorting.length > 0 && sorting[0].desc ? "desc" : "asc";
+
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+        sortBy: sortField,
+        sortOrder: sortOrder,
+      });
+
+      if (debouncedSearch) {
+        params.append("search", debouncedSearch);
+      }
+
+      const response = await fetch(`${API_URL}/admin/users?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+
+      const result = await response.json();
+      setData(result.users);
+      setPageCount(result.meta.totalPages);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [pagination, sorting, debouncedSearch]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  const handleDeleteClick = (user: User) => {
+    setUserToDelete(user);
+    setDeleteDialogOpen(true);
   };
 
-  const getStatusBadge = (status: User["status"]) => {
-    switch (status) {
-      case "active":
-        return <Badge className="bg-green-500/10 text-green-600">Active</Badge>;
-      case "inactive":
-        return <Badge variant="secondary">Inactive</Badge>;
-      case "suspended":
-        return <Badge variant="destructive">Suspended</Badge>;
+  const handleDeleteConfirm = async () => {
+    if (!userToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`${API_URL}/admin/users/${userToDelete.id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        fetchUsers();
+      }
+    } catch (error) {
+      console.error("Error deleting user", error);
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
     }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
+
+
+  const handleSendEmail = (user: User) => {
+    window.open(`mailto:${user.email}`);
   };
+
+  const columns: ColumnDef<User>[] = [
+    {
+      accessorKey: "full_name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="User" />,
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <Avatar className="h-9 w-9 border border-muted">
+            <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary text-xs font-medium">
+              {getInitials(row.original.full_name)}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <p className="font-medium text-foreground">{row.original.full_name || "N/A"}</p>
+            <p className="text-sm text-muted-foreground">{row.original.email}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "organizations",
+      header: () => <DataTableStaticHeader title="Organization" />,
+      cell: ({ row }) => {
+        const orgs = row.original.organizations || [];
+        return (
+          <span className="text-muted-foreground">
+            {orgs.length > 0 ? orgs.map(o => o.name).join(", ") : "—"}
+          </span>
+        );
+      },
+      enableSorting: false,
+    },
+    {
+      accessorKey: "is_superuser",
+      header: () => <DataTableStaticHeader title="Role" />,
+      cell: ({ row }) => (
+        row.original.is_superuser
+          ? <Badge variant="secondary">Super Admin</Badge>
+          : <Badge variant="outline">User</Badge>
+      )
+    },
+    {
+      accessorKey: "created_at",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Joined" />,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {new Date(row.original.created_at).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          })}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: () => <DataTableStaticHeader title="Actions" srOnly />,
+      cell: ({ row }) => {
+        const user = row.original;
+        const isCurrentUser = currentUser?.id === user.id;
+        return (
+          <div className="text-right">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-muted">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem onClick={() => handleSendEmail(user)} className="cursor-pointer">
+                  <Mail className="h-4 w-4 mr-2" />
+                  Send Email
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => !isCurrentUser && handleDeleteClick(user)}
+                  disabled={isCurrentUser}
+                  className={isCurrentUser
+                    ? "opacity-50 cursor-not-allowed"
+                    : "text-destructive focus:text-destructive cursor-pointer"
+                  }
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {isCurrentUser ? "Delete (You)" : "Delete User"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
     <Layout>
       <div className="space-y-6">
+        {/* Page Header */}
         <div className="flex items-center gap-4">
-
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 text-primary">
+            <Users className="h-6 w-6" />
+          </div>
           <div className="flex-1">
-            <h1 className="text-3xl font-bold tracking-tight">Manage Users</h1>
-            <p className="text-muted-foreground mt-1">
-              View and manage user accounts
+            <h1 className="text-2xl font-bold tracking-tight">Manage Users</h1>
+            <p className="text-muted-foreground text-sm">
+              View and manage all user accounts across the platform
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search users..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+        {/* Data Table Card */}
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <DataTable
+            columns={columns}
+            data={data}
+            pageCount={pageCount}
+            pagination={pagination}
+            onPaginationChange={setPagination}
+            sorting={sorting}
+            onSortingChange={setSorting}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            placeholder="Search users by name or email..."
+            isLoading={loading}
+          />
         </div>
-
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Organization</TableHead>
-                  <TableHead>Plan</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                            {getInitials(user.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{user.name}</p>
-                          <p className="text-sm text-muted-foreground">{user.email}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{user.organization}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{user.plan}</Badge>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(user.status)}</TableCell>
-                    <TableCell>{user.joinedAt}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <Mail className="h-4 w-4 mr-2" />
-                            Send Email
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {user.status !== "active" && (
-                            <DropdownMenuItem
-                              onClick={() => handleStatusChange(user.id, "active")}
-                            >
-                              <UserCheck className="h-4 w-4 mr-2" />
-                              Activate
-                            </DropdownMenuItem>
-                          )}
-                          {user.status !== "suspended" && (
-                            <DropdownMenuItem
-                              onClick={() => handleStatusChange(user.id, "suspended")}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Ban className="h-4 w-4 mr-2" />
-                              Suspend
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <span className="font-medium text-foreground">{userToDelete?.full_name || userToDelete?.email}</span>?
+              This action cannot be undone and will permanently remove the user and all their data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }
