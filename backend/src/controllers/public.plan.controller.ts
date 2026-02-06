@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Plan, Bundle, BundlePlan, Tool, Feature } from '../models';
+import { Plan, Bundle, BundlePlan, Tool, Feature, BundleGroup } from '../models';
 import { Op } from 'sequelize';
 
 // ==========================
@@ -8,31 +8,40 @@ import { Op } from 'sequelize';
 
 export const getPublicBundles = async (req: Request, res: Response) => {
     try {
-        const bundles = await Bundle.findAll({
+        const bundleGroups = await BundleGroup.findAll({
             where: { active: true },
-            include: [
-                {
-                    model: BundlePlan,
-                    as: 'bundle_plans', // Make sure this alias matches your association in index.ts
-                    include: [
-                        {
-                            model: Plan,
-                            as: 'plan', // Fetch the actual plan details if needed or just go straight to tool
-                            include: [
-                                {
-                                    model: Tool,
-                                    as: 'tool',
-                                    include: [{ model: Feature, as: 'features' }]
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ],
-            order: [['price', 'ASC']]
+            include: [{
+                model: Bundle,
+                as: 'bundles',
+                where: { active: true },
+                required: false, // Show group even if no active bundles? Maybe not, usually only if actionable. Let's say false for now to filter out empty groups if that's desired, or true to ensure tiers. Let's stick to required: true to only show groups with content.
+                include: [
+                    {
+                        model: BundlePlan,
+                        as: 'bundle_plans',
+                        include: [
+                            {
+                                model: Plan,
+                                as: 'plan',
+                                include: [
+                                    {
+                                        model: Tool,
+                                        as: 'tool',
+                                        include: [{ model: Feature, as: 'features' }]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }],
+            order: [
+                ['created_at', 'ASC'],
+                [{ model: Bundle, as: 'bundles' }, 'price', 'ASC'] // Order tiers by price
+            ]
         });
         
-        res.status(200).json(bundles);
+        res.status(200).json(bundleGroups);
     } catch (error) {
         console.error('Get Public Bundles Error:', error);
         res.status(500).json({ message: 'Internal server error' });

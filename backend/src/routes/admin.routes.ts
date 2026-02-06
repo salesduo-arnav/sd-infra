@@ -38,6 +38,12 @@ router.post('/features', FeatureController.createFeature);
 router.put('/features/:id', FeatureController.updateFeature);
 router.delete('/features/:id', FeatureController.deleteFeature);
 
+// Bundle Groups
+router.get('/bundle-groups', BundleController.getBundleGroups);
+router.post('/bundle-groups', BundleController.createBundleGroup);
+router.put('/bundle-groups/:id', BundleController.updateBundleGroup);
+router.delete('/bundle-groups/:id', BundleController.deleteBundleGroup);
+
 // Bundles
 router.get('/bundles', BundleController.getBundles);
 router.get('/bundles/:id', BundleController.getBundleById);

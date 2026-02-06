@@ -89,25 +89,33 @@ export default function Plans() {
                 PublicService.getPublicPlans()
             ]);
 
-            // Transform Bundles
-            // Since Bundle model doesn't have tiers, we treat each bundle as a single-tier bundle for now
-            const transformedBundles: Bundle[] = publicBundles.map(b => ({
-                id: b.id,
-                name: b.name,
-                description: b.description,
-                apps: b.bundle_plans.map(bp => ({
+            // Transform Bundle Groups into Bundle UI Model
+            // @ts-ignore
+            const transformedBundles: Bundle[] = publicBundles.map((group: any) => {
+                // Use the first tier to get the "apps" list, assuming all tiers in a group have same apps (usually true for simple tiers)
+                // If tiers can have different apps, we might need a union or just take the first one's apps.
+                // Or better, we define specific apps at the group level contextually, but here we derive from the first bundle.
+                const firstBundle = group.bundles && group.bundles.length > 0 ? group.bundles[0] : null;
+                const apps = firstBundle ? firstBundle.bundle_plans.map((bp: any) => ({
                     name: bp.plan.tool?.name || "Unknown App",
-                    features: bp.plan.tool?.features?.map(f => f.name) || []
-                })),
-                tiers: [{
-                    name: "Standard",
-                    price: b.price,
-                    period: "/" + b.interval,
-                    limits: "See details" // TODO: Add limits to bundle model?
-                }],
-                popular: false, // TODO: Add specific field for this or infer
-                icon: getIconForSlug(b.slug)
-            }));
+                    features: bp.plan.tool?.features?.map((f: any) => f.name) || []
+                })) : [];
+
+                return {
+                    id: group.id,
+                    name: group.name,
+                    description: group.description,
+                    apps: apps,
+                    tiers: group.bundles.map((b: any) => ({
+                        name: b.tier_label || b.name, // Use label vs name fallback
+                        price: b.price,
+                        period: "/" + b.interval,
+                        limits: b.description || "Full access" // Use description as limits/details
+                    })),
+                    popular: false, 
+                    icon: getIconForSlug(group.slug)
+                };
+            });
             setBundles(transformedBundles);
 
             // Transform Plans into Apps (grouped by Tool)
@@ -528,9 +536,9 @@ function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isInCart, 
                   key={tier.name}
                   onClick={() =>
                     onToggleCartItem({
-                      id: bundle.id,
+                      id: bundle.id, // Group ID
                       type: "bundle",
-                      name: bundle.name,
+                      name: bundle.name, // Group Name
                       tierName: tier.name,
                       price: tier.price,
                       period: tier.period,

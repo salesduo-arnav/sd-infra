@@ -10,6 +10,8 @@ export interface BundleAttributes {
   id: string;
   name: string;
   slug: string;
+  bundle_group_id?: string;
+  tier_label?: string;
   price: number;
   currency: string;
   interval: PriceInterval;
@@ -25,6 +27,8 @@ export class Bundle extends Model<BundleAttributes, BundleCreationAttributes> im
   public id!: string;
   public name!: string;
   public slug!: string;
+  public bundle_group_id!: string;
+  public tier_label!: string;
   public price!: number;
   public currency!: string;
   public interval!: PriceInterval;
@@ -50,6 +54,18 @@ Bundle.init(
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
+    },
+    bundle_group_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'bundle_groups',
+        key: 'id',
+      },
+    },
+    tier_label: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     price: {
       type: DataTypes.INTEGER,

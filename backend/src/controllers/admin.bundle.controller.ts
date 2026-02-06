@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import sequelize from '../config/db';
 import { Bundle } from '../models/bundle';
+import { BundleGroup } from '../models/bundle_group';
 import { Plan } from '../models/plan';
 import { BundlePlan } from '../models/bundle_plan';
 import { PriceInterval } from '../models/enums';
@@ -9,6 +10,90 @@ import { PriceInterval } from '../models/enums';
 // ==========================
 // Bundle Config Controllers
 // ==========================
+
+export const getBundleGroups = async (req: Request, res: Response) => {
+    try {
+        const groups = await BundleGroup.findAll({
+            include: [{
+                model: Bundle,
+                as: 'bundles',
+                include: [{
+                   model: Plan,
+                   as: 'plans',
+                   through: { attributes: [] }
+                }]
+            }],
+            order: [['created_at', 'DESC']]
+        });
+        res.status(200).json(groups);
+    } catch (error) {
+        console.error('Get Bundle Groups Error:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+export const createBundleGroup = async (req: Request, res: Response) => {
+    try {
+        const { name, slug, description, active } = req.body;
+
+        if (!name || !slug) {
+            return res.status(400).json({ message: 'Name and Slug are required' });
+        }
+
+        const group = await BundleGroup.create({
+            name,
+            slug,
+            description,
+            active: active ?? true
+        });
+
+        res.status(201).json(group);
+    } catch (error: any) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+             return res.status(400).json({ message: 'Slug must be unique' });
+        }
+        console.error('Create Bundle Group Error:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+export const updateBundleGroup = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const updates = req.body;
+
+        const group = await BundleGroup.findByPk(id);
+        if (!group) {
+            return res.status(404).json({ message: 'Bundle Group not found' });
+        }
+
+        await group.update(updates);
+        res.status(200).json(group);
+    } catch (error) {
+        console.error('Update Bundle Group Error:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+export const deleteBundleGroup = async (req: Request, res: Response) => {
+     try {
+        const { id } = req.params;
+        const group = await BundleGroup.findByPk(id);
+        
+        if (!group) {
+             return res.status(404).json({ message: 'Bundle Group not found' });
+        }
+
+        await group.destroy();
+        res.status(200).json({ message: 'Bundle Group deleted' });
+    } catch (error: any) {
+        if (error.name === 'SequelizeForeignKeyConstraintError') {
+             return res.status(400).json({ message: 'Cannot delete group with active bundles' });
+        }
+        console.error('Delete Bundle Group Error:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
 
 export const getBundles = async (req: Request, res: Response) => {
     try {
@@ -87,10 +172,16 @@ export const getBundleById = async (req: Request, res: Response) => {
 
 export const createBundle = async (req: Request, res: Response) => {
     try {
-        const { name, slug, price, currency, interval, description, active } = req.body;
+        const { name, slug, price, currency, interval, description, active, bundle_group_id, tier_label } = req.body;
 
-        if (!name || !slug || price === undefined || !currency || !interval) {
-            return res.status(400).json({ message: 'Name, Slug, Price, Currency, and Interval are required' });
+        if (!name || !slug) {
+             // Fallback: if name/slug missing but tier_label present, derive them?
+             // But for now, frontend sends them.
+             if (tier_label && (!name || !slug)) {
+                 // Logic handled in frontend ideally, but strictly:
+                 if (!name) return res.status(400).json({ message: 'Name (Tier Label) is required' });
+             }
+             return res.status(400).json({ message: 'Name and Slug are required' });
         }
 
         if (!Object.values(PriceInterval).includes(interval)) {
@@ -110,7 +201,9 @@ export const createBundle = async (req: Request, res: Response) => {
                 currency,
                 interval,
                 description,
-                active: active ?? true
+                active: active ?? true,
+                bundle_group_id,
+                tier_label
             }, { transaction: t });
         });
 
@@ -124,10 +217,10 @@ export const createBundle = async (req: Request, res: Response) => {
     }
 };
 
-export const updateBundle = async (req: Request, res: Response) => {
+    export const updateBundle = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { name, slug, price, currency, interval, description, active } = req.body;
+        const { name, slug, price, currency, interval, description, active, bundle_group_id, tier_label } = req.body;
 
         const updatedBundle = await sequelize.transaction(async (t) => {
             const bundle = await Bundle.findByPk(id, { transaction: t });
@@ -150,7 +243,9 @@ export const updateBundle = async (req: Request, res: Response) => {
                 currency: currency ?? bundle.currency,
                 interval: interval ?? bundle.interval,
                 description: description ?? bundle.description,
-                active: active ?? bundle.active
+                active: active ?? bundle.active,
+                bundle_group_id: bundle_group_id !== undefined ? bundle_group_id : bundle.bundle_group_id,
+                tier_label: tier_label !== undefined ? tier_label : bundle.tier_label
             }, { transaction: t });
         });
 

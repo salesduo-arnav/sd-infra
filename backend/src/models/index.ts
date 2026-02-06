@@ -7,6 +7,7 @@ import { Feature } from './feature';
 import { Plan } from './plan';
 import { PlanLimit } from './plan_limit';
 import { Bundle } from './bundle';
+import { BundleGroup } from './bundle_group';
 import { BundlePlan } from './bundle_plan';
 import { Subscription } from './subscription';
 import { OrganizationEntitlement } from './organization_entitlement';
@@ -147,6 +148,10 @@ OneTimePurchase.belongsTo(Plan, { foreignKey: 'plan_id', as: 'plan' });
 Bundle.hasMany(OneTimePurchase, { foreignKey: 'bundle_id', as: 'one_time_purchases', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
 OneTimePurchase.belongsTo(Bundle, { foreignKey: 'bundle_id', as: 'bundle' });
 
+// BundleGroup <-> Bundle
+BundleGroup.hasMany(Bundle, { foreignKey: 'bundle_group_id', as: 'bundles', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
+Bundle.belongsTo(BundleGroup, { foreignKey: 'bundle_group_id', as: 'group' });
+
 // Export all models
 export {
   User,
@@ -161,6 +166,7 @@ export {
   Plan,
   PlanLimit,
   Bundle,
+  BundleGroup,
   BundlePlan,
   Subscription,
   OrganizationEntitlement,

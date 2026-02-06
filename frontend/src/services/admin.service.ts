@@ -66,6 +66,15 @@ export interface PlanLimit {
   feature?: Feature;
 }
 
+export interface BundleGroup {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  active: boolean;
+  bundles?: Bundle[]; // Tiers
+}
+
 export interface Bundle {
   id: string;
   name: string;
@@ -76,6 +85,9 @@ export interface Bundle {
   interval: 'monthly' | 'yearly' | 'one_time';
   active: boolean;
   plans?: Plan[];
+  category?: string; // Optional categorizer if not using group for everything
+  bundle_group_id?: string;
+  tier_label?: string;
 }
 
 // Service Methods
@@ -152,6 +164,27 @@ export const upsertPlanLimit = async (planId: string, data: { feature_id: string
 
 export const deletePlanLimit = async (planId: string, featureId: string) => {
     const response = await api.delete(`/admin/plans/${planId}/limits/${featureId}`);
+    return response.data;
+};
+
+// Bundle Groups
+export const getBundleGroups = async () => {
+    const response = await api.get('/admin/bundle-groups');
+    return response.data;
+};
+
+export const createBundleGroup = async (data: Partial<BundleGroup>) => {
+    const response = await api.post('/admin/bundle-groups', data);
+    return response.data;
+};
+
+export const updateBundleGroup = async (id: string, data: Partial<BundleGroup>) => {
+    const response = await api.put(`/admin/bundle-groups/${id}`, data);
+    return response.data;
+};
+
+export const deleteBundleGroup = async (id: string) => {
+    const response = await api.delete(`/admin/bundle-groups/${id}`);
     return response.data;
 };
 

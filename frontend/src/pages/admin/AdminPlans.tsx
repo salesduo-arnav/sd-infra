@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/sheet";
 import { Plus, Pencil, Trash2, CreditCard, Settings, Package, Link as LinkIcon, X, Eye, Layers } from "lucide-react";
 import * as AdminService from "@/services/admin.service";
-import { Plan, Tool, PlanLimit, Bundle } from "@/services/admin.service";
+import { Plan, Tool, PlanLimit, Bundle, BundleGroup } from "@/services/admin.service";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -67,7 +67,9 @@ export default function AdminPlans() {
   const [plansSearch, setPlansSearch] = useState("");
 
   // Bundles State (DataTable)
-  const [bundles, setBundles] = useState<Bundle[]>([]);
+  const [bundles, setBundles] = useState<Bundle[]>([]); // Keep for flat list if needed or just use groups
+  const [bundleGroups, setBundleGroups] = useState<BundleGroup[]>([]);
+  const [isLoadingBundleGroups, setIsLoadingBundleGroups] = useState(false);
   const [bundlesPagination, setBundlesPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [bundlesSorting, setBundlesSorting] = useState<SortingState>([]);
   const [bundlesRowCount, setBundlesRowCount] = useState(0);
@@ -101,6 +103,16 @@ export default function AdminPlans() {
     active: true,
   });
 
+  // Bundle Group State
+  const [isBundleGroupDialogOpen, setIsBundleGroupDialogOpen] = useState(false);
+  const [editingBundleGroup, setEditingBundleGroup] = useState<BundleGroup | null>(null);
+  const [bundleGroupFormData, setBundleGroupFormData] = useState({
+      name: "",
+      slug: "",
+      description: "",
+      active: true
+  });
+
   const [editingBundle, setEditingBundle] = useState<Bundle | null>(null);
   const [bundleFormData, setBundleFormData] = useState({
       name: "",
@@ -109,7 +121,9 @@ export default function AdminPlans() {
       price: 0,
       currency: "USD",
       interval: "monthly" as Bundle["interval"],
-      active: true
+      active: true,
+      bundle_group_id: "" as string | undefined, // New
+      tier_label: "" as string | undefined // New
   });
 
   // Limit/Association State
@@ -145,6 +159,18 @@ export default function AdminPlans() {
       console.error("Failed to fetch plans", error);
     } finally {
         setIsLoadingPlans(false);
+    }
+  };
+
+  const fetchBundleGroups = async () => {
+    setIsLoadingBundleGroups(true);
+    try {
+        const groups = await AdminService.getBundleGroups();
+        setBundleGroups(groups);
+    } catch (error) {
+        console.error("Failed to fetch bundle groups", error);
+    } finally {
+        setIsLoadingBundleGroups(false);
     }
   };
 
@@ -188,6 +214,7 @@ export default function AdminPlans() {
 
   useEffect(() => {
     fetchBundles();
+    fetchBundleGroups();
   }, [bundlesPagination.pageIndex, bundlesPagination.pageSize, bundlesSorting, bundlesSearch]);
 
   
@@ -260,10 +287,62 @@ export default function AdminPlans() {
   };
 
   // ==========================
+  // Bundle Group Handlers
+  // ==========================
+
+  const handleOpenBundleGroupDialog = (group?: BundleGroup) => {
+      if (group) {
+          setEditingBundleGroup(group);
+          setBundleGroupFormData({
+              name: group.name,
+              slug: group.slug,
+              description: group.description,
+              active: group.active
+          });
+      } else {
+          setEditingBundleGroup(null);
+          setBundleGroupFormData({
+              name: "",
+              slug: "",
+              description: "",
+              active: true
+          });
+      }
+      setIsBundleGroupDialogOpen(true);
+  };
+
+  const handleBundleGroupSave = async () => {
+      try {
+          if (editingBundleGroup) {
+              await AdminService.updateBundleGroup(editingBundleGroup.id, bundleGroupFormData);
+          } else {
+              await AdminService.createBundleGroup(bundleGroupFormData);
+          }
+          setIsBundleGroupDialogOpen(false);
+          fetchBundleGroups();
+      } catch (error) {
+          console.error("Failed to save bundle group", error);
+          toast.error("Failed to save bundle group");
+      }
+  };
+
+  const handleDeleteBundleGroup = async (id: string) => {
+      try {
+          await AdminService.deleteBundleGroup(id);
+          fetchBundleGroups();
+          toast.success("Bundle group deleted");
+      } catch (error) {
+          console.error("Failed to delete bundle group", error);
+          toast.error("Failed to delete bundle group. Ensure it has no bundles.");
+      }
+  };
+
+
+  // ==========================
   // Bundle Handlers
   // ==========================
 
-  const handleOpenBundleDialog = (bundle?: Bundle) => {
+  const handleOpenBundleDialog = (bundle?: Bundle, groupId?: string) => {
       if (bundle) {
           setEditingBundle(bundle);
           setBundleFormData({
@@ -273,18 +352,22 @@ export default function AdminPlans() {
               price: bundle.price,
               currency: bundle.currency,
               interval: bundle.interval,
-              active: bundle.active
+              active: bundle.active,
+              bundle_group_id: bundle.bundle_group_id,
+              tier_label: bundle.tier_label
           });
       } else {
           setEditingBundle(null);
           setBundleFormData({
-            name: "",
-            slug: "",
+            name: "", // Will be set by tier_label
+            slug: "", // Will be set by tier_label
             description: "",
             price: 19,
             currency: "USD",
             interval: "monthly",
-            active: true
+            active: true,
+            bundle_group_id: groupId, // Pre-fill group ID if creating within a group
+            tier_label: "" // Clear default
           });
       }
       setIsBundleDialogOpen(true);
@@ -298,7 +381,8 @@ export default function AdminPlans() {
               await AdminService.createBundle(bundleFormData);
           }
           setIsBundleDialogOpen(false);
-          fetchBundles();
+          fetchBundles(); // Still fetch all bundles if needed
+          fetchBundleGroups(); // Refresh groups to show new bundle in tier list
       } catch (error) {
           console.error("Failed to save bundle", error);
           alert("Failed to save bundle.");
@@ -641,29 +725,137 @@ export default function AdminPlans() {
                  <div className="flex items-center justify-between">
                     <div>
                         <h2 className="text-3xl font-bold tracking-tight">Manage Bundles</h2>
-                        <p className="text-muted-foreground mt-1">Group multiple plans into a single purchasable bundle.</p>
+                        <p className="text-muted-foreground mt-1">Create bundle groups and add tiered pricing (e.g., Basic, Premium).</p>
                     </div>
-                     <Button onClick={() => handleOpenBundleDialog()}>
-                        <Plus className="h-4 w-4 mr-2" /> Create Bundle
+                     <Button onClick={() => handleOpenBundleGroupDialog()}>
+                        <Plus className="h-4 w-4 mr-2" /> Create Bundle Group
                     </Button>
                 </div>
-                <Card>
-                    <CardContent className="p-0">
-                         <DataTable 
-                            columns={bundleColumns}
-                            data={bundles}
-                            pageCount={Math.ceil(bundlesRowCount / bundlesPagination.pageSize)}
-                            pagination={bundlesPagination}
-                            onPaginationChange={setBundlesPagination}
-                            sorting={bundlesSorting}
-                            onSortingChange={setBundlesSorting}
-                            searchQuery={bundlesSearch}
-                            onSearchChange={setBundlesSearch}
-                            placeholder="Search bundles..."
-                            isLoading={isLoadingBundles}
-                        />
-                    </CardContent>
-                </Card>
+                
+                {isLoadingBundleGroups ? (
+                    <div>Loading bundle groups...</div>
+                ) : (
+                    <div className="grid grid-cols-1 gap-6">
+                        {bundleGroups.map(group => (
+                            <Card key={group.id}>
+                                <div className="p-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div>
+                                            <h3 className="text-xl font-semibold flex items-center gap-2">
+                                                <Layers className="h-5 w-5 text-primary" />
+                                                {group.name}
+                                                <Badge variant={group.active ? "default" : "secondary"} className="ml-2">
+                                                    {group.active ? "Active" : "Inactive"}
+                                                </Badge>
+                                            </h3>
+                                            <p className="text-sm text-muted-foreground mt-1">{group.description}</p>
+                                        </div>
+                                         <div className="flex gap-2">
+                                            <Button variant="outline" size="sm" onClick={() => handleOpenBundleDialog(undefined, group.id)}>
+                                                <Plus className="h-4 w-4 mr-2"/> Add Tier
+                                            </Button>
+                                            <Button variant="ghost" size="icon" onClick={() => handleOpenBundleGroupDialog(group)}>
+                                                <Pencil className="h-4 w-4"/>
+                                            </Button>
+                                             <AlertDialog>
+                                              <AlertDialogTrigger asChild>
+                                                <Button size="icon" variant="ghost" className="text-destructive"><Trash2 className="h-4 w-4"/></Button>
+                                              </AlertDialogTrigger>
+                                              <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                  <AlertDialogTitle>Delete Group?</AlertDialogTitle>
+                                                  <AlertDialogDescription>
+                                                    Delete <strong>{group.name}</strong>? This will fail if it has active bundles.
+                                                  </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                  <AlertDialogAction onClick={() => handleDeleteBundleGroup(group.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                              </AlertDialogContent>
+                                            </AlertDialog>
+                                        </div>
+                                    </div>
+
+                                    {/* Tiers List */}
+                                    <div className="rounded-md border">
+                                        <Table>
+                                             <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Tier Name</TableHead>
+                                                    <TableHead>Price</TableHead>
+                                                    <TableHead>Plans</TableHead>
+                                                    <TableHead>Status</TableHead>
+                                                    <TableHead className="text-right">Actions</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {group.bundles && group.bundles.length > 0 ? (
+                                                    group.bundles.map(bundle => (
+                                                        <TableRow key={bundle.id}>
+                                                            <TableCell className="font-medium">
+                                                                <div>{bundle.name}</div>
+                                                                {/* Only show badge if label distinct from name, which strictly it isn't anymore, but for legacy data */}
+                                                                {bundle.tier_label && bundle.tier_label !== bundle.name && <Badge variant="outline" className="text-[10px]">{bundle.tier_label}</Badge>}
+                                                            </TableCell>
+                                                            <TableCell>${bundle.price}/{bundle.interval}</TableCell>
+                                                             <TableCell>
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {bundle.plans?.map(p => (
+                                                                        <Badge key={p.id} variant="secondary" className="text-[10px]">{p.name}</Badge>
+                                                                    ))}
+                                                                    {(!bundle.plans || bundle.plans.length === 0) && <span className="text-muted-foreground text-xs italic">No plans</span>}
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Badge variant={bundle.active ? "default" : "secondary"}>
+                                                                    {bundle.active ? "Active" : "Inactive"}
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                 <div className="flex justify-end gap-1">
+                                                                     <Button size="icon" variant="ghost" className="h-8 w-8" title="Manage Plans" onClick={() => handleManageBundlePlans(bundle)}><LinkIcon className="h-4 w-4"/></Button>
+                                                                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleOpenBundleDialog(bundle)}><Pencil className="h-4 w-4"/></Button>
+                                                                     <AlertDialog>
+                                                                      <AlertDialogTrigger asChild>
+                                                                        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4"/></Button>
+                                                                      </AlertDialogTrigger>
+                                                                      <AlertDialogContent>
+                                                                        <AlertDialogHeader>
+                                                                          <AlertDialogTitle>Delete Tier?</AlertDialogTitle>
+                                                                          <AlertDialogDescription>
+                                                                            Delete <strong>{bundle.name}</strong>?
+                                                                          </AlertDialogDescription>
+                                                                        </AlertDialogHeader>
+                                                                        <AlertDialogFooter>
+                                                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                          <AlertDialogAction onClick={() => handleBundleDelete(bundle.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                                                        </AlertDialogFooter>
+                                                                      </AlertDialogContent>
+                                                                    </AlertDialog>
+                                                                 </div>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))
+                                                ) : (
+                                                    <TableRow>
+                                                        <TableCell colSpan={5} className="text-center text-muted-foreground py-4">No pricing tiers added yet.</TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </div>
+                            </Card>
+                        ))}
+                         {bundleGroups.length === 0 && (
+                            <div className="text-center p-8 border rounded-lg bg-muted/50">
+                                <h3 className="font-semibold text-lg">No Bundle Groups</h3>
+                                <p className="text-muted-foreground">Create a group (e.g. "Creative Cloud") to start adding tiers.</p>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
 
@@ -753,14 +945,19 @@ export default function AdminPlans() {
                 </DialogHeader>
                 <div className="grid grid-cols-2 gap-4 py-4">
                      <div className="col-span-2 space-y-2">
-                        <Label>Name</Label>
-                        <Input value={bundleFormData.name} onChange={e => setBundleFormData({...bundleFormData, name: e.target.value})} />
+                        <Label>Tier Label</Label>
+                        <Input value={bundleFormData.tier_label || ''} onChange={e => {
+                            const label = e.target.value;
+                             setBundleFormData({
+                                 ...bundleFormData, 
+                                 tier_label: label,
+                                 name: label,
+                                 // Append random suffix to slug to avoid collisions across groups
+                                 slug: label ? `${label.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '')}-${Math.random().toString(36).substring(2, 7)}` : ''
+                             })
+                        }} placeholder="e.g. Basic, Premium" />
                      </div>
                       <div className="col-span-2 space-y-2">
-                        <Label>Slug</Label>
-                        <Input value={bundleFormData.slug} onChange={e => setBundleFormData({...bundleFormData, slug: e.target.value})} />
-                     </div>
-                     <div className="col-span-2 space-y-2">
                         <Label>Description</Label>
                         <Input value={bundleFormData.description} onChange={e => setBundleFormData({...bundleFormData, description: e.target.value})} />
                      </div>
@@ -787,6 +984,37 @@ export default function AdminPlans() {
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsBundleDialogOpen(false)}>Cancel</Button>
                   <Button onClick={handleBundleSave}>Save</Button>
+              </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+         {/* Bundle Group Create/Edit Dialog */}
+        <Dialog open={isBundleGroupDialogOpen} onOpenChange={setIsBundleGroupDialogOpen}>
+            <DialogContent className="max-w-md">
+                 <DialogHeader>
+                    <DialogTitle>{editingBundleGroup ? "Edit Bundle Group" : "New Bundle Group"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                     <div className="space-y-2">
+                        <Label>Name</Label>
+                        <Input value={bundleGroupFormData.name} onChange={e => setBundleGroupFormData({...bundleGroupFormData, name: e.target.value})} placeholder="e.g. Creative Cloud" />
+                     </div>
+                      <div className="space-y-2">
+                        <Label>Slug</Label>
+                        <Input value={bundleGroupFormData.slug} onChange={e => setBundleGroupFormData({...bundleGroupFormData, slug: e.target.value})} placeholder="e.g. creative-cloud" />
+                     </div>
+                     <div className="space-y-2">
+                        <Label>Description</Label>
+                        <Input value={bundleGroupFormData.description} onChange={e => setBundleGroupFormData({...bundleGroupFormData, description: e.target.value})} />
+                     </div>
+                      <div className="flex items-center gap-2 pt-2">
+                        <Switch checked={bundleGroupFormData.active} onCheckedChange={c => setBundleGroupFormData({...bundleGroupFormData, active: c})} />
+                        <Label>Active</Label>
+                     </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsBundleGroupDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={handleBundleGroupSave}>Save</Button>
               </DialogFooter>
             </DialogContent>
         </Dialog>
