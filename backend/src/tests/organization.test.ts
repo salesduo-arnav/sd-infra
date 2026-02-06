@@ -393,8 +393,10 @@ describe('Organization API Integration Tests', () => {
             });
 
             // Ensure Admin role exists (required for transfer ownership)
-            await Role.findOne({ where: { name: 'Admin' } })
-                || await Role.create({ name: 'Admin', description: 'Administrator' });
+            await Role.findOrCreate({
+                where: { name: 'Admin' },
+                defaults: { name: 'Admin', description: 'Administrator' }
+            });
         });
 
         it('should transfer ownership successfully', async () => {
