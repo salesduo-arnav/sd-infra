@@ -60,7 +60,6 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
             const res1 = await request(app).post('/auth/register').send(testUser);
             expect(res1.statusCode).toEqual(201);
             const userId1 = res1.body.user.id;
-            const cookie1 = res1.get('Set-Cookie') || [];
 
             // 2. Delete User
 
@@ -165,6 +164,7 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
                 token: inviteToken,
                 status: 'pending',
                 expires_at: new Date(Date.now() + 86400000)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any);
 
             // 5. Delete Organization

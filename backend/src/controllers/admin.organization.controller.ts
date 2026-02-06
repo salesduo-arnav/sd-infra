@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import { Organization, OrgStatus, OrganizationMember } from '../models/organization';
-import { Invitation } from '../models/invitation';
 import { User } from '../models/user';
 import { Role } from '../models/role';
 import sequelize from '../config/db';
