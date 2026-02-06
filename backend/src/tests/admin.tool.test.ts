@@ -234,6 +234,8 @@ describe('Admin Tool Management Integration Tests', () => {
                 .set('Cookie', [`session_id=${adminSession}`])
                 .send({ slug: 'other-tool' }); // Duplicate of 'Other'
 
+            expect(res.status).toBeGreaterThanOrEqual(400);
+
             // The controller throws "ALREADY_EXISTS"
             // The error handler likely maps this to 409 or 400.
             // Let's assume generic error handling returns 500 or 400 unless specific map exists.

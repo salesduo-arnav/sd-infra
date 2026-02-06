@@ -67,7 +67,7 @@ describe('Public Plan Access', () => {
             expect(Array.isArray(res.body)).toBe(true);
             
             // Should contain Active Plan but NOT Inactive Plan
-            const planNames = res.body.map((p: any) => p.name);
+            const planNames = res.body.map((p: Plan) => p.name);
             expect(planNames).toContain('Active Plan');
             expect(planNames).not.toContain('Inactive Plan');
         });
@@ -76,7 +76,7 @@ describe('Public Plan Access', () => {
              const res = await request(app).get(`/public/plans?tool_id=${testTool.id}`);
              
              expect(res.status).toBe(200);
-             res.body.forEach((p: any) => {
+             res.body.forEach((p: Plan) => {
                  expect(p.tool_id).toBe(testTool.id);
              });
         });

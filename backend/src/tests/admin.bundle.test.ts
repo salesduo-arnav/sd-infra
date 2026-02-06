@@ -4,7 +4,7 @@ import app from '../app';
 import sequelize from '../config/db';
 import redisClient from '../config/redis';
 import User from '../models/user';
-import { BundleGroup } from '../models/bundle_group';
+
 import { Bundle } from '../models/bundle';
 import { Plan } from '../models/plan';
 import { Tool } from '../models/tool';

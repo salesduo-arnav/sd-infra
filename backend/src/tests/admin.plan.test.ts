@@ -11,7 +11,7 @@ import { PlanLimit } from '../models/plan_limit';
 import { PriceInterval, TierType, FeatureResetPeriod } from '../models/enums';
 import path from 'path';
 import dotenv from 'dotenv';
-import { v4 as uuidv4 } from 'uuid';
+
 
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
