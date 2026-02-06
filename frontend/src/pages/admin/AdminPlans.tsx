@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/sheet";
 import { Plus, Pencil, Trash2, CreditCard, Settings, Package, Link as LinkIcon, X, Eye, Layers } from "lucide-react";
 import * as AdminService from "@/services/admin.service";
-import { Plan, Tool, PlanLimit, Bundle, BundleGroup } from "@/services/admin.service";
+import { Plan, Tool, PlanLimit, Bundle, BundleGroup, Feature } from "@/services/admin.service";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -146,7 +146,7 @@ export default function AdminPlans() {
   // Fetchers
   // ==========================
 
-  const fetchPlans = async () => {
+  const fetchPlans = useCallback(async () => {
     setIsLoadingPlans(true);
     try {
       const data = await AdminService.getPlans(undefined, { 
@@ -165,9 +165,9 @@ export default function AdminPlans() {
     } finally {
         setIsLoadingPlans(false);
     }
-  };
+  }, [plansPagination.pageIndex, plansPagination.pageSize, plansSorting, plansSearch]);
 
-  const fetchBundleGroups = async () => {
+  const fetchBundleGroups = useCallback(async () => {
     setIsLoadingBundleGroups(true);
     try {
         const groups = await AdminService.getBundleGroups();
@@ -177,9 +177,9 @@ export default function AdminPlans() {
     } finally {
         setIsLoadingBundleGroups(false);
     }
-  };
+  }, []);
 
-  const fetchBundles = async () => {
+  const fetchBundles = useCallback(async () => {
       setIsLoadingBundles(true);
       try {
           const data = await AdminService.getBundles({ 
@@ -198,36 +198,36 @@ export default function AdminPlans() {
       } finally {
           setIsLoadingBundles(false);
       }
-  };
+  }, [bundlesPagination.pageIndex, bundlesPagination.pageSize, bundlesSorting, bundlesSearch]);
 
-  const fetchTools = async () => {
+  const fetchTools = useCallback(async () => {
       try {
         const toolsData = await AdminService.getTools({ activeOnly: true, limit: 100 });
         setTools(toolsData.tools || []);
       } catch (error) {
           console.error("Failed to fetch tools", error);
       }
-  };
-
-  useEffect(() => {
-    fetchTools();
   }, []);
 
   useEffect(() => {
+    fetchTools();
+  }, [fetchTools]);
+
+  useEffect(() => {
     fetchPlans();
-  }, [plansPagination.pageIndex, plansPagination.pageSize, plansSorting, plansSearch]);
+  }, [fetchPlans]);
 
   useEffect(() => {
     fetchBundles();
     fetchBundleGroups();
-  }, [bundlesPagination.pageIndex, bundlesPagination.pageSize, bundlesSorting, bundlesSearch]);
+  }, [fetchBundles, fetchBundleGroups]);
 
   
   // ==========================
   // Plan Handlers
   // ==========================
 
-  const handleOpenPlanDialog = (plan?: Plan) => {
+  const handleOpenPlanDialog = useCallback((plan?: Plan) => {
     if (plan) {
       setEditingPlan(plan);
       setPlanFormData({
@@ -256,9 +256,9 @@ export default function AdminPlans() {
         });
     }
     setIsPlanDialogOpen(true);
-  };
+  }, []);
 
-  const handlePlanSave = async () => {
+  const handlePlanSave = useCallback(async () => {
     try {
       if (editingPlan) {
         await AdminService.updatePlan(editingPlan.id, planFormData);
@@ -273,14 +273,14 @@ export default function AdminPlans() {
       console.error("Failed to save plan", error);
       alert("Failed to save plan.");
     }
-  };
+  }, [editingPlan, planFormData, fetchPlans, fetchBundleGroups]);
 
-  const handleViewPlanDetails = (plan: Plan) => {
+  const handleViewPlanDetails = useCallback((plan: Plan) => {
       setViewingPlan(plan);
       setIsPlanSheetOpen(true);
-  };
+  }, []);
 
-  const handlePlanDelete = async (id: string) => {
+  const handlePlanDelete = useCallback(async (id: string) => {
     try {
       await AdminService.deletePlan(id);
       fetchPlans();
@@ -289,7 +289,7 @@ export default function AdminPlans() {
       console.error("Failed to delete plan", error);
       toast.error("Failed to delete plan. It may have active subscribers.");
     }
-  };
+  }, [fetchPlans]);
 
   // ==========================
   // Bundle Group Handlers
@@ -352,7 +352,7 @@ export default function AdminPlans() {
   // Bundle Handlers
   // ==========================
 
-  const handleOpenBundleDialog = (bundle?: Bundle, groupId?: string) => {
+  const handleOpenBundleDialog = useCallback((bundle?: Bundle, groupId?: string) => {
       if (bundle) {
           setEditingBundle(bundle);
           setBundleFormData({
@@ -381,7 +381,7 @@ export default function AdminPlans() {
           });
       }
       setIsBundleDialogOpen(true);
-  };
+  }, []);
 
   const handleBundleSave = async () => {
       try {
@@ -399,15 +399,15 @@ export default function AdminPlans() {
       }
   };
 
-  const handleViewBundleDetails = (bundle: Bundle) => {
+  const handleViewBundleDetails = useCallback((bundle: Bundle) => {
       setViewingBundle(bundle);
       setIsBundleSheetOpen(true);
-  };
+  }, []);
 
-  const handleBundleDelete = async (id: string) => {
+  const handleBundleDelete = useCallback(async (id: string) => {
       try {
           await AdminService.deleteBundle(id);
-          await AdminService.deleteBundle(id);
+          // await AdminService.deleteBundle(id); // duplicate line
           fetchBundles();
           fetchBundleGroups();
           toast.success("Bundle deleted successfully");
@@ -415,13 +415,13 @@ export default function AdminPlans() {
           console.error("Failed to delete bundle", error);
           toast.error("Failed to delete bundle. It may have active subscribers.");
       }
-  };
+  }, [fetchBundles, fetchBundleGroups]);
 
   // ==========================
   // Plan Limit Handlers
   // ==========================
 
-  const handleManageLimits = async (plan: Plan) => {
+  const handleManageLimits = useCallback(async (plan: Plan) => {
       setSelectedPlanForLimits(plan);
       setIsLimitDialogOpen(true);
       try {
@@ -431,7 +431,7 @@ export default function AdminPlans() {
 
           // Initialize staged limits
           const initialStaged: Record<string, { limit: number | null, reset_period: string, enabled: boolean }> = {};
-          features.features?.forEach(f => {
+          features.features?.forEach((f: AdminService.Feature) => {
               const existingLimit = plan.limits?.find(l => l.feature_id === f.id);
               if (existingLimit) {
                   initialStaged[f.id] = {
@@ -452,7 +452,7 @@ export default function AdminPlans() {
       } catch (error) {
           console.error("Failed to prep limits", error);
       }
-  };
+  }, []);
 
   const handleStagedLimitUpdate = (featureId: string, updates: Partial<{ limit: number | null, reset_period: string, enabled: boolean }>) => {
       setStagedLimits(prev => ({
@@ -465,7 +465,7 @@ export default function AdminPlans() {
       if (!selectedPlanForLimits) return;
       setIsSavingLimits(true);
       try {
-          const promises: Promise<any>[] = [];
+          const promises: Promise<unknown>[] = [];
 
           // Upsert all limits with their enabled state
           const limitEntries = Object.entries(stagedLimits);
@@ -499,7 +499,7 @@ export default function AdminPlans() {
   // Bundle Plans Handlers
   // ==========================
 
-  const handleManageBundlePlans = async (bundle: Bundle) => {
+  const handleManageBundlePlans = useCallback(async (bundle: Bundle) => {
       setSelectedBundleForPlans(bundle);
       setBundlePlans(bundle.plans || []); 
       setStagedBundlePlans(bundle.plans || []);
@@ -516,7 +516,7 @@ export default function AdminPlans() {
       } catch (error) {
           console.error("Failed to prep bundle plans", error);
       }
-  };
+  }, []);
 
   const handleAddPlanToBundle = (planId: string) => {
       const planToAdd = allActivePlans.find(p => p.id === planId);
@@ -632,7 +632,7 @@ export default function AdminPlans() {
               )
           }
       }
-  ], [plans, plansPagination]); // Dependencies for actions
+  ], [handleViewPlanDetails, handleManageLimits, handleOpenPlanDialog, handlePlanDelete]); // Dependencies for actions
 
   const bundleColumns: ColumnDef<Bundle>[] = useMemo(() => [
         {
@@ -711,7 +711,7 @@ export default function AdminPlans() {
                 )
             }
         }
-  ], [bundles, bundlesPagination]);
+  ], [handleViewBundleDetails, handleManageBundlePlans, handleOpenBundleDialog, handleBundleDelete]);
 
 
   return (
@@ -940,7 +940,7 @@ export default function AdminPlans() {
                   </div>
                   <div className="space-y-2">
                       <Label>Interval</Label>
-                      <Select value={planFormData.interval} onValueChange={(v: any) => setPlanFormData({...planFormData, interval: v})}>
+                      <Select value={planFormData.interval} onValueChange={(v: Plan["interval"]) => setPlanFormData({...planFormData, interval: v})}>
                           <SelectTrigger><SelectValue/></SelectTrigger>
                           <SelectContent>
                               <SelectItem value="monthly">Monthly</SelectItem>
@@ -951,7 +951,7 @@ export default function AdminPlans() {
                   </div>
                    <div className="space-y-2">
                       <Label>Tier</Label>
-                      <Select value={planFormData.tier} onValueChange={(v: any) => setPlanFormData({...planFormData, tier: v})}>
+                      <Select value={planFormData.tier} onValueChange={(v: Plan["tier"]) => setPlanFormData({...planFormData, tier: v})}>
                           <SelectTrigger><SelectValue/></SelectTrigger>
                           <SelectContent>
                               <SelectItem value="basic">Basic</SelectItem>
@@ -1017,7 +1017,7 @@ export default function AdminPlans() {
                       </div>
                       <div className="space-y-2">
                         <Label>Interval</Label>
-                         <Select value={bundleFormData.interval} onValueChange={(v: any) => setBundleFormData({...bundleFormData, interval: v})}>
+                         <Select value={bundleFormData.interval} onValueChange={(v: Bundle["interval"]) => setBundleFormData({...bundleFormData, interval: v})}>
                           <SelectTrigger><SelectValue/></SelectTrigger>
                           <SelectContent>
                               <SelectItem value="monthly">Monthly</SelectItem>
@@ -1262,17 +1262,17 @@ export default function AdminPlans() {
                                         <TableBody>
                                             {viewingPlan.limits.map(l => (
                                                 <TableRow key={l.id}>
-                                                     <TableCell className="font-medium">{(l as any).feature?.name || 'Feature'}</TableCell> 
+                                                     <TableCell className="font-medium">{(l as PlanLimit & { feature?: Feature }).feature?.name || 'Feature'}</TableCell> 
                                                      <TableCell>
-                                                         <Badge variant={(l as any).is_enabled ? "default" : "secondary"}>
-                                                             {(l as any).is_enabled ? "Enabled" : "Disabled"}
+                                                         <Badge variant={(l as PlanLimit).is_enabled ? "default" : "secondary"}>
+                                                             {(l as PlanLimit).is_enabled ? "Enabled" : "Disabled"}
                                                          </Badge>
                                                      </TableCell>
                                                      <TableCell>
-                                                        {(l as any).is_enabled ? (l.default_limit === null ? "Unlimited" : l.default_limit) : "-"}
+                                                        {(l as PlanLimit).is_enabled ? (l.default_limit === null ? "Unlimited" : l.default_limit) : "-"}
                                                      </TableCell>
                                                      <TableCell className="capitalize">
-                                                        {(l as any).is_enabled ? l.reset_period : "-"}
+                                                        {(l as PlanLimit).is_enabled ? l.reset_period : "-"}
                                                      </TableCell>
                                                 </TableRow>
                                             ))}
@@ -1443,7 +1443,6 @@ export default function AdminPlans() {
                                                                      <div className="flex flex-wrap gap-1">
                                                                         {plan.limits.filter(l => l.is_enabled).slice(0, 3).map(l => (
                                                                             <span key={l.id} className="bg-background border px-1.5 py-0.5 rounded">
-                                                                                {/* @ts-ignore - feature populated by backend */}
                                                                                 {l.feature?.name}: {l.default_limit === null ? "∞" : l.default_limit}
                                                                             </span>
                                                                         ))}

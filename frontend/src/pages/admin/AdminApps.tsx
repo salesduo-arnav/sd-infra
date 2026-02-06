@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,7 +93,7 @@ export default function AdminApps() {
   const [viewingFeatures, setViewingFeatures] = useState<Feature[]>([]);
   const [isViewSheetOpen, setIsViewSheetOpen] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await AdminService.getTools({ 
@@ -112,17 +112,17 @@ export default function AdminApps() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [pagination.pageIndex, pagination.pageSize, sorting, search]);
 
   useEffect(() => {
     fetchData();
-  }, [pagination.pageIndex, pagination.pageSize, sorting, search]);
+  }, [fetchData]);
 
   // ==============================
   // Tool Handlers
   // ==============================
 
-  const handleOpenDialog = (app?: Tool) => {
+  const handleOpenDialog = useCallback((app?: Tool) => {
     if (app) {
       setEditingApp(app);
       setFormData({
@@ -137,7 +137,7 @@ export default function AdminApps() {
       setFormData({ name: "", slug: "", description: "", tool_link: "", is_active: true });
     }
     setIsDialogOpen(true);
-  };
+  }, []);
 
   const generateSlug = (name: string) => {
     return name
@@ -170,7 +170,7 @@ export default function AdminApps() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     try {
       await AdminService.deleteTool(id);
       fetchData();
@@ -179,19 +179,19 @@ export default function AdminApps() {
       console.error("Failed to delete tool", error);
       toast.error("Failed to delete tool. It may have active dependencies.");
     }
-  };
+  }, [fetchData]);
 
   // ==============================
   // Feature Handlers
   // ==============================
 
-  const handleManageFeatures = async (tool: Tool) => {
+  const handleManageFeatures = useCallback(async (tool: Tool) => {
       setSelectedToolForFeatures(tool);
       setIsFeatureDialogOpen(true);
       refreshFeatures(tool.id);
       setEditingFeature(null);
       setFeatureFormData({ name: "", slug: "", description: "" });
-  };
+  }, []);
 
   const refreshFeatures = async (toolId: string) => {
       try {
@@ -245,7 +245,7 @@ export default function AdminApps() {
       }
   };
 
-  const handleViewDetails = async (tool: Tool) => {
+  const handleViewDetails = useCallback(async (tool: Tool) => {
       setViewingTool(tool);
       setIsViewSheetOpen(true);
       try {
@@ -255,7 +255,7 @@ export default function AdminApps() {
           console.error("Failed to fetch features for view", error);
           setViewingFeatures([]);
       }
-  };
+  }, []);
 
   // ==============================
   // Columns Definition
@@ -340,7 +340,7 @@ export default function AdminApps() {
               )
           }
       }
-  ], [apps, pagination]);
+  ], [handleManageFeatures, handleViewDetails, handleOpenDialog, handleDelete]);
 
 
   return (

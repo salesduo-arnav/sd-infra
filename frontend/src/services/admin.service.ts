@@ -11,6 +11,7 @@ export interface PaginationParams {
 }
 
 export interface PaginatedResponse<T> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: T[] | any; // Dynamic key like 'tools', 'plans' etc. + meta
   meta: {
       totalItems: number;

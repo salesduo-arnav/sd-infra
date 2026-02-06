@@ -94,15 +94,14 @@ export default function Plans() {
             ]);
 
             // Transform Bundle Groups into Bundle UI Model
-            // @ts-ignore
-            const transformedBundles: Bundle[] = publicBundles.map((group: any) => {
+            const transformedBundles: Bundle[] = publicBundles.map((group) => {
                 // Use the first tier to get the "apps" list, assuming all tiers in a group have same apps (usually true for simple tiers)
                 // If tiers can have different apps, we might need a union or just take the first one's apps.
                 // Or better, we define specific apps at the group level contextually, but here we derive from the first bundle.
                 const firstBundle = group.bundles && group.bundles.length > 0 ? group.bundles[0] : null;
-                const apps = firstBundle ? firstBundle.bundle_plans.map((bp: any) => ({
+                const apps = firstBundle ? firstBundle.bundle_plans.map((bp) => ({
                     name: bp.plan.tool?.name || "Unknown App",
-                    features: bp.plan.tool?.features?.map((f: any) => f.name) || []
+                    features: bp.plan.tool?.features?.map((f: { name: string }) => f.name) || []
                 })) : [];
 
                 return {
@@ -110,7 +109,7 @@ export default function Plans() {
                     name: group.name,
                     description: group.description,
                     apps: apps,
-                    tiers: group.bundles.map((b: any) => ({
+                    tiers: group.bundles.map((b: { tier_label?: string; name: string; price: number; interval: string; description?: string }) => ({
                         name: b.tier_label || b.name, // Use label vs name fallback
                         price: b.price,
                         period: "/" + b.interval,
