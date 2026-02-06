@@ -42,15 +42,110 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon, Terminal, CreditCard, Settings, User } from "lucide-react";
-import React from "react";
+import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+import React, { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
+import { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
+
+// Dummy Data for DataTable
+type Payment = {
+    id: string;
+    amount: number;
+    status: "pending" | "processing" | "success" | "failed";
+    email: string;
+};
+
+const data: Payment[] = [
+    { id: "728ed52f", amount: 100, status: "pending", email: "m@example.com" },
+    { id: "489e1d42", amount: 125, status: "processing", email: "example@gmail.com" },
+    { id: "629f1d44", amount: 450, status: "success", email: "user@yahoo.com" },
+    { id: "891a2d46", amount: 200, status: "failed", email: "admin@site.com" },
+    { id: "912b3d48", amount: 300, status: "success", email: "support@help.com" },
+    { id: "123c4d50", amount: 150, status: "pending", email: "test@domain.com" },
+    { id: "234d5e52", amount: 50, status: "processing", email: "buyer@shop.com" },
+    { id: "345e6f54", amount: 75, status: "success", email: "seller@market.com" },
+    { id: "456f7g56", amount: 500, status: "failed", email: "client@service.com" },
+    { id: "567g8h58", amount: 1000, status: "success", email: "manager@corp.com" },
+    { id: "678h9i60", amount: 25, status: "pending", email: "intern@work.com" },
+];
+
+const columns: ColumnDef<Payment>[] = [
+    {
+        accessorKey: "status",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+        cell: ({ row }) => {
+            const status = row.getValue("status") as string;
+            return (
+                <Badge variant={status === "success" ? "default" : status === "failed" ? "destructive" : "secondary"}>
+                    {status}
+                </Badge>
+            );
+        },
+    },
+    {
+        accessorKey: "email",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Email" />,
+    },
+    {
+        accessorKey: "amount",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Amount" />,
+        cell: ({ row }) => {
+            const amount = parseFloat(row.getValue("amount"));
+            const formatted = new Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: "USD",
+            }).format(amount);
+            return <div className="font-medium text-right">{formatted}</div>;
+        },
+    },
+];
 
 export default function DesignSystem() {
     const { toast } = useToast();
     const [date, setDate] = React.useState<Date | undefined>(new Date());
 
+    // DataTable State
+    const [sorting, setSorting] = useState<SortingState>([]);
+    const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 5 });
+    const [searchQuery, setSearchQuery] = useState("");
+
+    // Filter and Sort Data
+    const filteredData = useMemo(() => {
+        let processed = [...data];
+
+        if (searchQuery) {
+            const lowerQuery = searchQuery.toLowerCase();
+            processed = processed.filter(item =>
+                item.email.toLowerCase().includes(lowerQuery) ||
+                item.status.toLowerCase().includes(lowerQuery)
+            );
+        }
+
+        if (sorting.length > 0) {
+            const { id, desc } = sorting[0];
+            processed.sort((a, b) => {
+                const valA = a[id as keyof Payment];
+                const valB = b[id as keyof Payment];
+                if (valA < valB) return desc ? 1 : -1;
+                if (valA > valB) return desc ? -1 : 1;
+                return 0;
+            });
+        }
+
+        return processed;
+    }, [searchQuery, sorting]);
+
+    // Paginate Data
+    const pagedData = useMemo(() => {
+        const start = pagination.pageIndex * pagination.pageSize;
+        return filteredData.slice(start, start + pagination.pageSize);
+    }, [filteredData, pagination]);
+
+    const pageCount = Math.ceil(filteredData.length / pagination.pageSize);
+
     return (
-        <div className="min-h-screen bg-background p-8 font-sans text-foreground">
+        <div className="h-screen overflow-auto bg-background p-8 font-sans text-foreground">
             <div className="max-w-7xl mx-auto space-y-12">
 
                 {/* Header */}
@@ -319,6 +414,8 @@ export default function DesignSystem() {
                             </PopoverContent>
                         </Popover>
 
+                        <DatePickerWithRange className="w-[300px]" />
+
                         {/* Tooltip */}
                         <TooltipProvider>
                             <Tooltip>
@@ -423,7 +520,8 @@ export default function DesignSystem() {
                 {/* Data Display */}
                 <section className="space-y-6">
                     <h2 className="text-3xl font-bold tracking-tight">Data Display</h2>
-                    <div className="rounded-md border">
+                    <div className="rounded-md border p-4">
+                        <h3 className="text-xl font-semibold mb-4">Standard Table</h3>
                         <Table>
                             <TableCaption>A list of your recent invoices.</TableCaption>
                             <TableHeader>
@@ -455,6 +553,22 @@ export default function DesignSystem() {
                                 </TableRow>
                             </TableBody>
                         </Table>
+                    </div>
+
+                    <div className="rounded-md border p-4">
+                        <h3 className="text-xl font-semibold mb-4">Data Table Component</h3>
+                        <DataTable
+                            columns={columns}
+                            data={pagedData}
+                            pageCount={pageCount}
+                            sorting={sorting}
+                            onSortingChange={setSorting}
+                            pagination={pagination}
+                            onPaginationChange={setPagination}
+                            searchQuery={searchQuery}
+                            onSearchChange={setSearchQuery}
+                            placeholder="Filter emails..."
+                        />
                     </div>
                 </section>
 
