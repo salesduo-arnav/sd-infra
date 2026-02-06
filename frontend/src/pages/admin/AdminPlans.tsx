@@ -99,7 +99,6 @@ export default function AdminPlans() {
     currency: "USD",
     interval: "monthly" as Plan["interval"],
     trial_period_days: 0,
-    is_public: true,
     active: true,
   });
 
@@ -112,6 +111,10 @@ export default function AdminPlans() {
       description: "",
       active: true
   });
+
+  const [viewingBundleGroupId, setViewingBundleGroupId] = useState<string | null>(null);
+  const viewingBundleGroup = useMemo(() => bundleGroups.find(g => g.id === viewingBundleGroupId) || null, [bundleGroups, viewingBundleGroupId]);
+  const [isBundleGroupSheetOpen, setIsBundleGroupSheetOpen] = useState(false);
 
   const [editingBundle, setEditingBundle] = useState<Bundle | null>(null);
   const [bundleFormData, setBundleFormData] = useState({
@@ -134,7 +137,9 @@ export default function AdminPlans() {
   const [availableFeatures, setAvailableFeatures] = useState<AdminService.Feature[]>([]);
 
   const [selectedBundleForPlans, setSelectedBundleForPlans] = useState<Bundle | null>(null);
-  const [bundlePlans, setBundlePlans] = useState<Plan[]>([]); // Plans currently in bundle
+  const [bundlePlans, setBundlePlans] = useState<Plan[]>([]); // Original plans in bundle (for reference/comparison)
+  const [stagedBundlePlans, setStagedBundlePlans] = useState<Plan[]>([]); // Plans currently in modal (staged)
+  const [isSavingBundlePlans, setIsSavingBundlePlans] = useState(false);
   const [allActivePlans, setAllActivePlans] = useState<Plan[]>([]); // For selection
 
   // ==========================
@@ -234,7 +239,6 @@ export default function AdminPlans() {
         currency: plan.currency,
         interval: plan.interval,
         trial_period_days: plan.trial_period_days,
-        is_public: plan.is_public,
         active: plan.active,
       });
     } else {
@@ -248,7 +252,6 @@ export default function AdminPlans() {
           currency: "USD", 
           interval: "monthly",
           trial_period_days: 0,
-          is_public: true,
           active: true
         });
     }
@@ -263,7 +266,9 @@ export default function AdminPlans() {
         await AdminService.createPlan(planFormData);
       }
       setIsPlanDialogOpen(false);
+      setIsPlanDialogOpen(false);
       fetchPlans();
+      fetchBundleGroups(); // Update bundles if plan name changed
     } catch (error) {
       console.error("Failed to save plan", error);
       alert("Failed to save plan.");
@@ -337,6 +342,11 @@ export default function AdminPlans() {
       }
   };
 
+  const handleViewBundleGroupDetails = (group: BundleGroup) => {
+      setViewingBundleGroupId(group.id);
+      setIsBundleGroupSheetOpen(true);
+  };
+
 
   // ==========================
   // Bundle Handlers
@@ -397,7 +407,9 @@ export default function AdminPlans() {
   const handleBundleDelete = async (id: string) => {
       try {
           await AdminService.deleteBundle(id);
+          await AdminService.deleteBundle(id);
           fetchBundles();
+          fetchBundleGroups();
           toast.success("Bundle deleted successfully");
       } catch (error) {
           console.error("Failed to delete bundle", error);
@@ -470,7 +482,10 @@ export default function AdminPlans() {
           
           toast.success("Limits updated successfully");
           setIsLimitDialogOpen(false);
+          setIsLimitDialogOpen(false);
           fetchPlans(); // Refresh to get latest limits
+          fetchBundleGroups(); // Refresh bundle views that might show limits
+
 
       } catch (error) {
           console.error("Failed to save limits", error);
@@ -487,6 +502,7 @@ export default function AdminPlans() {
   const handleManageBundlePlans = async (bundle: Bundle) => {
       setSelectedBundleForPlans(bundle);
       setBundlePlans(bundle.plans || []); 
+      setStagedBundlePlans(bundle.plans || []);
       setIsBundlePlansDialogOpen(true);
 
       // Fetch all plans to offer as options
@@ -496,35 +512,56 @@ export default function AdminPlans() {
           
           const freshBundle = await AdminService.getBundleById(bundle.id);
           setBundlePlans(freshBundle.plans || []);
+          setStagedBundlePlans(freshBundle.plans || []);
       } catch (error) {
           console.error("Failed to prep bundle plans", error);
       }
   };
 
-  const handleAddPlanToBundle = async (planId: string) => {
-      if (!selectedBundleForPlans) return;
-      try {
-          await AdminService.addPlanToBundle(selectedBundleForPlans.id, planId);
-          // Refresh local list
-          const freshBundle = await AdminService.getBundleById(selectedBundleForPlans.id);
-          setBundlePlans(freshBundle.plans || []);
-          fetchBundles();
-      } catch (error) {
-          console.error("Failed to add plan to bundle", error);
+  const handleAddPlanToBundle = (planId: string) => {
+      const planToAdd = allActivePlans.find(p => p.id === planId);
+      if (planToAdd && !stagedBundlePlans.find(p => p.id === planId)) {
+          setStagedBundlePlans(prev => [...prev, planToAdd]);
       }
   };
 
-  const handleRemovePlanFromBundle = async (planId: string) => {
-      if (!selectedBundleForPlans) return;
-      try {
-          await AdminService.removePlanFromBundle(selectedBundleForPlans.id, planId);
-           // Refresh local list
-          const freshBundle = await AdminService.getBundleById(selectedBundleForPlans.id);
-          setBundlePlans(freshBundle.plans || []);
-          fetchBundles();
-      } catch (error) {
-          console.error("Failed to remove plan", error);
-      }
+  const handleRemovePlanFromBundle = (planId: string) => {
+      setStagedBundlePlans(prev => prev.filter(p => p.id !== planId));
+  };
+
+  const handleSaveBundlePlans = async () => {
+    if (!selectedBundleForPlans) return;
+    setIsSavingBundlePlans(true);
+    try {
+        // Find added plans
+        const addedPlans = stagedBundlePlans.filter(sp => !bundlePlans.find(bp => bp.id === sp.id));
+        // Find removed plans
+        const removedPlans = bundlePlans.filter(bp => !stagedBundlePlans.find(sp => sp.id === bp.id));
+
+        const promises = [];
+        
+        // Add new plans
+        for (const plan of addedPlans) {
+            promises.push(AdminService.addPlanToBundle(selectedBundleForPlans.id, plan.id));
+        }
+
+        // Remove old plans
+        for (const plan of removedPlans) {
+            promises.push(AdminService.removePlanFromBundle(selectedBundleForPlans.id, plan.id));
+        }
+
+        await Promise.all(promises);
+
+        toast.success("Bundle plans updated successfully");
+        setIsBundlePlansDialogOpen(false);
+        fetchBundles();
+        fetchBundleGroups();
+    } catch (error) {
+        console.error("Failed to save bundle plans", error);
+        toast.error("Failed to save bundle plans");
+    } finally {
+        setIsSavingBundlePlans(false);
+    }
   };
 
   // ==========================
@@ -554,7 +591,7 @@ export default function AdminPlans() {
       {
           accessorKey: "price",
           header: ({ column }) => <DataTableColumnHeader column={column} title="Price" />,
-          cell: ({ row }) => `$${row.original.price}/${row.original.interval}`
+          cell: ({ row }) => `${row.original.currency} ${row.original.price}/${row.original.interval}`
       },
       {
           accessorKey: "active",
@@ -633,7 +670,7 @@ export default function AdminPlans() {
         {
             accessorKey: "price",
             header: ({ column }) => <DataTableColumnHeader column={column} title="Price" />,
-             cell: ({ row }) => `$${row.original.price}/${row.original.interval}`
+             cell: ({ row }) => `${row.original.currency} ${row.original.price}/${row.original.interval}`
         },
         {
             accessorKey: "active",
@@ -725,10 +762,10 @@ export default function AdminPlans() {
                  <div className="flex items-center justify-between">
                     <div>
                         <h2 className="text-3xl font-bold tracking-tight">Manage Bundles</h2>
-                        <p className="text-muted-foreground mt-1">Create bundle groups and add tiered pricing (e.g., Basic, Premium).</p>
+                        <p className="text-muted-foreground mt-1">Create bundles and add tiered pricing (e.g., Basic, Premium).</p>
                     </div>
                      <Button onClick={() => handleOpenBundleGroupDialog()}>
-                        <Plus className="h-4 w-4 mr-2" /> Create Bundle Group
+                        <Plus className="h-4 w-4 mr-2" /> Create Bundle
                     </Button>
                 </div>
                 
@@ -751,6 +788,9 @@ export default function AdminPlans() {
                                             <p className="text-sm text-muted-foreground mt-1">{group.description}</p>
                                         </div>
                                          <div className="flex gap-2">
+                                            <Button variant="ghost" size="icon" title="View Details" onClick={() => handleViewBundleGroupDetails(group)}>
+                                                <Eye className="h-4 w-4"/>
+                                            </Button>
                                             <Button variant="outline" size="sm" onClick={() => handleOpenBundleDialog(undefined, group.id)}>
                                                 <Plus className="h-4 w-4 mr-2"/> Add Tier
                                             </Button>
@@ -798,7 +838,7 @@ export default function AdminPlans() {
                                                                 {/* Only show badge if label distinct from name, which strictly it isn't anymore, but for legacy data */}
                                                                 {bundle.tier_label && bundle.tier_label !== bundle.name && <Badge variant="outline" className="text-[10px]">{bundle.tier_label}</Badge>}
                                                             </TableCell>
-                                                            <TableCell>${bundle.price}/{bundle.interval}</TableCell>
+                                                            <TableCell>{bundle.currency} {bundle.price}/{bundle.interval}</TableCell>
                                                              <TableCell>
                                                                 <div className="flex flex-wrap gap-1">
                                                                     {bundle.plans?.map(p => (
@@ -814,7 +854,7 @@ export default function AdminPlans() {
                                                             </TableCell>
                                                             <TableCell className="text-right">
                                                                  <div className="flex justify-end gap-1">
-                                                                     <Button size="icon" variant="ghost" className="h-8 w-8" title="Manage Plans" onClick={() => handleManageBundlePlans(bundle)}><LinkIcon className="h-4 w-4"/></Button>
+                                                                     <Button size="icon" variant="ghost" className="h-8 w-8" title="Link Plans" onClick={() => handleManageBundlePlans(bundle)}><LinkIcon className="h-4 w-4"/></Button>
                                                                     <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleOpenBundleDialog(bundle)}><Pencil className="h-4 w-4"/></Button>
                                                                      <AlertDialog>
                                                                       <AlertDialogTrigger asChild>
@@ -926,7 +966,6 @@ export default function AdminPlans() {
                       <Input type="number" value={planFormData.trial_period_days} onChange={e => setPlanFormData({...planFormData, trial_period_days: Number(e.target.value)})} />
                   </div>
                    <div className="col-span-2 flex gap-6 pt-2">
-                      <div className="flex items-center gap-2"><Switch checked={planFormData.is_public} onCheckedChange={c => setPlanFormData({...planFormData, is_public: c})} /><Label>Public</Label></div>
                       <div className="flex items-center gap-2"><Switch checked={planFormData.active} onCheckedChange={c => setPlanFormData({...planFormData, active: c})} /><Label>Active</Label></div>
                    </div>
               </div>
@@ -965,6 +1004,17 @@ export default function AdminPlans() {
                         <Label>Price</Label>
                         <Input type="number" value={bundleFormData.price} onChange={e => setBundleFormData({...bundleFormData, price: Number(e.target.value)})} />
                      </div>
+                      <div className="space-y-2">
+                        <Label>Currency</Label>
+                        <Select value={bundleFormData.currency} onValueChange={v => setBundleFormData({...bundleFormData, currency: v})}>
+                            <SelectTrigger><SelectValue/></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="USD">USD</SelectItem>
+                                <SelectItem value="EUR">EUR</SelectItem>
+                                <SelectItem value="INR">INR</SelectItem>
+                            </SelectContent>
+                        </Select>
+                      </div>
                       <div className="space-y-2">
                         <Label>Interval</Label>
                          <Select value={bundleFormData.interval} onValueChange={(v: any) => setBundleFormData({...bundleFormData, interval: v})}>
@@ -1091,17 +1141,17 @@ export default function AdminPlans() {
         <Dialog open={isBundlePlansDialogOpen} onOpenChange={setIsBundlePlansDialogOpen}>
             <DialogContent className="max-w-2xl">
                  <DialogHeader>
-                    <DialogTitle>Manage Bundle Content</DialogTitle>
+                    <DialogTitle>Manage Tier Content</DialogTitle>
                     <DialogDescription>{selectedBundleForPlans?.name}</DialogDescription>
                 </DialogHeader>
                  
                  <div className="space-y-4">
                      <div className="flex items-center gap-2">
                          <Select onValueChange={(v) => handleAddPlanToBundle(v)}>
-                             <SelectTrigger><SelectValue placeholder="Add Plan to Bundle..." /></SelectTrigger>
+                             <SelectTrigger><SelectValue placeholder="Add Plan to Tier..." /></SelectTrigger>
                              <SelectContent>
                                  {allActivePlans
-                                    .filter(p => !bundlePlans.find(bp => bp.id === p.id))
+                                    .filter(p => !stagedBundlePlans.find(bp => bp.id === p.id))
                                     .map(p => (
                                      <SelectItem key={p.id} value={p.id}>{p.name} ({p.tool?.name})</SelectItem>
                                  ))}
@@ -1114,15 +1164,17 @@ export default function AdminPlans() {
                              <TableHeader>
                                  <TableRow>
                                      <TableHead>Plan</TableHead>
-                                     <TableHead>Tool</TableHead>
                                      <TableHead></TableHead>
                                  </TableRow>
                              </TableHeader>
                              <TableBody>
-                                 {bundlePlans.map(p => (
+                                 {stagedBundlePlans.map(p => (
                                      <TableRow key={p.id}>
-                                         <TableCell>{p.name}</TableCell>
-                                         <TableCell className="text-muted-foreground text-sm">{p.tool?.name}</TableCell>
+                                         <TableCell>
+                                             <div className="font-medium">{p.name}</div>
+                                             {/* Show changed status if newly added */}
+                                             {!bundlePlans.find(bp => bp.id === p.id) && <Badge variant="outline" className="text-[10px] mt-1 text-green-600 border-green-200 bg-green-50">New</Badge>}
+                                         </TableCell>
                                          <TableCell className="text-right">
                                              <Button variant="ghost" size="sm" className="text-destructive h-8 w-8 p-0" onClick={() => handleRemovePlanFromBundle(p.id)}>
                                                  <X className="h-4 w-4" />
@@ -1130,13 +1182,16 @@ export default function AdminPlans() {
                                          </TableCell>
                                      </TableRow>
                                  ))}
-                                 {bundlePlans.length === 0 && <TableRow><TableCell colSpan={3} className="text-center py-4 text-muted-foreground">No plans in bundle</TableCell></TableRow>}
+                                 {stagedBundlePlans.length === 0 && <TableRow><TableCell colSpan={2} className="text-center py-4 text-muted-foreground">No plans in bundle</TableCell></TableRow>}
                              </TableBody>
                          </Table>
                      </div>
                  </div>
                  <DialogFooter>
-                    <Button onClick={() => setIsBundlePlansDialogOpen(false)}>Done</Button>
+                    <Button variant="outline" onClick={() => setIsBundlePlansDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSaveBundlePlans} disabled={isSavingBundlePlans}>
+                        {isSavingBundlePlans ? "Saving..." : "Save"}
+                    </Button>
                  </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -1182,12 +1237,7 @@ export default function AdminPlans() {
                                         {viewingPlan.active ? "Active" : "Inactive"}
                                     </Badge>
                                 </div>
-                                <div>
-                                    <span className="text-muted-foreground block">Public</span>
-                                    <Badge variant={viewingPlan.is_public ? "outline" : "secondary"}>
-                                        {viewingPlan.is_public ? "Public" : "Private"}
-                                    </Badge>
-                                </div>
+
                             </div>
                         </section>
                         
@@ -1265,7 +1315,7 @@ export default function AdminPlans() {
                                 </div>
                                 <div>
                                     <span className="text-muted-foreground block">Price</span>
-                                    <span className="font-medium text-lg">${viewingBundle.price} / {viewingBundle.interval}</span>
+                                    <span className="font-medium text-lg">{viewingBundle.currency} {viewingBundle.price} / {viewingBundle.interval}</span>
                                 </div>
                                 <div>
                                     <span className="text-muted-foreground block">Status</span>
@@ -1313,6 +1363,110 @@ export default function AdminPlans() {
                             )}
                         </section>
                     </div>
+                )}
+            </SheetContent>
+        </Sheet>
+
+        {/* Bundle Group Details Sheet */}
+        <Sheet open={isBundleGroupSheetOpen} onOpenChange={setIsBundleGroupSheetOpen}>
+            <SheetContent className="sm:max-w-xl overflow-y-auto">
+                <SheetHeader>
+                    <SheetTitle>Bundle Group Details</SheetTitle>
+                    <SheetDescription>{viewingBundleGroup?.name}</SheetDescription>
+                </SheetHeader>
+                {viewingBundleGroup && (
+                     <div className="space-y-6 py-6">
+                        <section className="space-y-3">
+                             <h3 className="font-semibold text-lg flex items-center gap-2">
+                                <Layers className="h-5 w-5" />
+                                Group Info
+                            </h3>
+                             <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span className="text-muted-foreground block">Name</span>
+                                    <span className="font-medium">{viewingBundleGroup.name}</span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Slug</span>
+                                    <span className="font-mono bg-muted px-2 py-0.5 rounded text-xs">{viewingBundleGroup.slug}</span>
+                                </div>
+                                 <div className="col-span-2">
+                                    <span className="text-muted-foreground block">Description</span>
+                                    <span>{viewingBundleGroup.description || "No description"}</span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block">Status</span>
+                                    <Badge variant={viewingBundleGroup.active ? "default" : "secondary"}>
+                                        {viewingBundleGroup.active ? "Active" : "Inactive"}
+                                    </Badge>
+                                </div>
+                            </div>
+                        </section>
+
+                        <div className="h-px bg-border" />
+
+                         <section className="space-y-4">
+                            <h3 className="font-semibold text-lg flex items-center gap-2">
+                                <Package className="h-5 w-5" />
+                                Tiers & Plans
+                            </h3>
+                            {viewingBundleGroup.bundles && viewingBundleGroup.bundles.length > 0 ? (
+                                <div className="space-y-6">
+                                    {viewingBundleGroup.bundles.map(bundle => (
+                                        <div key={bundle.id} className="border rounded-lg p-4 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="font-medium flex items-center gap-2">
+                                                    {bundle.name}
+                                                    <Badge variant="outline" className="text-xs">{bundle.currency} {bundle.price}/{bundle.interval}</Badge>
+                                                </div>
+                                            </div>
+
+                                            {/* Plans in this Tier */}
+                                             <div className="space-y-2">
+                                                {bundle.plans && bundle.plans.length > 0 ? (
+                                                    bundle.plans.map(plan => (
+                                                        <div key={plan.id} className="bg-muted/30 p-3 rounded-md">
+                                                            <div 
+                                                                className="flex items-center justify-between cursor-pointer hover:text-primary transition-colors"
+                                                                onClick={() => handleViewPlanDetails(plan)}
+                                                                title="View Plan Details & Limits"
+                                                            >
+                                                                <div className="font-medium text-sm flex items-center gap-2">
+                                                                     {plan.name}
+                                                                     <span className="text-xs text-muted-foreground font-normal">({plan.tool?.name || 'Tool'})</span>
+                                                                </div>
+                                                                <Eye className="h-3 w-3 opacity-50" />
+                                                            </div>
+                                                            {/* Quick Limit Preview (Optional) */}
+                                                            <div className="mt-2 text-xs text-muted-foreground">
+                                                                {plan.limits && plan.limits.length > 0 ? (
+                                                                     <div className="flex flex-wrap gap-1">
+                                                                        {plan.limits.filter(l => l.is_enabled).slice(0, 3).map(l => (
+                                                                            <span key={l.id} className="bg-background border px-1.5 py-0.5 rounded">
+                                                                                {/* @ts-ignore - feature populated by backend */}
+                                                                                {l.feature?.name}: {l.default_limit === null ? "∞" : l.default_limit}
+                                                                            </span>
+                                                                        ))}
+                                                                        {plan.limits.filter(l => l.is_enabled).length > 3 && <span>+{plan.limits.filter(l => l.is_enabled).length - 3} more</span>}
+                                                                     </div>
+                                                                ) : (
+                                                                    <span>No limits configured</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="text-xs text-muted-foreground italic">No plans in this tier.</div>
+                                                )}
+                                             </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-muted-foreground">No tiers configured.</div>
+                            )}
+                        </section>
+                     </div>
                 )}
             </SheetContent>
         </Sheet>

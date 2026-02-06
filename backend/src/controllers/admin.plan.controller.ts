@@ -98,7 +98,6 @@ export const createPlan = async (req: Request, res: Response) => {
             currency,
             interval,
             trial_period_days,
-            is_public,
             active
         } = req.body;
 
@@ -125,7 +124,6 @@ export const createPlan = async (req: Request, res: Response) => {
                 currency,
                 interval,
                 trial_period_days: trial_period_days ?? 0,
-                is_public: is_public ?? true,
                 active: active ?? true
             }, { transaction: t });
         });

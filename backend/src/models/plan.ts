@@ -17,7 +17,6 @@ export interface PlanAttributes {
   currency: string;
   interval: PriceInterval;
   trial_period_days: number;
-  is_public: boolean;
   active: boolean;
   created_at?: Date;
   updated_at?: Date;
@@ -25,7 +24,7 @@ export interface PlanAttributes {
 
 export type PlanCreationAttributes = Optional<
   PlanAttributes,
-  'id' | 'description' | 'trial_period_days' | 'is_public' | 'active' | 'created_at' | 'updated_at'
+  'id' | 'description' | 'trial_period_days' | 'active' | 'created_at' | 'updated_at'
 >;
 
 export class Plan extends Model<PlanAttributes, PlanCreationAttributes> implements PlanAttributes {
@@ -38,7 +37,7 @@ export class Plan extends Model<PlanAttributes, PlanCreationAttributes> implemen
   public currency!: string;
   public interval!: PriceInterval;
   public trial_period_days!: number;
-  public is_public!: boolean;
+
   public active!: boolean;
   
   public readonly created_at!: Date;
@@ -90,10 +89,6 @@ Plan.init(
       type: DataTypes.INTEGER,
       defaultValue: 0,
       comment: 'If > 0, auto-set trial_end on sub creation',
-    },
-    is_public: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: true,
     },
     active: {
       type: DataTypes.BOOLEAN,

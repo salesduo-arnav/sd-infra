@@ -52,7 +52,6 @@ export const getPublicPlans = async (req: Request, res: Response) => {
     try {
         const plans = await Plan.findAll({
             where: { 
-                is_public: true, 
                 active: true 
             },
             include: [

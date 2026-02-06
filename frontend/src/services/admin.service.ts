@@ -49,7 +49,6 @@ export interface Plan {
   currency: string;
   interval: 'monthly' | 'yearly' | 'one_time';
   trial_period_days: number;
-  is_public: boolean;
   active: boolean;
   tool?: Tool;
   limits?: PlanLimit[];

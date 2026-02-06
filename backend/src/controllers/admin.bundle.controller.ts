@@ -4,6 +4,8 @@ import sequelize from '../config/db';
 import { Bundle } from '../models/bundle';
 import { BundleGroup } from '../models/bundle_group';
 import { Plan } from '../models/plan';
+import { PlanLimit } from '../models/plan_limit';
+import { Feature } from '../models/feature';
 import { BundlePlan } from '../models/bundle_plan';
 import { PriceInterval } from '../models/enums';
 
@@ -20,7 +22,15 @@ export const getBundleGroups = async (req: Request, res: Response) => {
                 include: [{
                    model: Plan,
                    as: 'plans',
-                   through: { attributes: [] }
+                   through: { attributes: [] },
+                   include: [{
+                       model: PlanLimit,
+                       as: 'limits',
+                       include: [{
+                           model: Feature,
+                           as: 'feature'
+                       }]
+                   }]
                 }]
             }],
             order: [['created_at', 'DESC']]
