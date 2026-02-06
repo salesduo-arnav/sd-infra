@@ -58,8 +58,8 @@ export const createBundleGroup = async (req: Request, res: Response) => {
         });
 
         res.status(201).json(group);
-    } catch (error: any) {
-        if (error.name === 'SequelizeUniqueConstraintError') {
+    } catch (error: unknown) {
+        if ((error as Error).name === 'SequelizeUniqueConstraintError') {
              return res.status(400).json({ message: 'Slug must be unique' });
         }
         console.error('Create Bundle Group Error:', error);
@@ -96,8 +96,8 @@ export const deleteBundleGroup = async (req: Request, res: Response) => {
 
         await group.destroy();
         res.status(200).json({ message: 'Bundle Group deleted' });
-    } catch (error: any) {
-        if (error.name === 'SequelizeForeignKeyConstraintError') {
+    } catch (error: unknown) {
+        if ((error as Error).name === 'SequelizeForeignKeyConstraintError') {
              return res.status(400).json({ message: 'Cannot delete group with active bundles' });
         }
         console.error('Delete Bundle Group Error:', error);
@@ -218,8 +218,8 @@ export const createBundle = async (req: Request, res: Response) => {
         });
 
         res.status(201).json(bundle);
-    } catch (error: any) {
-        if (error.message === 'ALREADY_EXISTS') {
+    } catch (error: unknown) {
+        if ((error as Error).message === 'ALREADY_EXISTS') {
             return res.status(400).json({ message: 'Bundle with this slug already exists' });
         }
         console.error('Create Bundle Error:', error);
@@ -260,11 +260,11 @@ export const createBundle = async (req: Request, res: Response) => {
         });
 
         res.status(200).json(updatedBundle);
-    } catch (error: any) {
-        if (error.message === 'NOT_FOUND') {
+    } catch (error: unknown) {
+        if ((error as Error).message === 'NOT_FOUND') {
             return res.status(404).json({ message: 'Bundle not found' });
         }
-        if (error.message === 'SLUG_EXISTS') {
+        if ((error as Error).message === 'SLUG_EXISTS') {
             return res.status(400).json({ message: 'Bundle with this slug already exists' });
         }
         console.error('Update Bundle Error:', error);
@@ -287,8 +287,8 @@ export const deleteBundle = async (req: Request, res: Response) => {
         });
 
         res.status(200).json({ message: 'Bundle deleted successfully' });
-    } catch (error: any) {
-        if (error.message === 'NOT_FOUND') {
+    } catch (error: unknown) {
+        if ((error as Error).message === 'NOT_FOUND') {
             return res.status(404).json({ message: 'Bundle not found' });
         }
         console.error('Delete Bundle Error:', error);
@@ -326,9 +326,9 @@ export const addPlanToBundle = async (req: Request, res: Response) => {
         });
 
         res.status(200).json({ message: 'Plan added to bundle' });
-    } catch (error: any) {
-        if (error.message === 'BUNDLE_NOT_FOUND') return res.status(404).json({ message: 'Bundle not found' });
-        if (error.message === 'PLAN_NOT_FOUND') return res.status(404).json({ message: 'Plan not found' });
+    } catch (error: unknown) {
+        if ((error as Error).message === 'BUNDLE_NOT_FOUND') return res.status(404).json({ message: 'Bundle not found' });
+        if ((error as Error).message === 'PLAN_NOT_FOUND') return res.status(404).json({ message: 'Plan not found' });
         
         console.error('Add Plan to Bundle Error:', error);
         res.status(500).json({ message: 'Internal server error' });
@@ -357,9 +357,9 @@ export const removePlanFromBundle = async (req: Request, res: Response) => {
         });
 
         res.status(200).json({ message: 'Plan removed from bundle' });
-    } catch (error: any) {
-        if (error.message === 'BUNDLE_NOT_FOUND') return res.status(404).json({ message: 'Bundle not found' });
-        if (error.message === 'NOT_ASSOCIATED') return res.status(404).json({ message: 'Plan not associated with this bundle' });
+    } catch (error: unknown) {
+        if ((error as Error).message === 'BUNDLE_NOT_FOUND') return res.status(404).json({ message: 'Bundle not found' });
+        if ((error as Error).message === 'NOT_ASSOCIATED') return res.status(404).json({ message: 'Plan not associated with this bundle' });
         
         console.error('Remove Plan from Bundle Error:', error);
         res.status(500).json({ message: 'Internal server error' });

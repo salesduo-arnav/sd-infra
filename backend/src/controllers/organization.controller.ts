@@ -262,11 +262,11 @@ export const updateOrganization = async (req: Request, res: Response) => {
             organization: updatedOrg
         });
 
-    } catch (error: any) {
-        if (error.message === 'ORG_NOT_FOUND') {
+    } catch (error: unknown) {
+        if ((error as Error).message === 'ORG_NOT_FOUND') {
             return res.status(404).json({ message: 'Organization not found' });
         }
-        if (error.message === 'FORBIDDEN') {
+        if ((error as Error).message === 'FORBIDDEN') {
             return res.status(403).json({ message: 'Insufficient permissions' });
         }
         console.error('Update Org Error:', error);

@@ -98,8 +98,8 @@ export const createFeature = async (req: Request, res: Response) => {
         });
 
         res.status(201).json(feature);
-    } catch (error: any) {
-        if (error.message === 'ALREADY_EXISTS') {
+    } catch (error: unknown) {
+        if ((error as Error).message === 'ALREADY_EXISTS') {
              return res.status(400).json({ message: 'Feature with this slug already exists globally' });
         }
         console.error('Create Feature Error:', error);
@@ -134,11 +134,11 @@ export const updateFeature = async (req: Request, res: Response) => {
         });
 
         res.status(200).json(updatedFeature);
-    } catch (error: any) {
-        if (error.message === 'NOT_FOUND') {
+    } catch (error: unknown) {
+        if ((error as Error).message === 'NOT_FOUND') {
             return res.status(404).json({ message: 'Feature not found' });
         }
-        if (error.message === 'SLUG_EXISTS') {
+        if ((error as Error).message === 'SLUG_EXISTS') {
             return res.status(400).json({ message: 'Feature with this slug already exists' });
         }
         console.error('Update Feature Error:', error);
@@ -161,8 +161,8 @@ export const deleteFeature = async (req: Request, res: Response) => {
         });
         
         res.status(200).json({ message: 'Feature deleted successfully' });
-    } catch (error: any) {
-        if (error.message === 'NOT_FOUND') {
+    } catch (error: unknown) {
+        if ((error as Error).message === 'NOT_FOUND') {
             return res.status(404).json({ message: 'Feature not found' });
         }
         console.error('Delete Feature Error:', error);

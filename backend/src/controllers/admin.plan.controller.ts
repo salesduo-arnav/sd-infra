@@ -151,8 +151,8 @@ export const updatePlan = async (req: Request, res: Response) => {
         });
 
         res.status(200).json(updatedPlan);
-    } catch (error: any) {
-        if (error.message === 'NOT_FOUND') {
+    } catch (error: unknown) {
+        if ((error as Error).message === 'NOT_FOUND') {
             return res.status(404).json({ message: 'Plan not found' });
         }
         console.error('Update Plan Error:', error);
@@ -175,8 +175,8 @@ export const deletePlan = async (req: Request, res: Response) => {
         });
         
         res.status(200).json({ message: 'Plan deleted successfully' });
-    } catch (error: any) {
-        if (error.message === 'NOT_FOUND') {
+    } catch (error: unknown) {
+        if ((error as Error).message === 'NOT_FOUND') {
             return res.status(404).json({ message: 'Plan not found' });
         }
         console.error('Delete Plan Error:', error);
@@ -228,8 +228,8 @@ export const upsertPlanLimit = async (req: Request, res: Response) => {
         });
 
         res.status(200).json(limit);
-    } catch (error: any) {
-        if (error.message === 'PLAN_NOT_FOUND') {
+    } catch (error: unknown) {
+        if ((error as Error).message === 'PLAN_NOT_FOUND') {
              return res.status(404).json({ message: 'Plan not found' });
         }
         console.error('Upsert Plan Limit Error:', error);
@@ -252,8 +252,8 @@ export const deletePlanLimit = async (req: Request, res: Response) => {
         });
 
         res.status(200).json({ message: 'Plan Limit deleted successfully' });
-    } catch (error: any) {
-        if (error.message === 'NOT_FOUND') {
+    } catch (error: unknown) {
+        if ((error as Error).message === 'NOT_FOUND') {
             return res.status(404).json({ message: 'Plan Limit not found' });
         }
         console.error('Delete Plan Limit Error:', error);

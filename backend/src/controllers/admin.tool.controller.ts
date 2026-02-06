@@ -4,7 +4,7 @@ import sequelize from '../config/db';
 import { Tool } from '../models/tool';
 import { Feature } from '../models/feature';
 import { Plan } from '../models/plan';
-import { PlanLimit } from '../models/plan_limit';
+
 import { Subscription } from '../models/subscription';
 import { SubStatus } from '../models/enums';
 
