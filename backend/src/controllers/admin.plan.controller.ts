@@ -6,64 +6,49 @@ import { PlanLimit } from '../models/plan_limit';
 import { Tool } from '../models/tool';
 import { Feature } from '../models/feature';
 import { PriceInterval, TierType, FeatureResetPeriod } from '../models/enums';
+import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
+import { handleError } from '../utils/error';
 
 // ==========================
 // Plan Config Controllers
 // ==========================
 
 export const getPlans = async (req: Request, res: Response) => {
-  try {
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 10;
-      const offset = (page - 1) * limit;
+    try {
+        const { page, limit, offset, sortBy, sortOrder } = getPaginationOptions(req, 'tool_id');
+        const search = req.query.search as string;
+        const { tool_id } = req.query;
 
-      const search = req.query.search as string;
-      const sortBy = (req.query.sort_by as string) || 'tool_id'; // Default sort by tool
-      const sortOrder = (req.query.sort_dir as string) === 'desc' ? 'DESC' : 'ASC';
-
-      const { tool_id } = req.query;
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const whereClause: any = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const whereClause: any = {};
       
-      if (tool_id) {
-          whereClause.tool_id = tool_id;
-      }
+        if (tool_id) {
+            whereClause.tool_id = tool_id;
+        }
 
-      if (search) {
-          whereClause[Op.or] = [
-              { name: { [Op.iLike]: `%${search}%` } },
-              { description: { [Op.iLike]: `%${search}%` } }
-          ];
-      }
+        if (search) {
+            whereClause[Op.or] = [
+                { name: { [Op.iLike]: `%${search}%` } },
+                { description: { [Op.iLike]: `%${search}%` } }
+            ];
+        }
 
-      const { count, rows } = await Plan.findAndCountAll({
-          where: whereClause,
-          limit,
-          offset,
-          order: [[sortBy, sortOrder]],
-          include: [
-            { model: Tool, as: 'tool', attributes: ['name', 'slug'] },
-            { model: PlanLimit, as: 'limits', include: [{ model: Feature, as: 'feature' }] }
-          ],
-          distinct: true
-      });
+        const { count, rows } = await Plan.findAndCountAll({
+            where: whereClause,
+            limit,
+            offset,
+            order: [[sortBy, sortOrder]],
+            include: [
+                { model: Tool, as: 'tool', attributes: ['name', 'slug'] },
+                { model: PlanLimit, as: 'limits', include: [{ model: Feature, as: 'feature' }] }
+            ],
+            distinct: true
+        });
 
-      const totalPages = Math.ceil(count / limit);
-
-      res.status(200).json({
-          plans: rows,
-          meta: {
-              totalItems: count,
-              totalPages,
-              currentPage: page,
-              itemsPerPage: limit
-          }
-      });
-  } catch (error) {
-      console.error('Get Plans Error:', error);
-      res.status(500).json({ message: 'Internal server error' });
-  }
+        res.status(200).json(formatPaginationResponse(rows, count, page, limit, 'plans'));
+    } catch (error) {
+        handleError(res, error, 'Get Plans Error');
+    }
 };
 
 export const getPlanById = async (req: Request, res: Response) => {
@@ -82,8 +67,7 @@ export const getPlanById = async (req: Request, res: Response) => {
 
         res.status(200).json(plan);
     } catch (error) {
-        console.error('Get Plan Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Get Plan Error');
     }
 };
 
@@ -130,8 +114,7 @@ export const createPlan = async (req: Request, res: Response) => {
 
         res.status(201).json(plan);
     } catch (error) {
-        console.error('Create Plan Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Create Plan Error');
     }
 };
 
@@ -151,12 +134,8 @@ export const updatePlan = async (req: Request, res: Response) => {
         });
 
         res.status(200).json(updatedPlan);
-    } catch (error: unknown) {
-        if ((error as Error).message === 'NOT_FOUND') {
-            return res.status(404).json({ message: 'Plan not found' });
-        }
-        console.error('Update Plan Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    } catch (error) {
+        handleError(res, error, 'Update Plan Error');
     }
 };
 
@@ -175,12 +154,8 @@ export const deletePlan = async (req: Request, res: Response) => {
         });
         
         res.status(200).json({ message: 'Plan deleted successfully' });
-    } catch (error: unknown) {
-        if ((error as Error).message === 'NOT_FOUND') {
-            return res.status(404).json({ message: 'Plan not found' });
-        }
-        console.error('Delete Plan Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    } catch (error) {
+        handleError(res, error, 'Delete Plan Error');
     }
 };
 
@@ -228,12 +203,8 @@ export const upsertPlanLimit = async (req: Request, res: Response) => {
         });
 
         res.status(200).json(limit);
-    } catch (error: unknown) {
-        if ((error as Error).message === 'PLAN_NOT_FOUND') {
-             return res.status(404).json({ message: 'Plan not found' });
-        }
-        console.error('Upsert Plan Limit Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    } catch (error) {
+        handleError(res, error, 'Upsert Plan Limit Error');
     }
 };
 
@@ -252,11 +223,7 @@ export const deletePlanLimit = async (req: Request, res: Response) => {
         });
 
         res.status(200).json({ message: 'Plan Limit deleted successfully' });
-    } catch (error: unknown) {
-        if ((error as Error).message === 'NOT_FOUND') {
-            return res.status(404).json({ message: 'Plan Limit not found' });
-        }
-        console.error('Delete Plan Limit Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    } catch (error) {
+        handleError(res, error, 'Delete Plan Limit Error');
     }
 };
