@@ -403,7 +403,7 @@ export default function AdminOrganizations() {
             onSortingChange={setSorting}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            placeholder="Search organizations..."
+            placeholder="Search by name, slug, or website..."
             isLoading={loading}
           />
         </div>

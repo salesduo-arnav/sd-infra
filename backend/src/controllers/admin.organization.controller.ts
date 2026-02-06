@@ -22,7 +22,8 @@ export const getOrganizations = async (req: Request, res: Response) => {
         if (search) {
             whereClause[Op.or] = [
                 { name: { [Op.iLike]: `%${search}%` } },
-                { slug: { [Op.iLike]: `%${search}%` } }
+                { slug: { [Op.iLike]: `%${search}%` } },
+                { website: { [Op.iLike]: `%${search}%` } }
             ];
         }
 
