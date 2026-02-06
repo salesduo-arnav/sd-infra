@@ -121,7 +121,6 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
         if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
         const orgId = req.headers['x-organization-id'] as string;
-<<<<<<< HEAD
 
         // Pagination and sorting params
         const page = parseInt(req.query.page as string) || 1;
@@ -133,10 +132,6 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
 
         // Get user's organization
         // Must filter by the active organization context
-=======
-        
-        // Get user's organization filtered by the active organization context
->>>>>>> 2cc666b (cleaned backend code)
         const whereClause: { user_id: string; organization_id?: string } = { user_id: userId };
         if (orgId) {
             whereClause.organization_id = orgId;
