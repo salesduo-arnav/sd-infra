@@ -113,20 +113,6 @@ export const deleteOrganization = async (req: Request, res: Response) => {
 
         // Perform all mutations inside managed transaction
         await sequelize.transaction(async (t) => {
-            // Explicitly delete related records for logging
-            // (CASCADE will handle this at DB level, but explicit is better for tracking)
-            const deletedMembers = await OrganizationMember.destroy({
-                where: { organization_id: id },
-                transaction: t
-            });
-            console.log(`Deleted ${deletedMembers} organization members`);
-
-            const deletedInvitations = await Invitation.destroy({
-                where: { organization_id: id },
-                transaction: t
-            });
-            console.log(`Deleted ${deletedInvitations} invitations`);
-
             await organization.destroy({ transaction: t });
         });
 

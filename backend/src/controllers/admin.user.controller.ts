@@ -177,19 +177,14 @@ export const deleteUser = async (req: Request, res: Response) => {
             }
 
             // Force delete organizations where user is sole owner
+            // This will trigger Organization hooks to soft delete its data
             for (const conflict of conflicts) {
-                await Organization.destroy({ where: { id: conflict.id }, transaction: t });
+                await Organization.destroy({ where: { id: conflict.id }, individualHooks: true, transaction: t });
                 console.log(`Force deleted organization ${conflict.id}`);
             }
 
-            // Clean up user's organization memberships
-            // (CASCADE will handle this at DB level, but explicit is better for tracking)
-            const deletedMemberships = await OrganizationMember.destroy({
-                where: { user_id: id },
-                transaction: t
-            });
-            console.log(`Deleted ${deletedMemberships} organization memberships for user`);
-
+            // Delete the user
+            // This will trigger User hooks to soft delete memberships
             await user.destroy({ transaction: t });
         });
 

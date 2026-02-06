@@ -493,22 +493,11 @@ export const deleteOrganization = async (req: Request, res: Response) => {
 
         // Use managed transaction to delete org and all related data
         await sequelize.transaction(async (t) => {
-            // Delete all invitations first (due to foreign key constraints)
-            const { Invitation } = await import('../models/invitation');
-            await Invitation.destroy({
-                where: { organization_id: orgId },
-                transaction: t
-            });
-
-            // Delete all members
-            await OrganizationMember.destroy({
-                where: { organization_id: orgId },
-                transaction: t
-            });
-
             // Delete the organization (soft delete due to paranoid: true)
+            // Cascading hooks will handle members and invitations
             await Organization.destroy({
                 where: { id: orgId },
+                individualHooks: true,
                 transaction: t
             });
         });
