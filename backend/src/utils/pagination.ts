@@ -18,7 +18,7 @@ export const getPaginationOptions = (req: Request, defaultSortBy: string = 'crea
     return { page, limit, offset, sortBy, sortOrder };
 };
 
-export const formatPaginationResponse = (rows: any[], count: number, page: number, limit: number, dataKey: string = 'data') => {
+export const formatPaginationResponse = <T>(rows: T[], count: number, page: number, limit: number, dataKey: string = 'data') => {
     return {
         [dataKey]: rows,
         meta: {

@@ -67,7 +67,7 @@ export default function AdminPlans() {
   const [plansSearch, setPlansSearch] = useState("");
 
   // Bundles State (DataTable)
-  const [bundles, setBundles] = useState<Bundle[]>([]); // Keep for flat list if needed or just use groups
+  const [bundles, setBundles] = useState<Bundle[]>([]);
   const [bundleGroups, setBundleGroups] = useState<BundleGroup[]>([]);
   const [isLoadingBundleGroups, setIsLoadingBundleGroups] = useState(false);
   const [bundlesPagination, setBundlesPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
@@ -125,8 +125,8 @@ export default function AdminPlans() {
       currency: "USD",
       interval: "monthly" as Bundle["interval"],
       active: true,
-      bundle_group_id: "" as string | undefined, // New
-      tier_label: "" as string | undefined // New
+      bundle_group_id: "" as string | undefined,
+      tier_label: "" as string | undefined
   });
 
   // Limit/Association State
@@ -407,7 +407,7 @@ export default function AdminPlans() {
   const handleBundleDelete = useCallback(async (id: string) => {
       try {
           await AdminService.deleteBundle(id);
-          // await AdminService.deleteBundle(id); // duplicate line
+
           fetchBundles();
           fetchBundleGroups();
           toast.success("Bundle deleted successfully");
@@ -583,8 +583,8 @@ export default function AdminPlans() {
           )
       },
       {
-          accessorKey: "tool.name", // Access nested
-          id: "tool_name", // ID required for sorting if accessorKey is nested or specialized?
+          accessorKey: "tool.name",
+          id: "tool_name",
           header: "Tool",
           cell: ({ row }) => row.original.tool?.name
       },
@@ -717,14 +717,7 @@ export default function AdminPlans() {
   return (
     <Layout>
       <div className="space-y-6">
-        {/* <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Manage Plans & Bundles</h1>
-            <p className="text-muted-foreground mt-1">
-              Configure pricing, tiers, and product bundles
-            </p>
-          </div>
-        </div> */}
+
 
         <div className="space-y-8">
             {/* PLANS SECTION */}
