@@ -4,15 +4,15 @@ import { getUsers, updateUser, deleteUser } from '../controllers/admin.user.cont
 
 const router = Router();
 
-// global middleware for all admin routes in this file
+// Global middleware for all admin routes in this file
 router.use(authenticate, requireAdmin);
 
-// User Routes
+// User Management Routes
 router.get('/users', getUsers);
 router.patch('/users/:id', updateUser);
 router.delete('/users/:id', deleteUser);
 
-// Organization Routes
+// Organization Management Routes
 import { getOrganizations, getOrganizationDetails, updateOrganization, deleteOrganization } from '../controllers/admin.organization.controller';
 
 router.get('/organizations', getOrganizations);

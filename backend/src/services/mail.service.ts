@@ -2,7 +2,7 @@ import nodemailer, { Transporter, SendMailOptions } from 'nodemailer';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Ensure env vars are loaded if this service is used locally outside of server context
+// Ensure env vars are loaded if this service is used locally outside of server context (in dev)
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 export interface MailOptions {

@@ -17,9 +17,7 @@ interface SignupOtpData extends OtpData {
     token?: string; // Invitation token
 }
 
-/**
- * Generate a cryptographically secure OTP
- */
+// Helper fn to generate a cryptographically secure OTP
 const generateOtp = (): string => {
     // Generate random bytes and convert to a 6-digit number
     const bytes = crypto.randomBytes(4);
@@ -29,9 +27,7 @@ const generateOtp = (): string => {
     return otp;
 };
 
-/**
- * Generate and store OTP for login
- */
+// Generate and store OTP for login
 export const createLoginOtp = async (email: string): Promise<string> => {
     const otp = generateOtp();
     const key = `login_otp:${email.toLowerCase()}`;
@@ -46,9 +42,7 @@ export const createLoginOtp = async (email: string): Promise<string> => {
     return otp;
 };
 
-/**
- * Verify OTP for login
- */
+// Verify OTP for login
 export const verifyLoginOtp = async (email: string, inputOtp: string): Promise<{ valid: boolean; message: string }> => {
     const key = `login_otp:${email.toLowerCase()}`;
     const storedData = await redisClient.get(key);
@@ -79,9 +73,7 @@ export const verifyLoginOtp = async (email: string, inputOtp: string): Promise<{
     return { valid: true, message: 'OTP verified successfully.' };
 };
 
-/**
- * Generate and store OTP for signup with user data
- */
+// Generate and store OTP for signup with user data
 export const createSignupOtp = async (
     email: string,
     password: string,
@@ -105,9 +97,7 @@ export const createSignupOtp = async (
     return otp;
 };
 
-/**
- * Verify OTP for signup and return stored user data
- */
+// Verify OTP for signup and return stored user data
 export const verifySignupOtp = async (
     email: string,
     inputOtp: string
@@ -150,9 +140,7 @@ export const verifySignupOtp = async (
     };
 };
 
-/**
- * Check if OTP was recently sent (rate limiting)
- */
+// Check if OTP was recently sent (rate limiting)
 export const canSendOtp = async (email: string, type: 'login' | 'signup'): Promise<boolean> => {
     const key = `${type}_otp:${email.toLowerCase()}`;
     const exists = await redisClient.exists(key);
