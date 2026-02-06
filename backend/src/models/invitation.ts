@@ -17,11 +17,12 @@ export interface InvitationAttributes {
   invited_by: string;
   status: InvitationStatus;
   expires_at: Date;
+  deleted_at?: Date | null;
   created_at?: Date;
   updated_at?: Date;
 }
 
-export type InvitationCreationAttributes = Optional<InvitationAttributes, 'id' | 'status' | 'created_at' | 'updated_at'>;
+export type InvitationCreationAttributes = Optional<InvitationAttributes, 'id' | 'status' | 'created_at' | 'updated_at' | 'deleted_at'>;
 
 export class Invitation extends Model<InvitationAttributes, InvitationCreationAttributes> implements InvitationAttributes {
   public id!: string;
@@ -32,6 +33,7 @@ export class Invitation extends Model<InvitationAttributes, InvitationCreationAt
   public invited_by!: string;
   public status!: InvitationStatus;
   public expires_at!: Date;
+  public readonly deleted_at!: Date | null;
 
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
@@ -73,7 +75,7 @@ Invitation.init(
     token: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
+      unique: false, // Managed by partial index
     },
     invited_by: {
       type: DataTypes.UUID,
@@ -99,6 +101,11 @@ Invitation.init(
       defaultValue: DataTypes.NOW,
       field: 'created_at',
     },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: 'deleted_at',
+    },
     updated_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
@@ -109,14 +116,33 @@ Invitation.init(
     sequelize,
     tableName: 'invitations',
     timestamps: true,
+    paranoid: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
+    deletedAt: 'deleted_at',
     indexes: [
       {
         unique: true,
         fields: ['organization_id', 'email'],
         name: 'invitations_organization_id_email', // Explicit naming to prevent duplicate invites
+        where: {
+          deleted_at: null,
+        },
       },
+      {
+        unique: true,
+        fields: ['token'],
+        where: {
+          deleted_at: null,
+        },
+      },
+      {
+        unique: true,
+        fields: ['organization_id', 'token'],
+        where: {
+          deleted_at: null,
+        },
+      }
     ],
   }
 );

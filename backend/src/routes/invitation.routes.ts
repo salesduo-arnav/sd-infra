@@ -4,8 +4,9 @@ import { authenticate } from '../middlewares/auth.middleware';
 
 const router = Router();
 
+// Invitation Management Routes
 router.post('/', authenticate, inviteMember);
-router.get('/validate', validateInvitation); // Public route to validate token
+router.get('/validate', validateInvitation); // Public route to validate invitation token
 router.get('/my-pending', authenticate, getMyPendingInvitations);
 router.get('/', authenticate, getPendingInvitations);
 router.delete('/:id', authenticate, revokeInvitation);

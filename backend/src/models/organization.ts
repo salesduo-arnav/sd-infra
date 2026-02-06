@@ -54,7 +54,7 @@ Organization.init(
     slug: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
+      unique: false, // Managed by partial index
     },
     website: {
       type: DataTypes.STRING,
@@ -68,6 +68,16 @@ Organization.init(
     status: {
       type: DataTypes.ENUM(...Object.values(OrgStatus)),
       defaultValue: OrgStatus.ACTIVE,
+    },
+    created_at: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      field: 'created_at',
+    },
+    updated_at: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      field: 'updated_at',
     },
     deleted_at: {
       type: DataTypes.DATE,
@@ -83,6 +93,37 @@ Organization.init(
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     deletedAt: 'deleted_at',
+    indexes: [
+      {
+        unique: true,
+        fields: ['slug'],
+        where: {
+          deleted_at: null,
+        },
+      },
+      {
+        unique: true,
+        fields: ['stripe_customer_id'],
+        where: {
+          deleted_at: null,
+        },
+      },
+    ],
+    hooks: {
+      afterDestroy: async (organization, options) => {
+        const { Invitation } = await import('./invitation'); // Dynamic import
+        // Soft delete members
+        await OrganizationMember.destroy({
+          where: { organization_id: organization.id },
+          transaction: options.transaction,
+        });
+        // Soft delete invitations
+        await Invitation.destroy({
+          where: { organization_id: organization.id },
+          transaction: options.transaction,
+        });
+      },
+    },
   }
 );
 
@@ -98,9 +139,12 @@ export interface OrganizationMemberAttributes {
   role_id: number;
   is_active: boolean;
   joined_at?: Date;
+  deleted_at?: Date | null;
+  created_at?: Date;
+  updated_at?: Date;
 }
 
-export type OrganizationMemberCreationAttributes = Optional<OrganizationMemberAttributes, 'id' | 'is_active' | 'joined_at'>;
+export type OrganizationMemberCreationAttributes = Optional<OrganizationMemberAttributes, 'id' | 'is_active' | 'joined_at' | 'created_at' | 'updated_at' | 'deleted_at'>;
 
 export class OrganizationMember extends Model<OrganizationMemberAttributes, OrganizationMemberCreationAttributes> implements OrganizationMemberAttributes {
   public id!: string;
@@ -109,6 +153,9 @@ export class OrganizationMember extends Model<OrganizationMemberAttributes, Orga
   public role_id!: number;
   public is_active!: boolean;
   public readonly joined_at!: Date;
+  public readonly deleted_at!: Date | null;
+  public readonly created_at!: Date;
+  public readonly updated_at!: Date;
 
   public readonly role?: Role;
   public readonly user?: User;
@@ -160,17 +207,37 @@ OrganizationMember.init(
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
     },
+    created_at: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      field: 'created_at',
+    },
+    updated_at: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      field: 'updated_at',
+    },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: 'deleted_at',
+    },
   },
   {
     sequelize,
     tableName: 'organization_members',
     timestamps: true,
+    paranoid: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
+    deletedAt: 'deleted_at',
     indexes: [
       {
         unique: true,
         fields: ['organization_id', 'user_id'],
+        where: {
+          deleted_at: null,
+        },
       },
     ],
   }

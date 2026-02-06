@@ -59,6 +59,14 @@ interface Organization {
   memberCount: number;
 }
 
+interface OrgMember {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  joined_at: string;
+}
+
 interface OrganizationDetails {
   organization: {
     id: string;
@@ -73,14 +81,14 @@ interface OrganizationDetails {
     email: string;
     full_name: string;
   } | null;
-  members: {
-    id: string;
-    email: string;
-    full_name: string;
-    role: string;
-    joined_at: string;
-  }[];
+  members: OrgMember[];
   memberCount: number;
+  membersPagination: {
+    currentPage: number;
+    itemsPerPage: number;
+    totalItems: number;
+    hasMore: boolean;
+  };
 }
 
 export default function AdminOrganizations() {
@@ -115,6 +123,8 @@ export default function AdminOrganizations() {
   const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
   const [orgDetails, setOrgDetails] = useState<OrganizationDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [loadingMoreMembers, setLoadingMoreMembers] = useState(false);
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
 
   // Debounce search
   useEffect(() => {
@@ -249,6 +259,7 @@ export default function AdminOrganizations() {
     setDetailsSheetOpen(true);
     setLoadingDetails(true);
     setOrgDetails(null);
+    setSelectedOrgId(org.id);
 
     try {
       const response = await fetch(`${API_URL}/admin/organizations/${org.id}`, {
@@ -269,6 +280,39 @@ export default function AdminOrganizations() {
       setDetailsSheetOpen(false);
     } finally {
       setLoadingDetails(false);
+    }
+  };
+
+  const loadMoreMembers = async () => {
+    if (!orgDetails || !selectedOrgId || loadingMoreMembers || !orgDetails.membersPagination.hasMore) return;
+
+    setLoadingMoreMembers(true);
+    try {
+      const nextPage = orgDetails.membersPagination.currentPage + 1;
+      const response = await fetch(
+        `${API_URL}/admin/organizations/${selectedOrgId}?membersPage=${nextPage}`,
+        {
+          method: 'GET',
+          credentials: 'include'
+        }
+      );
+
+      if (response.ok) {
+        const data: OrganizationDetails = await response.json();
+        // Append new members to existing list
+        setOrgDetails(prev => prev ? {
+          ...prev,
+          members: [...prev.members, ...data.members],
+          membersPagination: data.membersPagination
+        } : null);
+      } else {
+        toast.error("Failed to load more members");
+      }
+    } catch (error) {
+      console.error("Error loading more members", error);
+      toast.error("An error occurred while loading members");
+    } finally {
+      setLoadingMoreMembers(false);
     }
   };
 
@@ -403,7 +447,7 @@ export default function AdminOrganizations() {
             onSortingChange={setSorting}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            placeholder="Search organizations..."
+            placeholder="Search by name, slug, or website..."
             isLoading={loading}
           />
         </div>
@@ -577,7 +621,7 @@ export default function AdminOrganizations() {
               <div className="space-y-3">
                 <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
                   <Users className="h-4 w-4" />
-                  Members ({orgDetails.memberCount})
+                  Members ({orgDetails.members.length} of {orgDetails.memberCount})
                 </h4>
                 <div className="space-y-2">
                   {orgDetails.members.map((member) => (
@@ -597,6 +641,24 @@ export default function AdminOrganizations() {
                     </div>
                   ))}
                 </div>
+                {orgDetails.membersPagination.hasMore && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={loadMoreMembers}
+                    disabled={loadingMoreMembers}
+                  >
+                    {loadingMoreMembers ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                        Loading...
+                      </>
+                    ) : (
+                      `Load More (${orgDetails.memberCount - orgDetails.members.length} remaining)`
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
           ) : null}
