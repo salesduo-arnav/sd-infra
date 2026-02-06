@@ -140,6 +140,9 @@ export const deleteOrganization = async (req: Request, res: Response) => {
 export const getOrganizationDetails = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const membersPage = parseInt(req.query.membersPage as string) || 1;
+        const membersLimit = parseInt(req.query.membersLimit as string) || 10;
+        const membersOffset = (membersPage - 1) * membersLimit;
 
         const organization = await Organization.findByPk(id);
 
@@ -147,7 +150,12 @@ export const getOrganizationDetails = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Organization not found' });
         }
 
-        // Get all members with user and role info
+        // Get total member count first
+        const totalMemberCount = await OrganizationMember.count({
+            where: { organization_id: id }
+        });
+
+        // Get paginated members with user and role info
         const members = await OrganizationMember.findAll({
             where: { organization_id: id },
             include: [
@@ -161,11 +169,31 @@ export const getOrganizationDetails = async (req: Request, res: Response) => {
                     as: 'role',
                     attributes: ['id', 'name']
                 }
+            ],
+            order: [['joined_at', 'DESC']],
+            limit: membersLimit,
+            offset: membersOffset
+        });
+
+        // Find the owner - need separate query to ensure we always get the owner
+        const ownerMember = await OrganizationMember.findOne({
+            where: { organization_id: id },
+            include: [
+                {
+                    model: User,
+                    as: 'user',
+                    attributes: ['id', 'email', 'full_name']
+                },
+                {
+                    model: Role,
+                    as: 'role',
+                    attributes: ['id', 'name'],
+                    where: { name: 'Owner' }
+                }
             ]
         });
 
-        // Find the owner (member with 'Owner' role)
-        const owner = members.find(m => m.role?.name === 'Owner');
+        const hasMoreMembers = membersOffset + members.length < totalMemberCount;
 
         res.status(200).json({
             organization: {
@@ -176,10 +204,10 @@ export const getOrganizationDetails = async (req: Request, res: Response) => {
                 status: organization.status,
                 created_at: organization.created_at
             },
-            owner: owner ? {
-                id: owner.user?.id,
-                email: owner.user?.email,
-                full_name: owner.user?.full_name
+            owner: ownerMember ? {
+                id: ownerMember.user?.id,
+                email: ownerMember.user?.email,
+                full_name: ownerMember.user?.full_name
             } : null,
             members: members.map(m => ({
                 id: m.user?.id,
@@ -188,7 +216,13 @@ export const getOrganizationDetails = async (req: Request, res: Response) => {
                 role: m.role?.name,
                 joined_at: m.joined_at
             })),
-            memberCount: members.length
+            memberCount: totalMemberCount,
+            membersPagination: {
+                currentPage: membersPage,
+                itemsPerPage: membersLimit,
+                totalItems: totalMemberCount,
+                hasMore: hasMoreMembers
+            }
         });
     } catch (error) {
         console.error('Get Organization Details Error:', error);
