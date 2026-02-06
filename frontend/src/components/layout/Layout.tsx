@@ -11,12 +11,14 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 interface LayoutProps {
   children: ReactNode;
+  animationClass?: string;
 }
 
-export function Layout({ children }: LayoutProps) {
+export function Layout({ children, animationClass }: LayoutProps) {
   const location = useLocation();
   const pathSegments = location.pathname.split("/").filter((segment) => segment);
 
@@ -62,7 +64,7 @@ export function Layout({ children }: LayoutProps) {
             {/* Optional: Add user menu or actions here if needed in top right */}
           </header>
           <div className="flex-1 overflow-auto p-6 md:p-8">
-            <div className="mx-auto max-w-6xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className={cn("mx-auto max-w-6xl space-y-8", animationClass ?? "animate-in fade-in slide-in-from-bottom-4 duration-500")}>
               {children}
             </div>
           </div>

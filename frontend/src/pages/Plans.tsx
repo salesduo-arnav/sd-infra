@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import * as PublicService from "@/services/public.service";
 import { Tool, Feature } from "@/services/admin.service";
 import { toast } from "sonner";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface BundleTier {
   name: string;
@@ -73,7 +74,10 @@ export default function Plans() {
   const [activeTab, setActiveTab] = useState("bundles");
   const [expandedBundle, setExpandedBundle] = useState<string | null>(null);
   const [expandedApp, setExpandedApp] = useState<string | null>(null);
-  const [isCartOpen, setIsCartOpen] = useState(true);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  // State to control transitions - prevents initial load animation glitch
+  const [enableTransition, setEnableTransition] = useState(false);
 
   // Dynamic Data State
   const [bundles, setBundles] = useState<Bundle[]>([]);
@@ -153,6 +157,8 @@ export default function Plans() {
             toast.error("Failed to load plans.");
         } finally {
             setIsLoading(false);
+            // Enable transitions after a short delay to prevent initial layout shift animation
+            setTimeout(() => setEnableTransition(true), 100);
         }
     };
 
@@ -169,21 +175,22 @@ export default function Plans() {
    * - Otherwise, add the new tier
    */
   const toggleCartItem = (item: CartItem) => {
-    setCart((prev) => {
-      // Check if this exact tier is already in cart
-      const exactMatch = prev.find(
-        (cartItem) => cartItem.id === item.id && cartItem.tierName === item.tierName
-      );
+    // Check if this exact tier is already in cart
+    const exactMatch = cart.find(
+      (cartItem) => cartItem.id === item.id && cartItem.tierName === item.tierName
+    );
 
-      if (exactMatch) {
-        // Toggle off - remove from cart
-        return prev.filter((cartItem) => !(cartItem.id === item.id && cartItem.tierName === item.tierName));
-      }
-
+    if (exactMatch) {
+      // Toggle off - remove from cart
+      setCart((prev) => prev.filter((cartItem) => !(cartItem.id === item.id && cartItem.tierName === item.tierName)));
+    } else {
       // Remove any existing tier from the same bundle/app, then add the new one
-      const filtered = prev.filter((cartItem) => cartItem.id !== item.id);
-      return [...filtered, item];
-    });
+      setCart((prev) => {
+        const filtered = prev.filter((cartItem) => cartItem.id !== item.id);
+        return [...filtered, item];
+      });
+      setIsCartOpen(true);
+    }
   };
 
   const removeFromCart = (id: string, tierName: string) => {
@@ -241,10 +248,10 @@ export default function Plans() {
   }
 
   return (
-    <Layout>
-      <div className="flex">
+    <Layout animationClass="">
+      <div className="flex animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Main Content */}
-        <div className={cn("flex-1 container py-8 transition-all duration-300", isCartOpen ? "pr-[340px]" : "pr-4")}>
+        <div className={cn("flex-1 container py-8", enableTransition && "transition-[padding] duration-300", isCartOpen ? "pr-[340px]" : "pr-4")}>
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold">Choose Your Plan</h1>
             <p className="mt-2 text-muted-foreground">
@@ -318,12 +325,14 @@ export default function Plans() {
             </TabsContent>
           </Tabs>
         </div>
+      </div>
 
         {/* Minimized Cart Floating Button */}
         <button
           onClick={() => setIsCartOpen(!isCartOpen)}
           className={cn(
-            "fixed z-50 flex items-center gap-2 rounded-full shadow-lg transition-all duration-300",
+            "fixed z-50 flex items-center gap-2 rounded-full shadow-lg",
+            enableTransition && "transition-all duration-300",
             isCartOpen
               ? "right-[336px] top-4 bg-muted/80 backdrop-blur-sm px-3 py-2 text-muted-foreground hover:bg-muted"
               : "right-4 bottom-4 bg-primary px-4 py-3 text-primary-foreground hover:bg-primary/90"
@@ -348,7 +357,8 @@ export default function Plans() {
         <div
           data-cart
           className={cn(
-            "fixed right-0 top-0 h-screen border-l bg-background/95 backdrop-blur-sm shadow-xl flex flex-col z-40 transition-all duration-300 ease-in-out",
+            "fixed right-0 bottom-0 h-screen border-l bg-background/95 backdrop-blur-sm shadow-xl flex flex-col z-40 ease-in-out",
+            enableTransition && "transition-all duration-300",
             isCartOpen ? "w-80 translate-x-0" : "w-80 translate-x-full"
           )}
         >
@@ -447,7 +457,6 @@ export default function Plans() {
             </div>
           )}
         </div>
-      </div>
     </Layout>
   );
 }
@@ -470,7 +479,7 @@ function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isInCart, 
       className={cn(
         "relative cursor-pointer transition-all duration-200",
         isExpanded
-          ? "border-primary ring-2 ring-primary/20 shadow-lg"
+          ? "border-primary ring-2 ring-primary/20 shadow-lg scale-[1.02]"
           : "hover:border-primary/50 hover:shadow-md",
         bundle.popular && !isExpanded && "border-primary/30",
         hasTierSelected && !isExpanded && "border-primary/50 bg-primary/5"
@@ -487,7 +496,7 @@ function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isInCart, 
         <CardTitle className="flex items-center gap-2">
           <span
             className={cn(
-              "rounded-lg p-2",
+              "rounded-lg p-2 transition-colors",
               isExpanded ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
             )}
           >
@@ -523,80 +532,64 @@ function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isInCart, 
           </ul>
         </div>
 
-        {/* Pricing Tiers */}
-        {isExpanded && (
-          <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300" onClick={(e) => e.stopPropagation()}>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Select a Tier {hasTierSelected && <span className="text-primary">(1 selected)</span>}
-            </p>
-            {bundle.tiers.map((tier) => {
-              const inCart = isInCart(bundle.id, tier.name);
-              return (
-                <div
-                  key={tier.name}
-                  onClick={() =>
-                    onToggleCartItem({
-                      id: bundle.id, // Group ID
-                      type: "bundle",
-                      name: bundle.name, // Group Name
-                      tierName: tier.name,
-                      price: tier.price,
-                      period: tier.period,
-                    })
-                  }
-                  className={cn(
-                    "group flex items-center justify-between rounded-lg border p-3 transition-all duration-200 cursor-pointer",
-                    inCart
-                      ? "border-primary bg-primary/10 shadow-sm"
-                      : "hover:bg-muted/50 hover:border-primary/50"
-                  )}
-                >
-                  <div>
-                    <p className="font-medium">{tier.name}</p>
-                    <p className="text-xs text-muted-foreground">{tier.limits}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className="font-semibold">
-                        ${tier.price}
-                        <span className="text-xs text-muted-foreground">{tier.period}</span>
-                      </p>
-                    </div>
-                    <Badge
-                      variant={inCart ? "default" : "outline"}
-                      className={cn(
-                        "transition-all duration-200",
-                        inCart
-                          ? "bg-primary hover:bg-primary/80"
-                          : "opacity-0 group-hover:opacity-100"
-                      )}
-                    >
-                      {inCart ? (
-                        <>
-                          <Check className="h-3 w-3 mr-1" />
-                          Selected
-                        </>
-                      ) : (
-                        "Select"
-                      )}
-                    </Badge>
-                  </div>
+        {/* Pricing Tiers with Smooth Collapsible Animation */}
+        <Collapsible open={isExpanded}>
+            <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+                <div className="pt-4 space-y-2" onClick={(e) => e.stopPropagation()}>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Select a Tier {hasTierSelected && <span className="text-primary">(1 selected)</span>}
+                    </p>
+                    {bundle.tiers.map((tier) => {
+                    const inCart = isInCart(bundle.id, tier.name);
+                    return (
+                        <div
+                        key={tier.name}
+                        onClick={() =>
+                            onToggleCartItem({
+                            id: bundle.id, // Group ID
+                            type: "bundle",
+                            name: bundle.name, // Group Name
+                            tierName: tier.name,
+                            price: tier.price,
+                            period: tier.period,
+                            })
+                        }
+                        className={cn(
+                            "group flex items-center justify-between gap-4 rounded-lg border p-3 transition-all duration-200 cursor-pointer",
+                            inCart
+                            ? "border-primary bg-primary/10 shadow-sm"
+                            : "hover:bg-muted/50 hover:border-primary/50"
+                        )}
+                        >
+                        <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{tier.name}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-1">{tier.limits}</p>
+                        </div>
+                        <div className="text-right whitespace-nowrap">
+                            <p className="font-semibold text-foreground">
+                                ${tier.price}
+                                <span className="text-xs text-muted-foreground">{tier.period}</span>
+                            </p>
+                        </div>
+                        </div>
+                    );
+                    })}
                 </div>
-              );
-            })}
-          </div>
-        )}
+            </CollapsibleContent>
+        </Collapsible>
 
-        {/* Price Range Preview */}
-        {!isExpanded && bundle.tiers.length > 0 && (
-          <div className="pt-2 border-t">
-            <p className="text-xs text-muted-foreground">Price</p>
-            <p className="text-lg font-bold">
-              ${bundle.tiers[0].price}
-              <span className="text-sm font-normal text-muted-foreground">{bundle.tiers[0].period}</span>
-            </p>
-          </div>
-        )}
+        {/* Price Range Preview (Fade out when expanded) */}
+        <div className={cn("transition-opacity duration-300", isExpanded ? "opacity-0 h-0 overflow-hidden" : "opacity-100")}>
+            {!isExpanded && bundle.tiers.length > 0 && (
+            <div className="pt-2 border-t">
+                <p className="text-xs text-muted-foreground">Price</p>
+                <p className="text-lg font-bold">
+                ${bundle.tiers[0].price}
+                <span className="text-sm font-normal text-muted-foreground">{bundle.tiers[0].period}</span>
+                </p>
+            </div>
+            )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -622,7 +615,7 @@ function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart, hasAny
         "relative cursor-pointer transition-all duration-200",
         isComingSoon && "opacity-70",
         isExpanded
-          ? "border-primary ring-2 ring-primary/20 shadow-lg"
+          ? "border-primary ring-2 ring-primary/20 shadow-lg scale-[1.02]"
           : !isComingSoon && "hover:border-primary/50 hover:shadow-md",
         hasTierSelected && !isExpanded && !isComingSoon && "border-primary/50 bg-primary/5"
       )}
@@ -637,7 +630,7 @@ function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart, hasAny
         <CardTitle className="flex items-center gap-2">
           <span
             className={cn(
-              "rounded-lg p-2",
+              "rounded-lg p-2 transition-colors",
               isExpanded ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
             )}
           >
@@ -667,84 +660,70 @@ function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart, hasAny
           </ul>
         </div>
 
-        {/* Pricing Tiers */}
-        {isExpanded && !isComingSoon && (
-          <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300" onClick={(e) => e.stopPropagation()}>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Select a Tier {hasTierSelected && <span className="text-primary">(1 selected)</span>}
-            </p>
-            {app.tiers.length > 0 ? (
-                app.tiers.map((tier) => {
-                const inCart = isInCart(app.id, tier.name);
-                return (
-                    <div
-                    key={tier.name}
-                    onClick={() =>
-                        onToggleCartItem({
-                        id: app.id,
-                        type: "app",
-                        name: app.name,
-                        tierName: tier.name,
-                        price: tier.price,
-                        period: tier.period,
-                        })
-                    }
-                    className={cn(
-                        "group flex items-center justify-between rounded-lg border p-3 transition-all duration-200 cursor-pointer",
-                        inCart
-                        ? "border-primary bg-primary/10 shadow-sm"
-                        : "hover:bg-muted/50 hover:border-primary/50"
-                    )}
-                    >
-                    <div>
-                        <p className="font-medium">{tier.name}</p>
-                        <p className="text-xs text-muted-foreground">{tier.limits}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <div className="text-right">
-                        <p className="font-semibold">
-                            ${tier.price}
-                            <span className="text-xs text-muted-foreground">{tier.period}</span>
+        {/* Pricing Tiers with Smooth Animation */}
+        {!isComingSoon && (
+            <Collapsible open={isExpanded}>
+                <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+                    <div className="pt-4 space-y-2" onClick={(e) => e.stopPropagation()}>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Select a Tier {hasTierSelected && <span className="text-primary">(1 selected)</span>}
                         </p>
-                        </div>
-                        <Badge
-                        variant={inCart ? "default" : "outline"}
-                        className={cn(
-                            "transition-all duration-200",
-                            inCart
-                            ? "bg-primary hover:bg-primary/80"
-                            : "opacity-0 group-hover:opacity-100"
-                        )}
-                        >
-                        {inCart ? (
-                            <>
-                            <Check className="h-3 w-3 mr-1" />
-                            Selected
-                            </>
+                        {app.tiers.length > 0 ? (
+                            app.tiers.map((tier) => {
+                            const inCart = isInCart(app.id, tier.name);
+                            return (
+                                <div
+                                key={tier.name}
+                                onClick={() =>
+                                    onToggleCartItem({
+                                    id: app.id,
+                                    type: "app",
+                                    name: app.name,
+                                    tierName: tier.name,
+                                    price: tier.price,
+                                    period: tier.period,
+                                    })
+                                }
+                                className={cn(
+                                    "group flex items-center justify-between gap-4 rounded-lg border p-3 transition-all duration-200 cursor-pointer",
+                                    inCart
+                                    ? "border-primary bg-primary/10 shadow-sm"
+                                    : "hover:bg-muted/50 hover:border-primary/50"
+                                )}
+                                >
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium truncate">{tier.name}</p>
+                                    <p className="text-xs text-muted-foreground line-clamp-1">{tier.limits}</p>
+                                </div>
+                                <div className="text-right whitespace-nowrap">
+                                    <p className="font-semibold text-foreground">
+                                        ${tier.price}
+                                        <span className="text-xs text-muted-foreground">{tier.period}</span>
+                                    </p>
+                                </div>
+                                </div>
+                            );
+                            })
                         ) : (
-                            "Select"
+                            <div className="text-sm text-muted-foreground">No plans available for this app yet.</div>
                         )}
-                        </Badge>
                     </div>
-                    </div>
-                );
-                })
-            ) : (
-                <div className="text-sm text-muted-foreground">No plans available for this app yet.</div>
-            )}
-          </div>
+                </CollapsibleContent>
+            </Collapsible>
         )}
 
         {/* Price Range Preview */}
-        {!isExpanded && !isComingSoon && app.tiers.length > 0 && (
-          <div className="pt-2 border-t">
-            <p className="text-xs text-muted-foreground">Starting from</p>
-            <p className="text-lg font-bold">
-              ${app.tiers[0].price}
-              <span className="text-sm font-normal text-muted-foreground">{app.tiers[0].period}</span>
-            </p>
-          </div>
-        )}
+        <div className={cn("transition-opacity duration-300", isExpanded ? "opacity-0 h-0 overflow-hidden" : "opacity-100")}>
+            {!isExpanded && !isComingSoon && app.tiers.length > 0 && (
+            <div className="pt-2 border-t">
+                <p className="text-xs text-muted-foreground">Starting from</p>
+                <p className="text-lg font-bold">
+                ${app.tiers[0].price}
+                <span className="text-sm font-normal text-muted-foreground">{app.tiers[0].period}</span>
+                </p>
+            </div>
+            )}
+        </div>
       </CardContent>
     </Card>
   );
