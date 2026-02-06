@@ -1,6 +1,5 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import sequelize from '../config/db';
-import { FeatureType } from './enums';
 import { Tool } from './tool';
 
 // ==========================
@@ -12,7 +11,6 @@ export interface FeatureAttributes {
   tool_id: string;
   name: string;
   slug: string;
-  type: FeatureType;
   description?: string;
   created_at?: Date;
   updated_at?: Date;
@@ -25,7 +23,6 @@ export class Feature extends Model<FeatureAttributes, FeatureCreationAttributes>
   public tool_id!: string;
   public name!: string;
   public slug!: string;
-  public type!: FeatureType;
   public description!: string;
   
   public readonly created_at!: Date;
@@ -58,10 +55,6 @@ Feature.init(
       allowNull: false,
       unique: true,
       comment: 'Unique key for code checks: e.g. "img_gen_count"',
-    },
-    type: {
-      type: DataTypes.ENUM(...Object.values(FeatureType)),
-      allowNull: false,
     },
     description: {
       type: DataTypes.TEXT,

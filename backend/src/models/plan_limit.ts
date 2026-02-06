@@ -13,18 +13,20 @@ export interface PlanLimitAttributes {
   plan_id: string;
   feature_id: string;
   default_limit?: number;
+  is_enabled: boolean;
   reset_period: FeatureResetPeriod;
   created_at?: Date;
   updated_at?: Date;
 }
 
-export type PlanLimitCreationAttributes = Optional<PlanLimitAttributes, 'id' | 'default_limit' | 'reset_period' | 'created_at' | 'updated_at'>;
+export type PlanLimitCreationAttributes = Optional<PlanLimitAttributes, 'id' | 'default_limit' | 'is_enabled' | 'reset_period' | 'created_at' | 'updated_at'>;
 
 export class PlanLimit extends Model<PlanLimitAttributes, PlanLimitCreationAttributes> implements PlanLimitAttributes {
   public id!: string;
   public plan_id!: string;
   public feature_id!: string;
   public default_limit!: number;
+  public is_enabled!: boolean;
   public reset_period!: FeatureResetPeriod;
   
   public readonly created_at!: Date;
@@ -61,6 +63,11 @@ PlanLimit.init(
       type: DataTypes.INTEGER,
       allowNull: true,
       comment: 'Null/0 for boolean features, Number for metered',
+    },
+    is_enabled: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      allowNull: false,
     },
     reset_period: {
       type: DataTypes.ENUM(...Object.values(FeatureResetPeriod)),

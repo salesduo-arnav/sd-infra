@@ -84,7 +84,7 @@ export default function AdminApps() {
   const [featureFormData, setFeatureFormData] = useState({
     name: "",
     slug: "",
-    type: "boolean" as "boolean" | "metered",
+
     description: "",
   });
 
@@ -190,7 +190,7 @@ export default function AdminApps() {
       setIsFeatureDialogOpen(true);
       refreshFeatures(tool.id);
       setEditingFeature(null);
-      setFeatureFormData({ name: "", slug: "", type: "boolean", description: "" });
+      setFeatureFormData({ name: "", slug: "", description: "" });
   };
 
   const refreshFeatures = async (toolId: string) => {
@@ -214,7 +214,7 @@ export default function AdminApps() {
             });
         }
         setEditingFeature(null);
-        setFeatureFormData({ name: "", slug: "", type: "boolean", description: "" });
+        setFeatureFormData({ name: "", slug: "", description: "" });
         refreshFeatures(selectedToolForFeatures.id);
         toast.success(editingFeature ? "Feature updated" : "Feature added");
     } catch (error) {
@@ -228,7 +228,7 @@ export default function AdminApps() {
       setFeatureFormData({
           name: feature.name,
           slug: feature.slug,
-          type: feature.type,
+
           description: feature.description || ""
       });
   };
@@ -458,7 +458,7 @@ export default function AdminApps() {
                                 <TableRow>
                                     <TableHead>Name</TableHead>
                                     <TableHead>Slug</TableHead>
-                                    <TableHead>Type</TableHead>
+
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -467,7 +467,7 @@ export default function AdminApps() {
                                     <TableRow key={f.id}>
                                         <TableCell className="font-medium">{f.name}</TableCell>
                                         <TableCell className="text-xs font-mono">{f.slug}</TableCell>
-                                        <TableCell>{f.type}</TableCell>
+
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">
                                                 <Button variant="ghost" size="sm" onClick={() => handleEditFeature(f)}>
@@ -528,18 +528,7 @@ export default function AdminApps() {
                                 <Label>Slug</Label>
                                 <Input value={featureFormData.slug} onChange={e => setFeatureFormData({...featureFormData, slug: e.target.value})} placeholder="feature_slug" />
                             </div>
-                            <div className="space-y-2">
-                                <Label>Type</Label>
-                                <Select value={featureFormData.type} onValueChange={(v: any) => setFeatureFormData({...featureFormData, type: v})}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="boolean">Boolean (On/Off)</SelectItem>
-                                        <SelectItem value="metered">Metered (Count based)</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+
                             <div className="space-y-2">
                                 <Label>Description</Label>
                                 <Input value={featureFormData.description} onChange={e => setFeatureFormData({...featureFormData, description: e.target.value})} placeholder="Internal description" />
@@ -548,7 +537,7 @@ export default function AdminApps() {
                         <div className="flex justify-end gap-2">
                             {editingFeature && <Button variant="ghost" onClick={() => {
                                 setEditingFeature(null);
-                                setFeatureFormData({ name: "", slug: "", type: "boolean", description: "" });
+                                setFeatureFormData({ name: "", slug: "", description: "" });
                             }}>Cancel Edit</Button>}
                             <Button size="sm" onClick={handleFeatureSave}>{editingFeature ? "Update Feature" : "Add Feature"}</Button>
                         </div>
@@ -621,7 +610,7 @@ export default function AdminApps() {
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead>Name</TableHead>
-                                                <TableHead>Type</TableHead>
+
                                                 <TableHead>Slug</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -629,7 +618,7 @@ export default function AdminApps() {
                                             {viewingFeatures.map(f => (
                                                 <TableRow key={f.id}>
                                                     <TableCell className="font-medium">{f.name}</TableCell>
-                                                    <TableCell><Badge variant="outline">{f.type}</Badge></TableCell>
+
                                                     <TableCell className="text-xs font-mono">{f.slug}</TableCell>
                                                 </TableRow>
                                             ))}

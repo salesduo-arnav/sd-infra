@@ -36,7 +36,6 @@ export interface Feature {
   tool_id: string;
   name: string;
   slug: string;
-  type: 'boolean' | 'metered';
   description?: string;
 }
 
@@ -62,6 +61,7 @@ export interface PlanLimit {
   plan_id: string;
   feature_id: string;
   default_limit: number | null;
+  is_enabled: boolean;
   reset_period: 'monthly' | 'yearly' | 'never';
   feature?: Feature;
 }
@@ -145,7 +145,7 @@ export const deletePlan = async (id: string) => {
 };
 
 // Plan Limits
-export const upsertPlanLimit = async (planId: string, data: { feature_id: string; default_limit: number | null; reset_period?: string }) => {
+export const upsertPlanLimit = async (planId: string, data: { feature_id: string; default_limit: number | null; is_enabled: boolean; reset_period?: string }) => {
     const response = await api.put(`/admin/plans/${planId}/limits`, data);
     return response.data;
 };

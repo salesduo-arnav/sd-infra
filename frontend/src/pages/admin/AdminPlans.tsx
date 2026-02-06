@@ -115,6 +115,8 @@ export default function AdminPlans() {
   // Limit/Association State
   const [selectedPlanForLimits, setSelectedPlanForLimits] = useState<Plan | null>(null);
   const [planLimits, setPlanLimits] = useState<PlanLimit[]>([]);
+  const [stagedLimits, setStagedLimits] = useState<Record<string, { limit: number | null, reset_period: string, enabled: boolean }>>({});
+  const [isSavingLimits, setIsSavingLimits] = useState(false);
   const [availableFeatures, setAvailableFeatures] = useState<AdminService.Feature[]>([]);
 
   const [selectedBundleForPlans, setSelectedBundleForPlans] = useState<Bundle | null>(null);
@@ -330,22 +332,67 @@ export default function AdminPlans() {
           const features = await AdminService.getFeatures(plan.tool_id); // Fetch all features for tool
           setAvailableFeatures(features.features || []); 
           setPlanLimits(plan.limits || []);
+
+          // Initialize staged limits
+          const initialStaged: Record<string, { limit: number | null, reset_period: string, enabled: boolean }> = {};
+          features.features?.forEach(f => {
+              const existingLimit = plan.limits?.find(l => l.feature_id === f.id);
+              if (existingLimit) {
+                  initialStaged[f.id] = {
+                      limit: existingLimit.default_limit,
+                      reset_period: existingLimit.reset_period,
+                      enabled: existingLimit.is_enabled
+                  };
+              } else {
+                   initialStaged[f.id] = {
+                      limit: null,
+                      reset_period: 'monthly',
+                      enabled: false
+                  };
+              }
+          });
+          setStagedLimits(initialStaged);
+
       } catch (error) {
           console.error("Failed to prep limits", error);
       }
   };
 
-  const handleLimitUpdate = async (featureId: string, limit: number | null, resetPeriod: string) => {
+  const handleStagedLimitUpdate = (featureId: string, updates: Partial<{ limit: number | null, reset_period: string, enabled: boolean }>) => {
+      setStagedLimits(prev => ({
+          ...prev,
+          [featureId]: { ...prev[featureId], ...updates }
+      }));
+  };
+
+  const handleSaveLimits = async () => {
       if (!selectedPlanForLimits) return;
+      setIsSavingLimits(true);
       try {
-          await AdminService.upsertPlanLimit(selectedPlanForLimits.id, {
-              feature_id: featureId,
-              default_limit: limit,
-              reset_period: resetPeriod
-          });
-          fetchPlans();
+          const promises: Promise<any>[] = [];
+
+          // Upsert all limits with their enabled state
+          const limitEntries = Object.entries(stagedLimits);
+          for (const [featureId, data] of limitEntries) {
+              promises.push(AdminService.upsertPlanLimit(selectedPlanForLimits.id, {
+                  feature_id: featureId,
+                  default_limit: data.limit,
+                  reset_period: data.reset_period,
+                  is_enabled: data.enabled
+              }));
+          }
+
+          await Promise.all(promises);
+          
+          toast.success("Limits updated successfully");
+          setIsLimitDialogOpen(false);
+          fetchPlans(); // Refresh to get latest limits
+
       } catch (error) {
-          console.error("Failed to update limit", error);
+          console.error("Failed to save limits", error);
+          toast.error("Failed to save limits");
+      } finally {
+          setIsSavingLimits(false);
       }
   };
 
@@ -756,7 +803,6 @@ export default function AdminPlans() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Feature</TableHead>
-                                <TableHead>Type</TableHead>
                                 <TableHead>Limit</TableHead>
                                 <TableHead>Reset</TableHead>
                             </TableRow>
@@ -770,27 +816,25 @@ export default function AdminPlans() {
                                             <div className="font-medium">{f.name}</div>
                                             <div className="text-xs text-muted-foreground">{f.slug}</div>
                                         </TableCell>
-                                        <TableCell><Badge variant="outline" className="text-xs">{f.type}</Badge></TableCell>
                                         <TableCell>
-                                            {f.type === 'metered' ? (
-                                                <Input 
-                                                    className="w-24 h-8" type="number" placeholder="∞" 
-                                                    defaultValue={limit?.default_limit ?? ""}
-                                                    onBlur={(e) => handleLimitUpdate(f.id, e.target.value ? Number(e.target.value) : null, limit?.reset_period || 'monthly')}
-                                                />
-                                            ) : (
+                                            <div className="flex items-center gap-2">
                                                 <Switch 
-                                                    checked={!!limit}
-                                                    onCheckedChange={(c) => {
-                                                        if(c) handleLimitUpdate(f.id, 1, 'never');
-                                                        else AdminService.deletePlanLimit(selectedPlanForLimits!.id, f.id).then(() => fetchPlans());
-                                                    }}
+                                                    checked={stagedLimits[f.id]?.enabled ?? false}
+                                                    onCheckedChange={(c) => handleStagedLimitUpdate(f.id, { enabled: c })}
                                                 />
-                                            )}
+                                                <span className="text-sm text-muted-foreground w-14">{stagedLimits[f.id]?.enabled ? "Enabled" : "Disabled"}</span>
+                                                {stagedLimits[f.id]?.enabled && (
+                                                    <Input 
+                                                        className="w-24 h-8" type="number" placeholder="∞" 
+                                                        value={stagedLimits[f.id]?.limit === null ? "" : stagedLimits[f.id]?.limit}
+                                                        onChange={(e) => handleStagedLimitUpdate(f.id, { limit: e.target.value ? Number(e.target.value) : null })}
+                                                    />
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell>
-                                             {f.type === 'metered' && (
-                                                  <Select defaultValue={limit?.reset_period || 'monthly'} onValueChange={v => handleLimitUpdate(f.id, limit?.default_limit ?? null, v)}>
+                                             {stagedLimits[f.id]?.enabled && (
+                                                  <Select value={stagedLimits[f.id]?.reset_period || 'monthly'} onValueChange={v => handleStagedLimitUpdate(f.id, { reset_period: v })}>
                                                     <SelectTrigger className="w-24 h-8"><SelectValue/></SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="monthly">Monthly</SelectItem>
@@ -806,6 +850,12 @@ export default function AdminPlans() {
                         </TableBody>
                     </Table>
                 </div>
+                <DialogFooter className="mt-4 border-t pt-4">
+                     <Button variant="outline" onClick={() => setIsLimitDialogOpen(false)}>Cancel</Button>
+                     <Button onClick={handleSaveLimits} disabled={isSavingLimits}>
+                        {isSavingLimits ? "Saving..." : "Save Changes"}
+                     </Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
 
@@ -926,6 +976,7 @@ export default function AdminPlans() {
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead>Feature</TableHead>
+                                                <TableHead>Status</TableHead>
                                                 <TableHead>Limit</TableHead>
                                                 <TableHead>Reset</TableHead>
                                             </TableRow>
@@ -934,8 +985,17 @@ export default function AdminPlans() {
                                             {viewingPlan.limits.map(l => (
                                                 <TableRow key={l.id}>
                                                      <TableCell className="font-medium">{(l as any).feature?.name || 'Feature'}</TableCell> 
-                                                     <TableCell>{l.default_limit === null ? "Unlimited" : l.default_limit}</TableCell>
-                                                     <TableCell className="capitalize">{l.reset_period}</TableCell>
+                                                     <TableCell>
+                                                         <Badge variant={(l as any).is_enabled ? "default" : "secondary"}>
+                                                             {(l as any).is_enabled ? "Enabled" : "Disabled"}
+                                                         </Badge>
+                                                     </TableCell>
+                                                     <TableCell>
+                                                        {(l as any).is_enabled ? (l.default_limit === null ? "Unlimited" : l.default_limit) : "-"}
+                                                     </TableCell>
+                                                     <TableCell className="capitalize">
+                                                        {(l as any).is_enabled ? l.reset_period : "-"}
+                                                     </TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>

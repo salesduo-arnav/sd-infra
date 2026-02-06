@@ -18,6 +18,8 @@ export const getBundles = async (req: Request, res: Response) => {
 
         const search = req.query.search as string;
         const activeOnly = req.query.activeOnly === 'true';
+        const sortBy = (req.query.sort_by as string) || 'created_at';
+        const sortOrder = (req.query.sort_dir as string) === 'desc' ? 'DESC' : 'ASC';
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const whereClause: any = {};
@@ -37,7 +39,7 @@ export const getBundles = async (req: Request, res: Response) => {
             where: whereClause,
             limit,
             offset,
-            order: [['created_at', 'DESC']],
+            order: [[sortBy, sortOrder]],
             include: [{
                 model: Plan,
                 as: 'plans',

@@ -19,8 +19,8 @@ export const getTools = async (req: Request, res: Response) => {
         const offset = (page - 1) * limit;
 
         const search = req.query.search as string;
-        const sortBy = (req.query.sortBy as string) || 'created_at';
-        const sortOrder = (req.query.sortOrder as string) === 'asc' ? 'ASC' : 'DESC';
+        const sortBy = (req.query.sort_by as string) || 'created_at';
+        const sortOrder = (req.query.sort_dir as string) === 'asc' ? 'ASC' : 'DESC';
         const activeOnly = req.query.activeOnly === 'true';
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

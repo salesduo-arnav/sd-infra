@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { Feature } from '../models/feature';
 import { Tool } from '../models/tool';
-import { FeatureType } from '../models/enums';
 import { Op } from 'sequelize';
 import sequelize from '../config/db';
 
@@ -78,15 +77,10 @@ export const getFeatureById = async (req: Request, res: Response) => {
 
 export const createFeature = async (req: Request, res: Response) => {
     try {
-        const { tool_id, name, slug, type, description } = req.body;
+        const { tool_id, name, slug, description } = req.body;
 
-        if (!tool_id || !name || !slug || !type) {
-            return res.status(400).json({ message: 'Tool ID, Name, Slug, and Type are required' });
-        }
-
-        // Validate Type
-        if (!Object.values(FeatureType).includes(type)) {
-             return res.status(400).json({ message: 'Invalid feature type' });
+        if (!tool_id || !name || !slug) {
+            return res.status(400).json({ message: 'Tool ID, Name, and Slug are required' });
         }
 
         const feature = await sequelize.transaction(async (t) => {
@@ -99,7 +93,6 @@ export const createFeature = async (req: Request, res: Response) => {
                 tool_id,
                 name,
                 slug,
-                type,
                 description
             }, { transaction: t });
         });
@@ -117,7 +110,7 @@ export const createFeature = async (req: Request, res: Response) => {
 export const updateFeature = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { name, slug, type, description } = req.body;
+        const { name, slug, description } = req.body;
 
         const updatedFeature = await sequelize.transaction(async (t) => {
             const feature = await Feature.findByPk(id, { transaction: t });
@@ -136,7 +129,6 @@ export const updateFeature = async (req: Request, res: Response) => {
             return await feature.update({
                 name: name ?? feature.name,
                 slug: slug ?? feature.slug,
-                type: type ?? feature.type, // Be careful updating type if data depends on it
                 description: description ?? feature.description
             }, { transaction: t });
         });

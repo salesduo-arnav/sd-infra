@@ -18,8 +18,8 @@ export const getPlans = async (req: Request, res: Response) => {
       const offset = (page - 1) * limit;
 
       const search = req.query.search as string;
-      const sortBy = (req.query.sortBy as string) || 'tool_id'; // Default sort by tool
-      const sortOrder = (req.query.sortOrder as string) === 'desc' ? 'DESC' : 'ASC';
+      const sortBy = (req.query.sort_by as string) || 'tool_id'; // Default sort by tool
+      const sortOrder = (req.query.sort_dir as string) === 'desc' ? 'DESC' : 'ASC';
 
       const { tool_id } = req.query;
 
@@ -193,7 +193,7 @@ export const deletePlan = async (req: Request, res: Response) => {
 export const upsertPlanLimit = async (req: Request, res: Response) => {
     try {
         const { plan_id } = req.params;
-        const { feature_id, default_limit, reset_period } = req.body;
+        const { feature_id, default_limit, reset_period, is_enabled } = req.body;
 
         if (!feature_id) {
             return res.status(400).json({ message: 'Feature ID is required' });
@@ -212,6 +212,7 @@ export const upsertPlanLimit = async (req: Request, res: Response) => {
                     plan_id,
                     feature_id,
                     default_limit,
+                    is_enabled: is_enabled !== undefined ? is_enabled : true,
                     reset_period: reset_period || FeatureResetPeriod.MONTHLY
                 },
                 transaction: t
@@ -220,6 +221,7 @@ export const upsertPlanLimit = async (req: Request, res: Response) => {
             if (!created) {
                 return await limitInstance.update({
                     default_limit: default_limit !== undefined ? default_limit : limitInstance.default_limit,
+                    is_enabled: is_enabled !== undefined ? is_enabled : limitInstance.is_enabled,
                     reset_period: reset_period || limitInstance.reset_period
                 }, { transaction: t });
             }
