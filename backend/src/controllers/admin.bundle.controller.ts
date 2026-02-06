@@ -8,6 +8,8 @@ import { PlanLimit } from '../models/plan_limit';
 import { Feature } from '../models/feature';
 import { BundlePlan } from '../models/bundle_plan';
 import { PriceInterval } from '../models/enums';
+import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
+import { handleError } from '../utils/error';
 
 // ==========================
 // Bundle Config Controllers
@@ -35,10 +37,10 @@ export const getBundleGroups = async (req: Request, res: Response) => {
             }],
             order: [['created_at', 'DESC']]
         });
+        
         res.status(200).json(groups);
     } catch (error) {
-        console.error('Get Bundle Groups Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Get Bundle Groups Error');
     }
 };
 
@@ -58,12 +60,8 @@ export const createBundleGroup = async (req: Request, res: Response) => {
         });
 
         res.status(201).json(group);
-    } catch (error: unknown) {
-        if ((error as Error).name === 'SequelizeUniqueConstraintError') {
-             return res.status(400).json({ message: 'Slug must be unique' });
-        }
-        console.error('Create Bundle Group Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    } catch (error) {
+        handleError(res, error, 'Create Bundle Group Error');
     }
 };
 
@@ -80,8 +78,7 @@ export const updateBundleGroup = async (req: Request, res: Response) => {
         await group.update(updates);
         res.status(200).json(group);
     } catch (error) {
-        console.error('Update Bundle Group Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Update Bundle Group Error');
     }
 };
 
@@ -96,25 +93,17 @@ export const deleteBundleGroup = async (req: Request, res: Response) => {
 
         await group.destroy();
         res.status(200).json({ message: 'Bundle Group deleted' });
-    } catch (error: unknown) {
-        if ((error as Error).name === 'SequelizeForeignKeyConstraintError') {
-             return res.status(400).json({ message: 'Cannot delete group with active bundles' });
-        }
-        console.error('Delete Bundle Group Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    } catch (error) {
+        handleError(res, error, 'Delete Bundle Group Error');
     }
 };
 
 export const getBundles = async (req: Request, res: Response) => {
     try {
-        const page = parseInt(req.query.page as string) || 1;
-        const limit = parseInt(req.query.limit as string) || 10;
-        const offset = (page - 1) * limit;
+        const { page, limit, offset, sortBy, sortOrder } = getPaginationOptions(req);
 
         const search = req.query.search as string;
         const activeOnly = req.query.activeOnly === 'true';
-        const sortBy = (req.query.sort_by as string) || 'created_at';
-        const sortOrder = (req.query.sort_dir as string) === 'desc' ? 'DESC' : 'ASC';
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const whereClause: any = {};
@@ -143,18 +132,9 @@ export const getBundles = async (req: Request, res: Response) => {
             distinct: true // Important for correct count with includes
         });
 
-        res.status(200).json({
-            bundles: rows,
-            meta: {
-                totalItems: count,
-                totalPages: Math.ceil(count / limit),
-                currentPage: page,
-                itemsPerPage: limit
-            }
-        });
+        res.status(200).json(formatPaginationResponse(rows, count, page, limit, 'bundles'));
     } catch (error) {
-        console.error('Get Bundles Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Get Bundles Error');
     }
 };
 
@@ -175,8 +155,7 @@ export const getBundleById = async (req: Request, res: Response) => {
 
         res.status(200).json(bundle);
     } catch (error) {
-        console.error('Get Bundle Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Get Bundle Error');
     }
 };
 
@@ -218,12 +197,8 @@ export const createBundle = async (req: Request, res: Response) => {
         });
 
         res.status(201).json(bundle);
-    } catch (error: unknown) {
-        if ((error as Error).message === 'ALREADY_EXISTS') {
-            return res.status(400).json({ message: 'Bundle with this slug already exists' });
-        }
-        console.error('Create Bundle Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    } catch (error) {
+        handleError(res, error, 'Create Bundle Error');
     }
 };
 
@@ -260,15 +235,8 @@ export const createBundle = async (req: Request, res: Response) => {
         });
 
         res.status(200).json(updatedBundle);
-    } catch (error: unknown) {
-        if ((error as Error).message === 'NOT_FOUND') {
-            return res.status(404).json({ message: 'Bundle not found' });
-        }
-        if ((error as Error).message === 'SLUG_EXISTS') {
-            return res.status(400).json({ message: 'Bundle with this slug already exists' });
-        }
-        console.error('Update Bundle Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    } catch (error) {
+        handleError(res, error, 'Update Bundle Error');
     }
 };
 
@@ -287,12 +255,8 @@ export const deleteBundle = async (req: Request, res: Response) => {
         });
 
         res.status(200).json({ message: 'Bundle deleted successfully' });
-    } catch (error: unknown) {
-        if ((error as Error).message === 'NOT_FOUND') {
-            return res.status(404).json({ message: 'Bundle not found' });
-        }
-        console.error('Delete Bundle Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    } catch (error) {
+        handleError(res, error, 'Delete Bundle Error');
     }
 };
 
@@ -326,12 +290,8 @@ export const addPlanToBundle = async (req: Request, res: Response) => {
         });
 
         res.status(200).json({ message: 'Plan added to bundle' });
-    } catch (error: unknown) {
-        if ((error as Error).message === 'BUNDLE_NOT_FOUND') return res.status(404).json({ message: 'Bundle not found' });
-        if ((error as Error).message === 'PLAN_NOT_FOUND') return res.status(404).json({ message: 'Plan not found' });
-        
-        console.error('Add Plan to Bundle Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    } catch (error) {
+        handleError(res, error, 'Add Plan to Bundle Error');
     }
 };
 
@@ -357,11 +317,7 @@ export const removePlanFromBundle = async (req: Request, res: Response) => {
         });
 
         res.status(200).json({ message: 'Plan removed from bundle' });
-    } catch (error: unknown) {
-        if ((error as Error).message === 'BUNDLE_NOT_FOUND') return res.status(404).json({ message: 'Bundle not found' });
-        if ((error as Error).message === 'NOT_ASSOCIATED') return res.status(404).json({ message: 'Plan not associated with this bundle' });
-        
-        console.error('Remove Plan from Bundle Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    } catch (error) {
+        handleError(res, error, 'Remove Plan from Bundle Error');
     }
 };

@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
 import { Organization, OrganizationMember, OrgStatus } from '../models/organization';
 import { Role } from '../models/role';
-import { User } from '../models/user'; // Import User if needed for typing or checks
+import { User } from '../models/user';
 import sequelize from '../config/db';
+import { handleError } from '../utils/error';
 
 export const createOrganization = async (req: Request, res: Response) => {
     try {
@@ -16,7 +17,8 @@ export const createOrganization = async (req: Request, res: Response) => {
         const result = await sequelize.transaction(async (t) => {
             // Generate slug from name
             let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-            // Append random string if slug exists (simple collision handling)
+            
+            // Append random string if slug exists
             const slugExists = await Organization.findOne({ where: { slug }, transaction: t });
             if (slugExists) {
                 slug = `${slug}-${Math.floor(Math.random() * 10000)}`;
@@ -31,7 +33,6 @@ export const createOrganization = async (req: Request, res: Response) => {
             }, { transaction: t });
 
             // Find or Create Owner Role
-            // Ideally roles are seeded, but fail-safe here
             let ownerRole = await Role.findOne({ where: { name: 'Owner' }, transaction: t });
             if (!ownerRole) {
                 ownerRole = await Role.create({ name: 'Owner', description: 'Organization Owner' }, { transaction: t });
@@ -54,8 +55,7 @@ export const createOrganization = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        console.error('Create Org Error:', error);
-        res.status(500).json({ message: 'Server error creating organization' });
+        handleError(res, error, 'Create Org Error');
     }
 };
 
@@ -111,8 +111,7 @@ export const getMyOrganization = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        console.error('Get Org Error:', error);
-        res.status(500).json({ message: 'Server error fetching organization' });
+        handleError(res, error, 'Get Org Error');
     }
 };
 
@@ -122,6 +121,7 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
         if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
         const orgId = req.headers['x-organization-id'] as string;
+<<<<<<< HEAD
 
         // Pagination and sorting params
         const page = parseInt(req.query.page as string) || 1;
@@ -133,6 +133,10 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
 
         // Get user's organization
         // Must filter by the active organization context
+=======
+        
+        // Get user's organization filtered by the active organization context
+>>>>>>> 2cc666b (cleaned backend code)
         const whereClause: { user_id: string; organization_id?: string } = { user_id: userId };
         if (orgId) {
             whereClause.organization_id = orgId;
@@ -209,8 +213,7 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        console.error('Get Members Error:', error);
-        res.status(500).json({ message: 'Server error fetching members' });
+        handleError(res, error, 'Get Members Error');
     }
 };
 
@@ -262,15 +265,8 @@ export const updateOrganization = async (req: Request, res: Response) => {
             organization: updatedOrg
         });
 
-    } catch (error: unknown) {
-        if ((error as Error).message === 'ORG_NOT_FOUND') {
-            return res.status(404).json({ message: 'Organization not found' });
-        }
-        if ((error as Error).message === 'FORBIDDEN') {
-            return res.status(403).json({ message: 'Insufficient permissions' });
-        }
-        console.error('Update Org Error:', error);
-        res.status(500).json({ message: 'Server error updating organization' });
+    } catch (error) {
+        handleError(res, error, 'Update Org Error');
     }
 };
 

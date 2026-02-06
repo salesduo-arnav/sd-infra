@@ -3,6 +3,8 @@ import { Feature } from '../models/feature';
 import { Tool } from '../models/tool';
 import { Op } from 'sequelize';
 import sequelize from '../config/db';
+import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
+import { handleError } from '../utils/error';
 
 // ==========================
 // Feature Config Controllers
@@ -10,14 +12,8 @@ import sequelize from '../config/db';
 
 export const getFeatures = async (req: Request, res: Response) => {
     try {
-        const page = parseInt(req.query.page as string) || 1;
-        const limit = parseInt(req.query.limit as string) || 10;
-        const offset = (page - 1) * limit;
-
+        const { page, limit, offset, sortBy, sortOrder } = getPaginationOptions(req);
         const search = req.query.search as string;
-        const sortBy = (req.query.sortBy as string) || 'created_at';
-        const sortOrder = (req.query.sortOrder as string) === 'desc' ? 'DESC' : 'ASC'; // Default ASC for features usually
-
         const { tool_id } = req.query;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -42,18 +38,9 @@ export const getFeatures = async (req: Request, res: Response) => {
             distinct: true
         });
 
-        res.status(200).json({
-            features: rows,
-            meta: {
-                totalItems: count,
-                totalPages: Math.ceil(count / limit),
-                currentPage: page,
-                itemsPerPage: limit
-            }
-        });
+        res.status(200).json(formatPaginationResponse(rows, count, page, limit, 'features'));
     } catch (error) {
-        console.error('Get Features Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Get Features Error');
     }
 };
 
@@ -70,8 +57,7 @@ export const getFeatureById = async (req: Request, res: Response) => {
 
         res.status(200).json(feature);
     } catch (error) {
-        console.error('Get Feature Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Get Feature Error');
     }
 };
 
@@ -98,12 +84,8 @@ export const createFeature = async (req: Request, res: Response) => {
         });
 
         res.status(201).json(feature);
-    } catch (error: unknown) {
-        if ((error as Error).message === 'ALREADY_EXISTS') {
-             return res.status(400).json({ message: 'Feature with this slug already exists globally' });
-        }
-        console.error('Create Feature Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    } catch (error) {
+        handleError(res, error, 'Create Feature Error');
     }
 };
 
@@ -134,15 +116,8 @@ export const updateFeature = async (req: Request, res: Response) => {
         });
 
         res.status(200).json(updatedFeature);
-    } catch (error: unknown) {
-        if ((error as Error).message === 'NOT_FOUND') {
-            return res.status(404).json({ message: 'Feature not found' });
-        }
-        if ((error as Error).message === 'SLUG_EXISTS') {
-            return res.status(400).json({ message: 'Feature with this slug already exists' });
-        }
-        console.error('Update Feature Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    } catch (error) {
+        handleError(res, error, 'Update Feature Error');
     }
 };
 
@@ -161,11 +136,7 @@ export const deleteFeature = async (req: Request, res: Response) => {
         });
         
         res.status(200).json({ message: 'Feature deleted successfully' });
-    } catch (error: unknown) {
-        if ((error as Error).message === 'NOT_FOUND') {
-            return res.status(404).json({ message: 'Feature not found' });
-        }
-        console.error('Delete Feature Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+    } catch (error) {
+        handleError(res, error, 'Delete Feature Error');
     }
 };
