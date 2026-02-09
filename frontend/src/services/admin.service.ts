@@ -14,10 +14,10 @@ export interface PaginatedResponse<T> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: T[] | any; // Dynamic key like 'tools', 'plans' etc. + meta
   meta: {
-      totalItems: number;
-      totalPages: number;
-      currentPage: number;
-      itemsPerPage: number;
+    totalItems: number;
+    totalPages: number;
+    currentPage: number;
+    itemsPerPage: number;
   };
 }
 
@@ -90,6 +90,22 @@ export interface Bundle {
   tier_label?: string;
 }
 
+export interface AuditLog {
+  id: string;
+  actor_id?: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  details?: object;
+  ip_address?: string | null;
+  created_at: string;
+  actor?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+}
+
 // Service Methods
 
 // Tools
@@ -115,112 +131,124 @@ export const deleteTool = async (id: string) => {
 
 // Features
 export const getFeatures = async (toolId?: string, params?: PaginationParams) => {
-    const response = await api.get('/admin/features', { params: { ...params, tool_id: toolId } });
-    return response.data;
+  const response = await api.get('/admin/features', { params: { ...params, tool_id: toolId } });
+  return response.data;
 };
 
 export const createFeature = async (data: Partial<Feature>) => {
-    const response = await api.post('/admin/features', data);
-    return response.data;
+  const response = await api.post('/admin/features', data);
+  return response.data;
 };
 
 export const updateFeature = async (id: string, data: Partial<Feature>) => {
-    const response = await api.put(`/admin/features/${id}`, data);
-    return response.data;
+  const response = await api.put(`/admin/features/${id}`, data);
+  return response.data;
 };
 
 export const deleteFeature = async (id: string) => {
-    const response = await api.delete(`/admin/features/${id}`);
-    return response.data;
+  const response = await api.delete(`/admin/features/${id}`);
+  return response.data;
 };
 
 
 // Plans
 export const getPlans = async (toolId?: string, params?: PaginationParams) => {
-    const response = await api.get('/admin/plans', { params: { ...params, tool_id: toolId } });
-    return response.data; // { plans: [], meta: {} }
+  const response = await api.get('/admin/plans', { params: { ...params, tool_id: toolId } });
+  return response.data; // { plans: [], meta: {} }
 };
 
 export const createPlan = async (data: Partial<Plan>) => {
-    const response = await api.post('/admin/plans', data);
-    return response.data;
+  const response = await api.post('/admin/plans', data);
+  return response.data;
 };
 
 export const updatePlan = async (id: string, data: Partial<Plan>) => {
-    const response = await api.put(`/admin/plans/${id}`, data);
-    return response.data;
+  const response = await api.put(`/admin/plans/${id}`, data);
+  return response.data;
 };
 
 export const deletePlan = async (id: string) => {
-    const response = await api.delete(`/admin/plans/${id}`);
-    return response.data;
+  const response = await api.delete(`/admin/plans/${id}`);
+  return response.data;
 };
 
 // Plan Limits
 export const upsertPlanLimit = async (planId: string, data: { feature_id: string; default_limit: number | null; is_enabled: boolean; reset_period?: string }) => {
-    const response = await api.put(`/admin/plans/${planId}/limits`, data);
-    return response.data;
+  const response = await api.put(`/admin/plans/${planId}/limits`, data);
+  return response.data;
 };
 
 export const deletePlanLimit = async (planId: string, featureId: string) => {
-    const response = await api.delete(`/admin/plans/${planId}/limits/${featureId}`);
-    return response.data;
+  const response = await api.delete(`/admin/plans/${planId}/limits/${featureId}`);
+  return response.data;
 };
 
 // Bundle Groups
 export const getBundleGroups = async () => {
-    const response = await api.get('/admin/bundle-groups');
-    return response.data;
+  const response = await api.get('/admin/bundle-groups');
+  return response.data;
 };
 
 export const createBundleGroup = async (data: Partial<BundleGroup>) => {
-    const response = await api.post('/admin/bundle-groups', data);
-    return response.data;
+  const response = await api.post('/admin/bundle-groups', data);
+  return response.data;
 };
 
 export const updateBundleGroup = async (id: string, data: Partial<BundleGroup>) => {
-    const response = await api.put(`/admin/bundle-groups/${id}`, data);
-    return response.data;
+  const response = await api.put(`/admin/bundle-groups/${id}`, data);
+  return response.data;
 };
 
 export const deleteBundleGroup = async (id: string) => {
-    const response = await api.delete(`/admin/bundle-groups/${id}`);
-    return response.data;
+  const response = await api.delete(`/admin/bundle-groups/${id}`);
+  return response.data;
 };
 
 // Bundles
 export const getBundles = async (params?: PaginationParams) => {
-    const response = await api.get('/admin/bundles', { params });
-    return response.data; // { bundles: [], meta: {} }
+  const response = await api.get('/admin/bundles', { params });
+  return response.data; // { bundles: [], meta: {} }
 };
 
 export const getBundleById = async (id: string) => {
-    const response = await api.get(`/admin/bundles/${id}`);
-    return response.data;
+  const response = await api.get(`/admin/bundles/${id}`);
+  return response.data;
 };
 
 export const createBundle = async (data: Partial<Bundle>) => {
-    const response = await api.post('/admin/bundles', data);
-    return response.data;
+  const response = await api.post('/admin/bundles', data);
+  return response.data;
 };
 
 export const updateBundle = async (id: string, data: Partial<Bundle>) => {
-    const response = await api.put(`/admin/bundles/${id}`, data);
-    return response.data;
+  const response = await api.put(`/admin/bundles/${id}`, data);
+  return response.data;
 };
 
 export const deleteBundle = async (id: string) => {
-    const response = await api.delete(`/admin/bundles/${id}`);
-    return response.data;
+  const response = await api.delete(`/admin/bundles/${id}`);
+  return response.data;
 };
 
 // Bundle Plans
 export const addPlanToBundle = async (bundleId: string, planId: string) => {
-    const response = await api.post(`/admin/bundles/${bundleId}/plans`, { plan_id: planId });
-    return response.data;
+  const response = await api.post(`/admin/bundles/${bundleId}/plans`, { plan_id: planId });
+  return response.data;
 };
 
 export const removePlanFromBundle = async (bundleId: string, planId: string) => {
-    const response = await api.delete(`/admin/bundles/${bundleId}/plans/${planId}`);
-    return response.data;
+  const response = await api.delete(`/admin/bundles/${bundleId}/plans/${planId}`);
+  return response.data;
 };
+
+// Audit Logs
+export const getAuditLogs = async (params?: PaginationParams & { action?: string; entity_type?: string; actor_id?: string; start_date?: string; end_date?: string }) => {
+  const response = await api.get('/admin/audit-logs', { params });
+  return response.data; // { audit_logs: [], meta: {} }
+};
+
+export const getAuditLogById = async (id: string) => {
+  const response = await api.get(`/admin/audit-logs/${id}`);
+  return response.data;
+};
+

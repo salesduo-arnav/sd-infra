@@ -8,6 +8,7 @@ import { Feature } from '../models/feature';
 import { PriceInterval, TierType, FeatureResetPeriod } from '../models/enums';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
+import { AuditService } from '../services/audit.service';
 
 // ==========================
 // Plan Config Controllers
@@ -21,7 +22,7 @@ export const getPlans = async (req: Request, res: Response) => {
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const whereClause: any = {};
-      
+
         if (tool_id) {
             whereClause.tool_id = tool_id;
         }
@@ -112,6 +113,20 @@ export const createPlan = async (req: Request, res: Response) => {
             }, { transaction: t });
         });
 
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'CREATE_PLAN',
+            entityType: 'Plan',
+            entityId: plan.id,
+            details: {
+                name,
+                tier,
+                price,
+                interval
+            },
+            req
+        });
+
         res.status(201).json(plan);
     } catch (error) {
         handleError(res, error, 'Create Plan Error');
@@ -133,6 +148,17 @@ export const updatePlan = async (req: Request, res: Response) => {
             return await plan.update(updates, { transaction: t });
         });
 
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'UPDATE_PLAN',
+            entityType: 'Plan',
+            entityId: id,
+            details: {
+                updates
+            },
+            req
+        });
+
         res.status(200).json(updatedPlan);
     } catch (error) {
         handleError(res, error, 'Update Plan Error');
@@ -142,7 +168,7 @@ export const updatePlan = async (req: Request, res: Response) => {
 export const deletePlan = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        
+
         await sequelize.transaction(async (t) => {
             const plan = await Plan.findByPk(id, { transaction: t });
 
@@ -152,7 +178,16 @@ export const deletePlan = async (req: Request, res: Response) => {
 
             await plan.destroy({ transaction: t });
         });
-        
+
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'DELETE_PLAN',
+            entityType: 'Plan',
+            entityId: id,
+            details: {},
+            req
+        });
+
         res.status(200).json({ message: 'Plan deleted successfully' });
     } catch (error) {
         handleError(res, error, 'Delete Plan Error');
@@ -198,8 +233,17 @@ export const upsertPlanLimit = async (req: Request, res: Response) => {
                     reset_period: reset_period || limitInstance.reset_period
                 }, { transaction: t });
             }
-            
+
             return limitInstance;
+        });
+
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'UPSERT_PLAN_LIMIT',
+            entityType: 'PlanLimit',
+            entityId: limit.id,
+            details: { plan_id, feature_id, default_limit, is_enabled, reset_period },
+            req
         });
 
         res.status(200).json(limit);
@@ -220,6 +264,15 @@ export const deletePlanLimit = async (req: Request, res: Response) => {
             }
 
             await limit.destroy({ transaction: t });
+        });
+
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'DELETE_PLAN_LIMIT',
+            entityType: 'PlanLimit',
+            entityId: `${plan_id}_${feature_id}`,
+            details: { plan_id, feature_id },
+            req
         });
 
         res.status(200).json({ message: 'Plan Limit deleted successfully' });

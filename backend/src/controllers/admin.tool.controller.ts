@@ -9,6 +9,7 @@ import { Subscription } from '../models/subscription';
 import { SubStatus } from '../models/enums';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
+import { AuditService } from '../services/audit.service';
 
 // ==========================
 // Tool Config Controllers
@@ -49,83 +50,101 @@ export const getTools = async (req: Request, res: Response) => {
 };
 
 export const getToolById = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const tool = await Tool.findByPk(id, {
-        include: [{ model: Feature, as: 'features' }]
-    });
+    try {
+        const { id } = req.params;
+        const tool = await Tool.findByPk(id, {
+            include: [{ model: Feature, as: 'features' }]
+        });
 
-    if (!tool) {
-      return res.status(404).json({ message: 'Tool not found' });
+        if (!tool) {
+            return res.status(404).json({ message: 'Tool not found' });
+        }
+
+        res.status(200).json(tool);
+    } catch (error) {
+        handleError(res, error, 'Get Tool Error');
     }
-
-    res.status(200).json(tool);
-  } catch (error) {
-    handleError(res, error, 'Get Tool Error');
-  }
 };
 
 export const createTool = async (req: Request, res: Response) => {
-  try {
-    const { name, slug, description, tool_link, is_active } = req.body;
+    try {
+        const { name, slug, description, tool_link, is_active } = req.body;
 
-    if (!name || !slug) {
-        return res.status(400).json({ message: 'Name and slug are required' });
-    }
-
-    const tool = await sequelize.transaction(async (t) => {
-        const existingTool = await Tool.findOne({ where: { slug }, transaction: t });
-        if (existingTool) {
-            throw new Error('ALREADY_EXISTS');
+        if (!name || !slug) {
+            return res.status(400).json({ message: 'Name and slug are required' });
         }
 
-        return await Tool.create({
-            name,
-            slug,
-            description,
-            tool_link,
-            is_active: is_active !== undefined ? is_active : true,
-        }, { transaction: t });
-    });
-
-    res.status(201).json(tool);
-  } catch (error) {
-    handleError(res, error, 'Create Tool Error');
-  }
-};
-
-export const updateTool = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { name, slug, description, tool_link, is_active } = req.body;
-
-    const updatedTool = await sequelize.transaction(async (t) => {
-        const tool = await Tool.findByPk(id, { transaction: t });
-
-        if (!tool) {
-            throw new Error('NOT_FOUND');
-        }
-
-        if (slug && slug !== tool.slug) {
+        const tool = await sequelize.transaction(async (t) => {
             const existingTool = await Tool.findOne({ where: { slug }, transaction: t });
             if (existingTool) {
                 throw new Error('ALREADY_EXISTS');
             }
-        }
 
-        return await tool.update({
-            name: name ?? tool.name,
-            slug: slug ?? tool.slug,
-            description: description ?? tool.description,
-            tool_link: tool_link ?? tool.tool_link,
-            is_active: is_active ?? tool.is_active,
-        }, { transaction: t });
-    });
+            return await Tool.create({
+                name,
+                slug,
+                description,
+                tool_link,
+                is_active: is_active !== undefined ? is_active : true,
+            }, { transaction: t });
+        });
 
-    res.status(200).json(updatedTool);
-  } catch (error) {
-    handleError(res, error, 'Update Tool Error');
-  }
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'CREATE_TOOL',
+            entityType: 'Tool',
+            entityId: tool.id,
+            details: { name, slug, is_active },
+            req
+        });
+
+        res.status(201).json(tool);
+    } catch (error) {
+        handleError(res, error, 'Create Tool Error');
+    }
+};
+
+export const updateTool = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { name, slug, description, tool_link, is_active } = req.body;
+
+        const updatedTool = await sequelize.transaction(async (t) => {
+            const tool = await Tool.findByPk(id, { transaction: t });
+
+            if (!tool) {
+                throw new Error('NOT_FOUND');
+            }
+
+            if (slug && slug !== tool.slug) {
+                const existingTool = await Tool.findOne({ where: { slug }, transaction: t });
+                if (existingTool) {
+                    throw new Error('ALREADY_EXISTS');
+                }
+            }
+
+            return await tool.update({
+                name: name ?? tool.name,
+                slug: slug ?? tool.slug,
+                description: description ?? tool.description,
+                tool_link: tool_link ?? tool.tool_link,
+                is_active: is_active ?? tool.is_active,
+            }, { transaction: t });
+        });
+
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'UPDATE_TOOL',
+            entityType: 'Tool',
+            entityId: id,
+            details: { updates: { name, slug, description, tool_link, is_active } },
+            req
+        });
+
+        res.status(200).json(updatedTool);
+    } catch (error) {
+        handleError(res, error, 'Update Tool Error');
+    }
 };
 
 export const deleteTool = async (req: Request, res: Response) => {
@@ -161,12 +180,21 @@ export const deleteTool = async (req: Request, res: Response) => {
             await tool.destroy({ transaction: t });
         });
 
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'DELETE_TOOL',
+            entityType: 'Tool',
+            entityId: id,
+            details: {},
+            req
+        });
+
         res.status(200).json({ message: 'Tool and associated plans/features deleted successfully' });
     } catch (error) {
         const err = error as Error;
         if (err.message === 'HAS_ACTIVE_SUBSCRIPTIONS') {
-            return res.status(400).json({ 
-                message: 'Cannot delete tool. There are active subscriptions associated with plans for this tool. Please cancel subscriptions first.' 
+            return res.status(400).json({
+                message: 'Cannot delete tool. There are active subscriptions associated with plans for this tool. Please cancel subscriptions first.'
             });
         }
         handleError(res, error, 'Delete Tool Error');
