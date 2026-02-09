@@ -12,7 +12,7 @@ class BillingController {
   async createCheckoutSession(req: Request, res: Response, next: NextFunction) {
     try {
       // items: { id: string, type: 'plan' | 'bundle', interval: 'monthly' | 'yearly' }[]
-      const { items } = req.body;
+      const { items, ui_mode = 'hosted' } = req.body;
       const organization = req.organization;
       const user = req.user;
 
@@ -77,14 +77,12 @@ class BillingController {
          return;
       }
 
-      // 3. Create Session
-      const session = await stripeService.createCheckoutSession({
+      // 3. Create Session based on UI Mode
+      const sessionConfig: any = {
         customer: customerId,
         mode: 'subscription',
         payment_method_types: ['card'],
         line_items: lineItems,
-        success_url: `${process.env.FRONTEND_URL}/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.FRONTEND_URL}/billing?canceled=true`,
         metadata: {
           organizationId: organization.id,
           items: JSON.stringify(metadataItems),
@@ -95,9 +93,24 @@ class BillingController {
              organizationId: organization.id
           }
         }
-      });
+      };
 
-      res.status(200).json({ url: session.url, sessionId: session.id });
+      if (ui_mode === 'embedded') {
+        sessionConfig.ui_mode = 'embedded';
+        sessionConfig.return_url = `${process.env.FRONTEND_URL}/billing?success=true&session_id={CHECKOUT_SESSION_ID}`;
+      } else {
+        sessionConfig.success_url = `${process.env.FRONTEND_URL}/billing?success=true&session_id={CHECKOUT_SESSION_ID}`;
+        sessionConfig.cancel_url = `${process.env.FRONTEND_URL}/billing?canceled=true`;
+      }
+
+      const session = await stripeService.createCheckoutSession(sessionConfig);
+
+      if (ui_mode === 'embedded') {
+        res.status(200).json({ clientSecret: session.client_secret });
+      } else {
+        res.status(200).json({ url: session.url, sessionId: session.id });
+      }
+      
     } catch (error) {
       next(error);
     }
@@ -112,7 +125,7 @@ class BillingController {
              return;
         }
 
-        const subscription = await Subscription.findOne({
+        const subscriptions = await Subscription.findAll({
             where: { organization_id: organization.id },
             include: [
                 { model: Plan, as: 'plan' },
@@ -120,12 +133,7 @@ class BillingController {
             ]
         });
 
-        if (!subscription) {
-            res.status(200).json({ subscription: null });
-            return;
-        }
-
-        res.status(200).json({ subscription });
+        res.status(200).json({ subscriptions });
     } catch (error) {
         next(error);
     }
@@ -239,81 +247,90 @@ class BillingController {
         const status = mapStripeStatus(stripeSub.status);
         
         // Resolve Plan or Bundle from Price ID
-        const priceId = stripeSub.items?.data?.[0]?.price?.id;
-        let finalPlanId: string | null = null;
-        let finalBundleId: string | null = null;
-        let resolved = false;
+         // Iterate through all items in the subscription
+         const items = stripeSub.items?.data || [];
 
-        if (priceId) {
-            // Find Plan
-            const plan = await Plan.findOne({ 
-                where: sequelize.or(
-                    { stripe_price_id_monthly: priceId }, 
-                    { stripe_price_id_yearly: priceId }
-                )
-            });
-            if (plan) {
-                finalPlanId = plan.id;
-                finalBundleId = null;
-                resolved = true;
-            }
+         for (const item of items) {
+             const priceId = item.price.id;
+             let finalPlanId: string | null = null;
+             let finalBundleId: string | null = null;
+             let resolved = false;
 
-            // Find Bundle (if not plan)
-            if (!resolved) {
-                const bundle = await Bundle.findOne({
-                    where: sequelize.or(
-                        { stripe_price_id_monthly: priceId }, 
-                        { stripe_price_id_yearly: priceId }
-                    )
-                });
-                if (bundle) {
-                    finalBundleId = bundle.id;
-                    finalPlanId = null;
-                    resolved = true;
-                }
-            }
-        }
+             if (priceId) {
+                 // Find Plan
+                 const plan = await Plan.findOne({ 
+                     where: sequelize.or(
+                         { stripe_price_id_monthly: priceId }, 
+                         { stripe_price_id_yearly: priceId }
+                     )
+                 });
+                 if (plan) {
+                     finalPlanId = plan.id;
+                     finalBundleId = null;
+                     resolved = true;
+                 }
 
-        // Find existing subscription or create
-        const subscription = await Subscription.findOne({ where: { stripe_subscription_id: stripeSub.id }}) 
-                             || await Subscription.findOne({ where: { organization_id: orgId }});
+                 // Find Bundle (if not plan)
+                 if (!resolved) {
+                     const bundle = await Bundle.findOne({
+                         where: sequelize.or(
+                             { stripe_price_id_monthly: priceId }, 
+                             { stripe_price_id_yearly: priceId }
+                         )
+                     });
+                     if (bundle) {
+                         finalBundleId = bundle.id;
+                         finalPlanId = null;
+                         resolved = true;
+                     }
+                 }
+             }
 
-        const subscriptionData = {
-            stripe_subscription_id: stripeSub.id,
-            status: status,
-            current_period_start: toDateNullable(stripeSub.current_period_start),
-            current_period_end: toDateNullable(stripeSub.current_period_end),
-            trial_start: toDateNullable(stripeSub.trial_start),
-            trial_end: toDateNullable(stripeSub.trial_end),
-            cancel_at_period_end: stripeSub.cancel_at_period_end,
-        };
+             if (resolved) {
+                 // Find existing subscription for this specific item (plan/bundle)
+                 // constraint: org + stripe_sub + plan/bundle
+                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                 const whereClause: any = { 
+                     stripe_subscription_id: stripeSub.id,
+                     organization_id: orgId
+                 };
 
-        if (subscription) {
-            const updateData: any = { ...subscriptionData };
-            
-            // Only update IDs if we resolve a new price
-            if (resolved) {
-                updateData.plan_id = finalPlanId;
-                updateData.bundle_id = finalBundleId;
-            }
+                 if (finalPlanId) whereClause.plan_id = finalPlanId;
+                 if (finalBundleId) whereClause.bundle_id = finalBundleId;
 
-            await subscription.update(updateData);
-        } else {
-             // Create new
-             await Subscription.create({
-                 organization_id: orgId,
-                 ...subscriptionData,
-                 plan_id: finalPlanId,
-                 bundle_id: finalBundleId
-             });
-        }
+                 const subscription = await Subscription.findOne({ where: whereClause });
+                 
+                 const subscriptionData = {
+                    stripe_subscription_id: stripeSub.id,
+                    status: status,
+                    current_period_start: toDateNullable(stripeSub.current_period_start),
+                    current_period_end: toDateNullable(stripeSub.current_period_end),
+                    trial_start: toDateNullable(stripeSub.trial_start),
+                    trial_end: toDateNullable(stripeSub.trial_end),
+                    cancel_at_period_end: stripeSub.cancel_at_period_end,
+                };
+
+                 if (subscription) {
+                     await subscription.update(subscriptionData);
+                 } else {
+                     await Subscription.create({
+                         organization_id: orgId,
+                         ...subscriptionData,
+                         plan_id: finalPlanId,
+                         bundle_id: finalBundleId
+                     });
+                 }
+             }
+         }
      }
   }
 
   private async handleSubscriptionDeleted(stripeSub: any) {
-      const subscription = await Subscription.findOne({ where: { stripe_subscription_id: stripeSub.id }});
-      if (subscription) {
-          await subscription.update({ status: SubStatus.CANCELED });
+      const subscriptions = await Subscription.findAll({ where: { stripe_subscription_id: stripeSub.id }});
+      if (subscriptions && subscriptions.length > 0) {
+          for (const sub of subscriptions) {
+              await sub.update({ status: SubStatus.CANCELED });
+          }
       }
   }
 

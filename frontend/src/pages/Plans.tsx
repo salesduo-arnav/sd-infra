@@ -73,7 +73,14 @@ export default function Plans() {
                         name: b.tier_label || b.name, // Use label vs name fallback
                         price: b.price,
                         period: "/" + b.interval,
-                        limits: b.description || "Full access" // Use description as limits/details
+                        limits: b.description || "Full access",
+                        features: b.bundle_plans?.flatMap((bp: any) =>
+                            bp.plan?.limits?.map((limit: any) => ({
+                                name: limit.feature?.name || "Unknown Feature",
+                                limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
+                                isEnabled: limit.is_enabled
+                            })) || []
+                        ) || []
                     })),
                     popular: false, 
                     icon: getIconForSlug(group.slug)
@@ -106,7 +113,12 @@ export default function Plans() {
                     name: plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1), // Capitalize
                     price: plan.price,
                     period: "/" + plan.interval,
-                    limits: plan.description || "See details"
+                    limits: plan.description || "See details",
+                    features: plan.limits?.map((limit: any) => ({
+                        name: limit.feature?.name || "Unknown Feature",
+                        limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
+                        isEnabled: limit.is_enabled
+                    })) || []
                 });
             });
 
@@ -175,7 +187,9 @@ export default function Plans() {
         type: item.type === 'app' ? 'plan' : item.type, // Map 'app' to 'plan'
         interval: item.period.includes('year') ? 'yearly' : 'monthly',
         price: item.price,
-        name: item.name
+        name: item.name,
+        features: item.features,
+        limits: item.limits
     }));
     
     // Check mixed intervals

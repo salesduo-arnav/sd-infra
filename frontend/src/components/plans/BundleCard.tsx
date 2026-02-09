@@ -98,6 +98,8 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
                             tierName: tier.name,
                             price: tier.price,
                             period: tier.period,
+                            limits: tier.limits,
+                            features: tier.features
                             })
                         }
                         className={cn(

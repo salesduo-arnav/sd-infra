@@ -21,7 +21,7 @@ const invoices = [
 ];
 
 export default function Billing() {
-  const [subscription, setSubscription] = useState<any>(null);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
 
@@ -32,7 +32,7 @@ export default function Billing() {
   const fetchSubscription = async () => {
     try {
       const response = await axios.get(`${API_URL}/billing`, { withCredentials: true });
-      setSubscription(response.data.subscription);
+      setSubscriptions(response.data.subscriptions);
     } catch (error) {
       console.error("Failed to fetch subscription", error);
     } finally {
@@ -85,26 +85,30 @@ export default function Billing() {
           {/* Active Subscriptions */}
           <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle>Current Subscription</CardTitle>
+              <CardTitle>Current Subscriptions</CardTitle>
               <CardDescription>
                 Your active plan details
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {subscription ? (
-                 <div className="flex items-center justify-between rounded-lg border p-4">
-                    <div>
-                        <div className="flex items-center gap-2">
-                        <span className="text-lg font-semibold">
-                            {subscription.plan?.name || subscription.bundle?.name || "Unknown Plan"}
-                        </span>
-                        <Badge variant="outline" className="capitalize">{subscription.status}</Badge>
+              {subscriptions && subscriptions.length > 0 ? (
+                 <div className="space-y-4">
+                     {subscriptions.map((sub: any) => (
+                         <div key={sub.id} className="flex items-center justify-between rounded-lg border p-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                <span className="text-lg font-semibold">
+                                    {sub.plan?.name || sub.bundle?.name || "Unknown Plan"}
+                                </span>
+                                <Badge variant="outline" className="capitalize">{sub.status}</Badge>
+                                </div>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                {sub.status === 'active' ? 'Renews' : 'Expires'} on {new Date(sub.current_period_end).toLocaleDateString()}
+                                </p>
+                            </div>
                         </div>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                        {subscription.status === 'active' ? 'Renews' : 'Expires'} on {new Date(subscription.current_period_end).toLocaleDateString()}
-                        </p>
-                    </div>
-                </div>
+                     ))}
+                 </div>
               ) : (
                 <div className="text-center py-8">
                     <p className="text-muted-foreground">No active subscription found.</p>
