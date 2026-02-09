@@ -4,16 +4,13 @@ import { Organization, OrgStatus, OrganizationMember } from '../models/organizat
 import { User } from '../models/user';
 import { Role } from '../models/role';
 import sequelize from '../config/db';
+import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
+import { handleError } from '../utils/error';
 
 export const getOrganizations = async (req: Request, res: Response) => {
     try {
-        const page = parseInt(req.query.page as string) || 1;
-        const limit = parseInt(req.query.limit as string) || 10;
-        const offset = (page - 1) * limit;
-
+        const { page, limit, offset, sortBy, sortOrder } = getPaginationOptions(req);
         const search = req.query.search as string;
-        const sortBy = (req.query.sortBy as string) || 'created_at';
-        const sortOrder = (req.query.sortOrder as string) === 'asc' ? 'ASC' : 'DESC';
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const whereClause: any = {};
@@ -54,20 +51,9 @@ export const getOrganizations = async (req: Request, res: Response) => {
             memberCount: countMap.get(org.id) || 0
         }));
 
-        const totalPages = Math.ceil(count / limit);
-
-        res.status(200).json({
-            organizations: organizationsWithCount,
-            meta: {
-                totalItems: count,
-                totalPages,
-                currentPage: page,
-                itemsPerPage: limit
-            }
-        });
+        res.status(200).json(formatPaginationResponse(organizationsWithCount, count, page, limit, 'organizations'));
     } catch (error) {
-        console.error('Get Organizations Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Get Organizations Error');
     }
 };
 
@@ -91,11 +77,7 @@ export const updateOrganization = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Organization updated successfully', organization });
     } catch (error) {
-        console.error('Update Organization Error:', error);
-        if (error instanceof Error && error.name === 'SequelizeUniqueConstraintError') {
-            return res.status(409).json({ message: 'Slug already in use' });
-        }
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Update Organization Error');
     }
 };
 
@@ -117,14 +99,19 @@ export const deleteOrganization = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Organization deleted successfully' });
     } catch (error) {
-        console.error('Delete Organization Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Delete Organization Error');
     }
 };
 
 export const getOrganizationDetails = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        // Using "membersPage" etc explicitly because it's a nested pagination which getPaginationOptions might not handle perfectly if it just looks at page/limit. 
+        // But getPaginationOptions looks at req.query.page. 
+        // Here we have specific query params for members. 
+        // Let's keep manual parsing for nested membersPagination to avoid conflict if main resource was paginated (though here it's a detail view).
+        // Standardizing it slightly.
+        
         const membersPage = parseInt(req.query.membersPage as string) || 1;
         const membersLimit = parseInt(req.query.membersLimit as string) || 10;
         const membersOffset = (membersPage - 1) * membersLimit;
@@ -178,8 +165,6 @@ export const getOrganizationDetails = async (req: Request, res: Response) => {
             ]
         });
 
-        const hasMoreMembers = membersOffset + members.length < totalMemberCount;
-
         res.status(200).json({
             organization: {
                 id: organization.id,
@@ -206,11 +191,10 @@ export const getOrganizationDetails = async (req: Request, res: Response) => {
                 currentPage: membersPage,
                 itemsPerPage: membersLimit,
                 totalItems: totalMemberCount,
-                hasMore: hasMoreMembers
+                hasMore: membersOffset + members.length < totalMemberCount
             }
         });
     } catch (error) {
-        console.error('Get Organization Details Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Get Organization Details Error');
     }
 };

@@ -4,16 +4,13 @@ import User from '../models/user';
 import { Organization, OrganizationMember } from '../models/organization';
 import { Role } from '../models/role';
 import sequelize from '../config/db';
+import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
+import { handleError } from '../utils/error';
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
-        const page = parseInt(req.query.page as string) || 1;
-        const limit = parseInt(req.query.limit as string) || 10;
-        const offset = (page - 1) * limit;
-
+        const { page, limit, offset, sortBy, sortOrder } = getPaginationOptions(req);
         const search = req.query.search as string;
-        const sortBy = (req.query.sortBy as string) || 'created_at';
-        const sortOrder = (req.query.sortOrder as string) === 'asc' ? 'ASC' : 'DESC';
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const whereClause: any = {};
@@ -41,20 +38,9 @@ export const getUsers = async (req: Request, res: Response) => {
             distinct: true
         });
 
-        const totalPages = Math.ceil(count / limit);
-
-        res.status(200).json({
-            users: rows,
-            meta: {
-                totalItems: count,
-                totalPages,
-                currentPage: page,
-                itemsPerPage: limit
-            }
-        });
+        res.status(200).json(formatPaginationResponse(rows, count, page, limit, 'users'));
     } catch (error) {
-        console.error('Get Users Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Get Users Error');
     }
 };
 
@@ -81,8 +67,7 @@ export const updateUser = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'User updated successfully', user });
     } catch (error) {
-        console.error('Update User Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Update User Error');
     }
 };
 
@@ -190,7 +175,6 @@ export const deleteUser = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'User deleted successfully' });
     } catch (error) {
-        console.error('Delete User Error:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Delete User Error');
     }
 };

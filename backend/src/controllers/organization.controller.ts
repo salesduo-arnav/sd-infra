@@ -4,6 +4,7 @@ import { Role } from '../models/role';
 import { User } from '../models/user';
 import sequelize from '../config/db';
 import { handleError } from '../utils/error';
+import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 
 export const createOrganization = async (req: Request, res: Response) => {
     try {
@@ -123,12 +124,8 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
         const orgId = req.headers['x-organization-id'] as string;
 
         // Pagination and sorting params
-        const page = parseInt(req.query.page as string) || 1;
-        const limit = parseInt(req.query.limit as string) || 10;
+        const { page, limit, offset, sortBy, sortOrder } = getPaginationOptions(req, 'joined_at');
         const search = req.query.search as string || '';
-        const sortBy = req.query.sortBy as string || 'joined_at';
-        const sortOrder = (req.query.sortOrder as string || 'desc').toUpperCase();
-        const offset = (page - 1) * limit;
 
         // Get user's organization
         // Must filter by the active organization context
@@ -197,15 +194,7 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
             offset
         });
 
-        res.json({
-            members,
-            meta: {
-                total: totalCount,
-                page,
-                limit,
-                totalPages: Math.ceil(totalCount / limit)
-            }
-        });
+        res.json(formatPaginationResponse(members, totalCount, page, limit, 'members'));
 
     } catch (error) {
         handleError(res, error, 'Get Members Error');
