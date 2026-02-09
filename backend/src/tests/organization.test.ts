@@ -198,8 +198,8 @@ describe('Organization API Integration Tests', () => {
             expect(res.body.members.length).toBe(1); // Only owner
             expect(res.body.members[0].user.email).toEqual(testUser.email);
             expect(res.body.members[0].role.name).toEqual('Owner');
-            expect(res.body.meta.total).toBe(1);
-            expect(res.body.meta.page).toBe(1);
+            expect(res.body.meta.totalItems).toBe(1);
+            expect(res.body.meta.currentPage).toBe(1);
         });
 
         it('should support search by name', async () => {

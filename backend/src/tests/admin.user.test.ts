@@ -114,7 +114,7 @@ describe('Admin User Management', () => {
 
         it('should sort users', async () => {
             const res = await request(app)
-                .get('/admin/users?sortBy=email&sortOrder=asc&limit=5')
+                .get('/admin/users?sort_by=email&sort_dir=asc&limit=5')
                 .set('Cookie', [`session_id=${adminSession}`]);
 
             expect(res.status).toBe(200);

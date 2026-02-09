@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { mailService } from '../services/mail.service';
 import { Organization } from '../models/organization';
 import sequelize from '../config/db';
+import { handleError } from '../utils/error';
 
 export const inviteMember = async (req: Request, res: Response) => {
     try {
@@ -97,8 +98,7 @@ export const inviteMember = async (req: Request, res: Response) => {
         res.status(201).json({ message: 'Invitation sent', invitation });
 
     } catch (error) {
-        console.error('Invite Error:', error);
-        res.status(500).json({ message: 'Server error sending invitation' });
+        handleError(res, error, 'Invite Error');
     }
 };
 
@@ -122,8 +122,7 @@ export const getPendingInvitations = async (req: Request, res: Response) => {
 
         res.json(invitations);
     } catch (error) {
-        console.error('Get Invites Error:', error);
-        res.status(500).json({ message: 'Server error fetching invitations' });
+        handleError(res, error, 'Get Invites Error');
     }
 };
 
@@ -152,8 +151,7 @@ export const revokeInvitation = async (req: Request, res: Response) => {
         res.json({ message: 'Invitation revoked' });
 
     } catch (error) {
-        console.error('Revoke Error:', error);
-        res.status(500).json({ message: 'Server error revoking invitation' });
+        handleError(res, error, 'Revoke Error');
     }
 };
 
@@ -193,8 +191,7 @@ export const validateInvitation = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        console.error('Validate Invite Error:', error);
-        res.status(500).json({ message: 'Server error validating invitation' });
+        handleError(res, error, 'Validate Invite Error');
     }
 };
 
@@ -238,8 +235,7 @@ export const acceptInvitation = async (req: Request, res: Response) => {
         res.json({ message: 'Invitation accepted' });
 
     } catch (error) {
-        console.error('Accept Invite Error:', error);
-        res.status(500).json({ message: 'Server error accepting invitation' });
+        handleError(res, error, 'Accept Invite Error');
     }
 };
 
@@ -262,8 +258,7 @@ export const getMyPendingInvitations = async (req: Request, res: Response) => {
 
         res.json(invitations);
     } catch (error) {
-        console.error('Get My Invites Error:', error);
-        res.status(500).json({ message: 'Server error fetching your invitations' });
+        handleError(res, error, 'Get My Invites Error');
     }
 };
 
@@ -290,7 +285,6 @@ export const declineInvitation = async (req: Request, res: Response) => {
         res.json({ message: 'Invitation declined' });
 
     } catch (error) {
-        console.error('Decline Invite Error:', error);
-        res.status(500).json({ message: 'Server error declining invitation' });
+        handleError(res, error, 'Decline Invite Error');
     }
 };

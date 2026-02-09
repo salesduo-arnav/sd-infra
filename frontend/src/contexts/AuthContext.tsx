@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { API_URL } from "@/lib/api";
+import api from "@/lib/api";
+import { AxiosError } from "axios";
 
 export interface Organization {
   id: string;
@@ -101,16 +102,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async () => {
     try {
-      const res = await fetch(`${API_URL}/auth/me`, {
-        credentials: 'include'
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data);
-      }
+      const res = await api.get('/auth/me');
+      setUser(res.data);
     } catch (error) {
       console.error("Auth check failed", error);
+      setUser(null);
     }
   };
 
@@ -128,20 +124,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string, token?: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include', // Important!
-        body: JSON.stringify({ email, password, token }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Login failed");
-      }
-
-      const data = await res.json();
-      setUser(data.user);
+      const res = await api.post('/auth/login', { email, password, token });
+      setUser(res.data.user);
+    } catch (error) {
+       const err = error as AxiosError<{ message: string }>;
+       throw new Error(err.response?.data?.message || "Login failed");
     } finally {
       setIsLoading(false);
     }
@@ -150,21 +137,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = async (name: string, email: string, password: string, token?: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include', // Important!
-        body: JSON.stringify({ full_name: name, email, password, token }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Signup failed");
-      }
-
-      const data = await res.json();
-      setUser(data.user);
-      return data.user;
+      const res = await api.post('/auth/register', { full_name: name, email, password, token });
+      setUser(res.data.user);
+      return res.data.user;
+    } catch (error) {
+      const err = error as AxiosError<{ message: string }>;
+      throw new Error(err.response?.data?.message || "Signup failed");
     } finally {
       setIsLoading(false);
     }
@@ -173,21 +151,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithGoogle = async (code: string, token?: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/google`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include',
-        body: JSON.stringify({ code, token }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Google login failed");
-      }
-
-      const data = await res.json();
-      setUser(data.user);
-      return data.user;
+      const res = await api.post('/auth/google', { code, token });
+      setUser(res.data.user);
+      return res.data.user;
+    } catch (error) {
+      const err = error as AxiosError<{ message: string }>;
+      throw new Error(err.response?.data?.message || "Google login failed");
     } finally {
       setIsLoading(false);
     }
@@ -195,11 +164,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkPendingInvites = async () => {
     try {
-      const res = await fetch(`${API_URL}/invitations/my-pending`, {
-        credentials: 'include'
-      });
-      if (!res.ok) return [];
-      return await res.json();
+      const res = await api.get('/invitations/my-pending');
+      return res.data;
     } catch (error) {
       console.error("Check pending invites failed", error);
       return [];
@@ -207,42 +173,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const acceptInvite = async (token: string) => {
-    const res = await fetch(`${API_URL}/invitations/accept`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: 'include',
-      body: JSON.stringify({ token }),
-    });
-
-    if (!res.ok) {
-      const error = await res.json();
-      throw new Error(error.message || "Failed to accept invite");
+    try {
+      await api.post('/invitations/accept', { token });
+      await refreshUser(); // Refresh user to get new membership
+    } catch (error) {
+      const err = error as AxiosError<{ message: string }>;
+      throw new Error(err.response?.data?.message || "Failed to accept invite");
     }
-
-    // Refresh user to get new membership
-    await refreshUser();
   };
 
   const declineInvite = async (token: string) => {
-    const res = await fetch(`${API_URL}/invitations/decline`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: 'include',
-      body: JSON.stringify({ token }),
-    });
-
-    if (!res.ok) {
-      const error = await res.json();
-      throw new Error(error.message || "Failed to decline invite");
+    try {
+        await api.post('/invitations/decline', { token });
+    } catch (error) {
+        const err = error as AxiosError<{ message: string }>;
+        throw new Error(err.response?.data?.message || "Failed to decline invite");
     }
   };
 
   const logout = async () => {
     try {
-      await fetch(`${API_URL}/auth/logout`, {
-        method: "POST",
-        credentials: 'include'
-      });
+      await api.post('/auth/logout');
     } catch (e) {
       console.error(e);
     }
@@ -256,17 +207,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sendLoginOtp = async (email: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/send-login-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include',
-        body: JSON.stringify({ email }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to send OTP");
-      }
+      await api.post('/auth/send-login-otp', { email });
+    } catch (error) {
+        const err = error as AxiosError<{ message: string }>;
+        throw new Error(err.response?.data?.message || "Failed to send OTP");
     } finally {
       setIsLoading(false);
     }
@@ -275,20 +219,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifyLoginOtp = async (email: string, otp: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/verify-login-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include',
-        body: JSON.stringify({ email, otp }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Invalid OTP");
-      }
-
-      const data = await res.json();
-      setUser(data.user);
+      const res = await api.post('/auth/verify-login-otp', { email, otp });
+      setUser(res.data.user);
+    } catch (error) {
+        const err = error as AxiosError<{ message: string }>;
+        throw new Error(err.response?.data?.message || "Invalid OTP");
     } finally {
       setIsLoading(false);
     }
@@ -297,22 +232,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sendSignupOtp = async (data: SignupData) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/send-signup-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include',
-        body: JSON.stringify({
+      await api.post('/auth/send-signup-otp', {
           email: data.email,
           password: data.password,
           full_name: data.full_name,
           token: data.token,
-        }),
       });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to send verification OTP");
-      }
+    } catch (error) {
+        const err = error as AxiosError<{ message: string }>;
+        throw new Error(err.response?.data?.message || "Failed to send verification OTP");
     } finally {
       setIsLoading(false);
     }
@@ -321,21 +249,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifySignupOtp = async (email: string, otp: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/verify-signup-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include',
-        body: JSON.stringify({ email, otp }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to verify OTP");
-      }
-
-      const data = await res.json();
-      setUser(data.user);
-      return data.user;
+      const res = await api.post('/auth/verify-signup-otp', { email, otp });
+      setUser(res.data.user);
+      return res.data.user;
+    } catch (error) {
+        const err = error as AxiosError<{ message: string }>;
+        throw new Error(err.response?.data?.message || "Failed to verify OTP");
     } finally {
       setIsLoading(false);
     }

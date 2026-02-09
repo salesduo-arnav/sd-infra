@@ -146,8 +146,8 @@ export default function AdminOrganizations() {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
-        sortBy: sortField,
-        sortOrder: sortOrder,
+        sort_by: sortField,
+        sort_dir: sortOrder,
       });
 
       if (debouncedSearch) {
