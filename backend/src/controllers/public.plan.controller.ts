@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Plan, Bundle, BundlePlan, Tool, Feature, BundleGroup } from '../models';
+import { Plan, Bundle, BundlePlan, Tool, Feature, BundleGroup, PlanLimit } from '../models';
 import { handleError } from '../utils/error';
 
 
@@ -29,6 +29,11 @@ export const getPublicBundles = async (req: Request, res: Response) => {
                                         model: Tool,
                                         as: 'tool',
                                         include: [{ model: Feature, as: 'features' }]
+                                    },
+                                    {
+                                        model: PlanLimit,
+                                        as: 'limits',
+                                        include: [{ model: Feature, as: 'feature' }]
                                     }
                                 ]
                             }
@@ -60,6 +65,11 @@ export const getPublicPlans = async (req: Request, res: Response) => {
                     as: 'tool',
                     where: { is_active: true },
                     include: [{ model: Feature, as: 'features' }]
+                },
+                {
+                    model: PlanLimit,
+                    as: 'limits',
+                    include: [{ model: Feature, as: 'feature' }]
                 }
             ],
             order: [

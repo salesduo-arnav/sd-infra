@@ -1,11 +1,18 @@
 import { ReactNode } from "react";
 
+export interface FeatureItem {
+  name: string;
+  limit?: string;
+  isEnabled: boolean;
+}
+
 export interface BundleTier {
   id: string;
   name: string;
   price: number;
   period: string;
   limits: string;
+  features?: FeatureItem[];
 }
 
 export interface Bundle {
@@ -24,6 +31,7 @@ export interface AppTier {
   price: number;
   period: string;
   limits: string;
+  features?: FeatureItem[];
 }
 
 export interface App {
@@ -32,7 +40,7 @@ export interface App {
   description: string;
   icon: ReactNode;
   tiers: AppTier[];
-  features: string[];
+  features: string[]; // This might stay as string[] for the summary card
   status: "available" | "coming-soon";
 }
 
@@ -44,4 +52,6 @@ export interface CartItem {
   tierName: string;
   price: number;
   period: string;
+  features?: FeatureItem[];
+  limits?: string;
 }

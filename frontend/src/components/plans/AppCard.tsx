@@ -93,6 +93,8 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
                                     tierName: tier.name,
                                     price: tier.price,
                                     period: tier.period,
+                                    limits: tier.limits,
+                                    features: tier.features
                                     })
                                 }
                                 className={cn(
