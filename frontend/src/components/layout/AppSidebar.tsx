@@ -13,7 +13,6 @@ import {
   ChevronsUpDown,
   Check,
   Plus,
-  FileText
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -219,18 +218,6 @@ export function AppSidebar() {
                       <Link to="/admin/organizations">
                         <Building2 className="h-4 w-4 opacity-70" />
                         <span>Manage Orgs</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive("/admin/audit-logs")}
-                      className="gap-3 px-3 py-2"
-                    >
-                      <Link to="/admin/audit-logs">
-                        <FileText className="h-4 w-4 opacity-70" />
-                        <span>Audit Logs</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

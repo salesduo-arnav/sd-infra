@@ -242,7 +242,7 @@ export const removePlanFromBundle = async (bundleId: string, planId: string) => 
 };
 
 // Audit Logs
-export const getAuditLogs = async (params?: PaginationParams & { action?: string; entity_type?: string; actor_id?: string; start_date?: string; end_date?: string }) => {
+export const getAuditLogs = async (params?: PaginationParams & { action?: string; entity_type?: string; actor_id?: string; start_date?: string; end_date?: string; search?: string }) => {
   const response = await api.get('/admin/audit-logs', { params });
   return response.data; // { audit_logs: [], meta: {} }
 };

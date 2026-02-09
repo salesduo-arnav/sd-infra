@@ -8,10 +8,21 @@ import { handleError } from '../utils/error';
 export const getAuditLogs = async (req: Request, res: Response) => {
     try {
         const { page, limit, offset, sortBy, sortOrder } = getPaginationOptions(req);
-        const { action, entity_type, actor_id, start_date, end_date } = req.query;
+        const { action, entity_type, actor_id, start_date, end_date, search } = req.query;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const whereClause: any = {};
+
+        // Search across multiple fields
+        if (search && typeof search === 'string' && search.trim()) {
+            whereClause[Op.or] = [
+                { action: { [Op.iLike]: `%${search}%` } },
+                { entity_type: { [Op.iLike]: `%${search}%` } },
+                { entity_id: { [Op.iLike]: `%${search}%` } },
+                { '$actor.email$': { [Op.iLike]: `%${search}%` } },
+                { '$actor.full_name$': { [Op.iLike]: `%${search}%` } },
+            ];
+        }
 
         if (action) {
             whereClause.action = action;

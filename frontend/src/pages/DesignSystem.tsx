@@ -43,6 +43,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { format } from "date-fns";
 import { Calendar as CalendarIcon, Terminal, CreditCard, Settings, User } from "lucide-react";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+import { TimePicker, TimePickerInline } from "@/components/ui/time-picker";
+import { DateTimePicker, DateTimeRangePicker } from "@/components/ui/datetime-picker";
 import React, { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
@@ -318,6 +320,12 @@ const FeedbackSection = () => (
 const InteractiveSection = () => {
     const { toast } = useToast();
     const [date, setDate] = React.useState<Date | undefined>(new Date());
+    const [dateTime, setDateTime] = React.useState<Date | undefined>(new Date());
+    const [dateTime24h, setDateTime24h] = React.useState<Date | undefined>(new Date());
+    const [rangeFrom, setRangeFrom] = React.useState<Date | undefined>();
+    const [rangeTo, setRangeTo] = React.useState<Date | undefined>();
+    const [selectedTime, setSelectedTime] = React.useState("14:30");
+    const [inlineTime, setInlineTime] = React.useState("09:00");
 
     return (
         <section className="space-y-6">
@@ -385,6 +393,114 @@ const InteractiveSection = () => {
                 >
                     Show Toast
                 </Button>
+            </div>
+
+            {/* DateTime Picker Section */}
+            <div className="space-y-4 pt-4">
+                <h3 className="text-xl font-semibold">DateTime Picker</h3>
+                <p className="text-sm text-muted-foreground">
+                    A comprehensive date and time picker with configurable options.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {/* Standard 12h format */}
+                    <div className="space-y-2">
+                        <Label>12-Hour Format (Default)</Label>
+                        <DateTimePicker
+                            value={dateTime}
+                            onChange={setDateTime}
+                            placeholder="Pick date & time"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            {dateTime ? format(dateTime, "PPpp") : "No date selected"}
+                        </p>
+                    </div>
+
+                    {/* 24h format */}
+                    <div className="space-y-2">
+                        <Label>24-Hour Format</Label>
+                        <DateTimePicker
+                            value={dateTime24h}
+                            onChange={setDateTime24h}
+                            placeholder="Pick date & time"
+                            timeFormat="24h"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            {dateTime24h ? format(dateTime24h, "PPP HH:mm") : "No date selected"}
+                        </p>
+                    </div>
+
+                    {/* 15 min intervals */}
+                    <div className="space-y-2">
+                        <Label>15-Minute Intervals</Label>
+                        <DateTimePicker
+                            value={dateTime}
+                            onChange={setDateTime}
+                            placeholder="Pick date & time"
+                            minuteInterval={15}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Only shows 0, 15, 30, 45 minutes
+                        </p>
+                    </div>
+
+                    {/* Disabled state */}
+                    <div className="space-y-2">
+                        <Label>Disabled State</Label>
+                        <DateTimePicker
+                            value={dateTime}
+                            disabled
+                            placeholder="Disabled picker"
+                        />
+                    </div>
+                </div>
+
+                {/* DateTime Range Picker */}
+                <div className="space-y-3 pt-4">
+                    <Label className="text-base font-medium">DateTime Range Picker</Label>
+                    <DateTimeRangePicker
+                        from={rangeFrom}
+                        to={rangeTo}
+                        onFromChange={setRangeFrom}
+                        onToChange={setRangeTo}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                        {rangeFrom && rangeTo
+                            ? `${format(rangeFrom, "PPpp")} → ${format(rangeTo, "PPpp")}`
+                            : "Select a date range"}
+                    </p>
+                </div>
+            </div>
+
+            {/* Time Picker Section */}
+            <div className="space-y-4 pt-4">
+                <h3 className="text-xl font-semibold">Time Picker</h3>
+                <div className="flex flex-wrap gap-6 items-end">
+                    <div className="space-y-2">
+                        <Label>Standard Time Picker</Label>
+                        <TimePicker
+                            value={selectedTime}
+                            onChange={setSelectedTime}
+                            placeholder="Select time"
+                        />
+                        <p className="text-xs text-muted-foreground">Selected: {selectedTime}</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Inline Time Picker</Label>
+                        <TimePickerInline
+                            value={inlineTime}
+                            onChange={setInlineTime}
+                        />
+                        <p className="text-xs text-muted-foreground">Selected: {inlineTime}</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Disabled State</Label>
+                        <TimePicker
+                            value="10:00"
+                            disabled
+                            placeholder="Disabled"
+                        />
+                    </div>
+                </div>
             </div>
         </section>
     );
