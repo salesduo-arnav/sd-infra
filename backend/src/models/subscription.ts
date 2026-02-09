@@ -21,6 +21,7 @@ export interface SubscriptionAttributes {
   current_period_start?: Date;
   current_period_end?: Date;
   cancel_at_period_end: boolean;
+  deleted_at?: Date | null;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -38,6 +39,7 @@ export type SubscriptionCreationAttributes = Optional<
   | 'cancel_at_period_end'
   | 'created_at'
   | 'updated_at'
+  | 'deleted_at'
 >;
 
 export class Subscription extends Model<SubscriptionAttributes, SubscriptionCreationAttributes> implements SubscriptionAttributes {
@@ -52,7 +54,8 @@ export class Subscription extends Model<SubscriptionAttributes, SubscriptionCrea
   public current_period_start!: Date;
   public current_period_end!: Date;
   public cancel_at_period_end!: boolean;
-  
+  public readonly deleted_at!: Date | null;
+
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 
@@ -121,13 +124,19 @@ Subscription.init(
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     sequelize,
     tableName: 'subscriptions',
     timestamps: true,
+    paranoid: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
+    deletedAt: 'deleted_at',
     validate: {
       eitherPlanOrBundle() {
         if (!this.plan_id && !this.bundle_id) {

@@ -19,11 +19,12 @@ export interface OneTimePurchaseAttributes {
   status?: string;
   created_at?: Date;
   updated_at?: Date;
+  deleted_at?: Date | null;
 }
 
 export type OneTimePurchaseCreationAttributes = Optional<
   OneTimePurchaseAttributes,
-  'id' | 'plan_id' | 'bundle_id' | 'stripe_payment_intent_id' | 'amount_paid' | 'currency' | 'status' | 'created_at' | 'updated_at'
+  'id' | 'plan_id' | 'bundle_id' | 'stripe_payment_intent_id' | 'amount_paid' | 'currency' | 'status' | 'created_at' | 'updated_at' | 'deleted_at'
 >;
 
 export class OneTimePurchase extends Model<OneTimePurchaseAttributes, OneTimePurchaseCreationAttributes> implements OneTimePurchaseAttributes {
@@ -35,9 +36,10 @@ export class OneTimePurchase extends Model<OneTimePurchaseAttributes, OneTimePur
   public amount_paid!: number;
   public currency!: string;
   public status!: string;
-  
+
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
+  public readonly deleted_at!: Date | null;
 
   public readonly organization?: Organization;
   public readonly plan?: Plan;
@@ -78,7 +80,7 @@ OneTimePurchase.init(
     stripe_payment_intent_id: {
       type: DataTypes.STRING,
       allowNull: true,
-      unique: true,
+      unique: false, // Partial index in DB
     },
     amount_paid: {
       type: DataTypes.INTEGER,
@@ -93,6 +95,10 @@ OneTimePurchase.init(
       allowNull: true,
       comment: 'succeeded, refunded',
     },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     sequelize,
@@ -100,5 +106,7 @@ OneTimePurchase.init(
     timestamps: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
+    deletedAt: 'deleted_at',
+    paranoid: true,
   }
 );

@@ -112,6 +112,10 @@ Organization.init(
     hooks: {
       afterDestroy: async (organization, options) => {
         const { Invitation } = await import('./invitation'); // Dynamic import
+        const { Subscription } = await import('./subscription');
+        const { OrganizationEntitlement } = await import('./organization_entitlement');
+        const { OneTimePurchase } = await import('./one_time_purchase');
+
         // Soft delete members
         await OrganizationMember.destroy({
           where: { organization_id: organization.id },
@@ -119,6 +123,21 @@ Organization.init(
         });
         // Soft delete invitations
         await Invitation.destroy({
+          where: { organization_id: organization.id },
+          transaction: options.transaction,
+        });
+        // Soft delete subscriptions
+        await Subscription.destroy({
+          where: { organization_id: organization.id },
+          transaction: options.transaction,
+        });
+        // Soft delete entitlements
+        await OrganizationEntitlement.destroy({
+          where: { organization_id: organization.id },
+          transaction: options.transaction,
+        });
+        // Soft delete OTPs
+        await OneTimePurchase.destroy({
           where: { organization_id: organization.id },
           transaction: options.transaction,
         });

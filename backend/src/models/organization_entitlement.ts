@@ -20,11 +20,12 @@ export interface OrganizationEntitlementAttributes {
   last_reset_at?: Date;
   updated_at?: Date;
   created_at?: Date;
+  deleted_at?: Date | null;
 }
 
 export type OrganizationEntitlementCreationAttributes = Optional<
   OrganizationEntitlementAttributes,
-  'id' | 'limit_amount' | 'usage_amount' | 'reset_period' | 'last_reset_at' | 'updated_at' | 'created_at'
+  'id' | 'limit_amount' | 'usage_amount' | 'reset_period' | 'last_reset_at' | 'updated_at' | 'created_at' | 'deleted_at' | 'tool_id' | 'feature_id'
 >;
 
 export class OrganizationEntitlement extends Model<OrganizationEntitlementAttributes, OrganizationEntitlementCreationAttributes> implements OrganizationEntitlementAttributes {
@@ -36,9 +37,10 @@ export class OrganizationEntitlement extends Model<OrganizationEntitlementAttrib
   public usage_amount!: number;
   public reset_period!: FeatureResetPeriod;
   public last_reset_at!: Date;
-  
+
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
+  public readonly deleted_at!: Date | null;
 
   public readonly organization?: Organization;
   public readonly tool?: Tool;
@@ -95,6 +97,10 @@ OrganizationEntitlement.init(
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
     },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     sequelize,
@@ -102,11 +108,16 @@ OrganizationEntitlement.init(
     timestamps: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
+    deletedAt: 'deleted_at',
+    paranoid: true,
     indexes: [
       {
         unique: true,
         fields: ['organization_id', 'feature_id'],
         name: 'os_entitlements_org_id_feat_id_unique', // Explicit name to avoid length issues
+        where: {
+          deleted_at: null,
+        },
       },
     ],
   }
