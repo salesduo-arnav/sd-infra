@@ -12,14 +12,14 @@ import { Bundle } from './bundle';
 export interface SubscriptionAttributes {
   id: string;
   organization_id: string;
-  plan_id?: string;
-  bundle_id?: string;
-  stripe_subscription_id?: string;
+  plan_id?: string | null;
+  bundle_id?: string | null;
+  stripe_subscription_id?: string | null;
   status: SubStatus;
-  trial_start?: Date;
-  trial_end?: Date;
-  current_period_start?: Date;
-  current_period_end?: Date;
+  trial_start?: Date | null;
+  trial_end?: Date | null;
+  current_period_start?: Date | null;
+  current_period_end?: Date | null;
   cancel_at_period_end: boolean;
   deleted_at?: Date | null;
   created_at?: Date;
@@ -45,14 +45,14 @@ export type SubscriptionCreationAttributes = Optional<
 export class Subscription extends Model<SubscriptionAttributes, SubscriptionCreationAttributes> implements SubscriptionAttributes {
   public id!: string;
   public organization_id!: string;
-  public plan_id!: string | undefined;
-  public bundle_id!: string | undefined;
-  public stripe_subscription_id!: string;
+  public plan_id!: string | null | undefined;
+  public bundle_id!: string | null | undefined;
+  public stripe_subscription_id!: string | null;
   public status!: SubStatus;
-  public trial_start!: Date;
-  public trial_end!: Date;
-  public current_period_start!: Date;
-  public current_period_end!: Date;
+  public trial_start!: Date | null;
+  public trial_end!: Date | null;
+  public current_period_start!: Date | null;
+  public current_period_end!: Date | null;
   public cancel_at_period_end!: boolean;
   public readonly deleted_at!: Date | null;
 
