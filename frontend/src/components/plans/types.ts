@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 
 export interface BundleTier {
+  id: string;
   name: string;
   price: number;
   period: string;
@@ -18,6 +19,7 @@ export interface Bundle {
 }
 
 export interface AppTier {
+  id: string; // The Plan ID
   name: string;
   price: number;
   period: string;
@@ -36,6 +38,7 @@ export interface App {
 
 export interface CartItem {
   id: string;
+  planId: string;
   type: "bundle" | "app";
   name: string;
   tierName: string;

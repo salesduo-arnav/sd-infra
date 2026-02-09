@@ -12,6 +12,7 @@ import { BundleCard } from "@/components/plans/BundleCard";
 import { AppCard } from "@/components/plans/AppCard";
 import { Bundle, App, CartItem } from "@/components/plans/types";
 import { PublicBundleGroup, PublicBundlePlan } from "@/services/public.service";
+import { useNavigate } from "react-router-dom";
 
 // Icons mapping helper
 const getIconForSlug = (slug: string) => {
@@ -28,6 +29,7 @@ const getIconForSlug = (slug: string) => {
 };
 
 export default function Plans() {
+  const navigate = useNavigate();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeTab, setActiveTab] = useState("bundles");
   const [expandedBundle, setExpandedBundle] = useState<string | null>(null);
@@ -67,6 +69,7 @@ export default function Plans() {
                     apps: apps,
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     tiers: group.bundles.map((b: any) => ({
+                        id: b.id,
                         name: b.tier_label || b.name, // Use label vs name fallback
                         price: b.price,
                         period: "/" + b.interval,
@@ -99,6 +102,7 @@ export default function Plans() {
 
                 const app = appsMap.get(tool.id)!;
                 app.tiers.push({
+                    id: plan.id,
                     name: plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1), // Capitalize
                     price: plan.price,
                     period: "/" + plan.interval,
@@ -162,6 +166,27 @@ export default function Plans() {
 
   const cartTotal = cart.reduce((sum, item) => sum + item.price, 0);
   const cartItemCount = cart.length;
+
+  const handleCheckout = () => {
+    if (cart.length === 0) return;
+
+    const itemsToCheckout = cart.map(item => ({
+        id: item.planId, // Use the specific Plan/Bundle Variant ID
+        type: item.type === 'app' ? 'plan' : item.type, // Map 'app' to 'plan'
+        interval: item.period.includes('year') ? 'yearly' : 'monthly',
+        price: item.price,
+        name: item.name
+    }));
+    
+    // Check mixed intervals
+    const firstInterval = itemsToCheckout[0].interval;
+    if (itemsToCheckout.some(i => i.interval !== firstInterval)) {
+        toast.error("Please checkout monthly and yearly plans separately.");
+        return;
+    }
+
+    navigate('/checkout', { state: { items: itemsToCheckout } });
+  };
 
   const handleBundleClick = (bundleId: string) => {
     setExpandedBundle(expandedBundle === bundleId ? null : bundleId);
@@ -398,7 +423,7 @@ export default function Plans() {
                   ${cartTotal.toFixed(2)}
                 </span>
               </div>
-              <Button className="w-full" size="lg">
+              <Button className="w-full" size="lg" onClick={handleCheckout}>
                 Proceed to Checkout
               </Button>
               <Button

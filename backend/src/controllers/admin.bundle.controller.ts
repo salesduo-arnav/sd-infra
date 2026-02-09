@@ -5,6 +5,7 @@ import { Bundle } from '../models/bundle';
 import { BundleGroup } from '../models/bundle_group';
 import { Plan } from '../models/plan';
 import { PlanLimit } from '../models/plan_limit';
+import { stripeService } from '../services/stripe.service';
 import { Feature } from '../models/feature';
 import { BundlePlan } from '../models/bundle_plan';
 import { PriceInterval } from '../models/enums';
@@ -177,6 +178,18 @@ export const createBundle = async (req: Request, res: Response) => {
              return res.status(400).json({ message: 'Invalid price interval' });
         }
 
+        // 1. Create Stripe Product & Prices
+        const stripeProduct = await stripeService.createProduct(name, description);
+        
+        let stripePriceMonthly;
+        let stripePriceYearly;
+
+        const monthlyAmount = interval === 'monthly' ? price : Math.round(price / 12);
+        const yearlyAmount = interval === 'yearly' ? price : price * 12;
+
+        stripePriceMonthly = await stripeService.createPrice(stripeProduct.id, monthlyAmount, currency, 'month');
+        stripePriceYearly = await stripeService.createPrice(stripeProduct.id, yearlyAmount, currency, 'year');
+
         const bundle = await sequelize.transaction(async (t) => {
             const existingBundle = await Bundle.findOne({ where: { slug }, transaction: t });
             if (existingBundle) {
@@ -192,7 +205,10 @@ export const createBundle = async (req: Request, res: Response) => {
                 description,
                 active: active ?? true,
                 bundle_group_id,
-                tier_label
+                tier_label,
+                stripe_product_id: stripeProduct.id,
+                stripe_price_id_monthly: stripePriceMonthly.id,
+                stripe_price_id_yearly: stripePriceYearly.id
             }, { transaction: t });
         });
 
@@ -202,7 +218,7 @@ export const createBundle = async (req: Request, res: Response) => {
     }
 };
 
-    export const updateBundle = async (req: Request, res: Response) => {
+export const updateBundle = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { name, slug, price, currency, interval, description, active, bundle_group_id, tier_label } = req.body;
@@ -221,7 +237,7 @@ export const createBundle = async (req: Request, res: Response) => {
                 }
             }
 
-            return await bundle.update({
+            const updates: any = {
                 name: name ?? bundle.name,
                 slug: slug ?? bundle.slug,
                 price: price !== undefined ? price : bundle.price,
@@ -231,7 +247,32 @@ export const createBundle = async (req: Request, res: Response) => {
                 active: active ?? bundle.active,
                 bundle_group_id: bundle_group_id !== undefined ? bundle_group_id : bundle.bundle_group_id,
                 tier_label: tier_label !== undefined ? tier_label : bundle.tier_label
-            }, { transaction: t });
+            };
+
+            // Check if price-affecting fields are changed
+             if (
+                (updates.price !== undefined && updates.price !== bundle.price) ||
+                (updates.currency && updates.currency !== bundle.currency) ||
+                (updates.interval && updates.interval !== bundle.interval)
+            ) {
+                 const productId = bundle.stripe_product_id;
+                 if (productId) {
+                     const newPrice = updates.price;
+                     const newCurrency = updates.currency;
+                     const newInterval = updates.interval;
+
+                     const monthlyAmount = newInterval === 'monthly' ? newPrice : Math.round(newPrice / 12);
+                     const yearlyAmount = newInterval === 'yearly' ? newPrice : newPrice * 12;
+
+                     const stripePriceMonthly = await stripeService.createPrice(productId, monthlyAmount, newCurrency, 'month');
+                     const stripePriceYearly = await stripeService.createPrice(productId, yearlyAmount, newCurrency, 'year');
+                     
+                     updates.stripe_price_id_monthly = stripePriceMonthly.id;
+                     updates.stripe_price_id_yearly = stripePriceYearly.id;
+                 }
+            }
+
+            return await bundle.update(updates, { transaction: t });
         });
 
         res.status(200).json(updatedBundle);

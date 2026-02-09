@@ -19,13 +19,15 @@ export interface OrganizationAttributes {
   slug: string;
   website?: string;
   stripe_customer_id?: string;
+  billing_email?: string;
+  tax_id?: string;
   status: OrgStatus;
   deleted_at?: Date | null;
   created_at?: Date;
   updated_at?: Date;
 }
 
-export type OrganizationCreationAttributes = Optional<OrganizationAttributes, 'id' | 'website' | 'stripe_customer_id' | 'status' | 'deleted_at' | 'created_at' | 'updated_at'>;
+export type OrganizationCreationAttributes = Optional<OrganizationAttributes, 'id' | 'website' | 'stripe_customer_id' | 'billing_email' | 'tax_id' | 'status' | 'deleted_at' | 'created_at' | 'updated_at'>;
 
 export class Organization extends Model<OrganizationAttributes, OrganizationCreationAttributes> implements OrganizationAttributes {
   public id!: string;
@@ -33,6 +35,8 @@ export class Organization extends Model<OrganizationAttributes, OrganizationCrea
   public slug!: string;
   public website!: string;
   public stripe_customer_id!: string;
+  public billing_email!: string;
+  public tax_id!: string;
   public status!: OrgStatus;
   public deleted_at!: Date | null;
 
@@ -64,6 +68,14 @@ Organization.init(
       type: DataTypes.STRING,
       allowNull: true,
       unique: true,
+    },
+    billing_email: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    tax_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     status: {
       type: DataTypes.ENUM(...Object.values(OrgStatus)),

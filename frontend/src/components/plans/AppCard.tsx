@@ -87,6 +87,7 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
                                 onClick={() =>
                                     onToggleCartItem({
                                     id: app.id,
+                                    planId: tier.id,
                                     type: "app",
                                     name: app.name,
                                     tierName: tier.name,

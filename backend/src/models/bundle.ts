@@ -15,6 +15,9 @@ export interface BundleAttributes {
   price: number;
   currency: string;
   interval: PriceInterval;
+  stripe_product_id?: string;
+  stripe_price_id_monthly?: string;
+  stripe_price_id_yearly?: string;
   description?: string;
   active: boolean;
   created_at?: Date;
@@ -32,6 +35,9 @@ export class Bundle extends Model<BundleAttributes, BundleCreationAttributes> im
   public price!: number;
   public currency!: string;
   public interval!: PriceInterval;
+  public stripe_product_id!: string;
+  public stripe_price_id_monthly!: string;
+  public stripe_price_id_yearly!: string;
   public description!: string;
   public active!: boolean;
   
@@ -79,6 +85,18 @@ Bundle.init(
     interval: {
       type: DataTypes.ENUM(...Object.values(PriceInterval)),
       allowNull: false,
+    },
+    stripe_product_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    stripe_price_id_monthly: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    stripe_price_id_yearly: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     description: {
       type: DataTypes.TEXT,

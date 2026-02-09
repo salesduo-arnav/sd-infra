@@ -92,6 +92,7 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
                         onClick={() =>
                             onToggleCartItem({
                             id: bundle.id, // Group ID
+                            planId: tier.id,
                             type: "bundle",
                             name: bundle.name, // Group Name
                             tierName: tier.name,
