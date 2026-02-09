@@ -19,4 +19,12 @@ router.post('/checkout-session', billingController.createCheckoutSession.bind(bi
 // Create Portal Session
 router.post('/portal-session', billingController.createPortalSession.bind(billingController));
 
+// Invoices and Payment Methods
+router.get('/invoices', billingController.getInvoices.bind(billingController));
+router.get('/payment-methods', billingController.getPaymentMethods.bind(billingController));
+
+// Subscription Management
+router.post('/subscription/:id/cancel', billingController.cancelSubscription.bind(billingController));
+router.post('/subscription/:id/resume', billingController.resumeSubscription.bind(billingController));
+
 export default router;

@@ -159,6 +159,90 @@ class BillingController {
     }
   }
 
+  // Get Invoices
+  async getInvoices(req: Request, res: Response, next: NextFunction) {
+      try {
+          const organization = req.organization;
+          if (!organization || !organization.stripe_customer_id) {
+              res.status(200).json({ invoices: [] });
+              return;
+          }
+
+          const invoices = await stripeService.getInvoices(organization.stripe_customer_id);
+          res.status(200).json({ invoices: invoices.data });
+      } catch (error) {
+          next(error);
+      }
+  }
+
+  // Get Payment Methods
+  async getPaymentMethods(req: Request, res: Response, next: NextFunction) {
+      try {
+          const organization = req.organization;
+          if (!organization || !organization.stripe_customer_id) {
+              res.status(200).json({ paymentMethods: [] });
+              return;
+          }
+
+          const paymentMethods = await stripeService.getPaymentMethods(organization.stripe_customer_id);
+          res.status(200).json({ paymentMethods: paymentMethods.data });
+      } catch (error) {
+          next(error);
+      }
+  }
+
+  // Cancel Subscription
+  async cancelSubscription(req: Request, res: Response, next: NextFunction) {
+      try {
+          const { id } = req.params;
+          // Verify this subscription belongs to the organization
+          const subscription = await Subscription.findOne({ 
+              where: { 
+                  stripe_subscription_id: id,
+                  organization_id: req.organization?.id
+              }
+          });
+
+          if (!subscription) {
+              res.status(404).json({ message: 'Subscription not found' });
+              return;
+          }
+
+          await stripeService.cancelSubscription(id);
+          // Optimistically update local state or wait for webhook
+          await subscription.update({ cancel_at_period_end: true });
+          
+          res.status(200).json({ message: 'Subscription cancelled successfully' });
+      } catch (error) {
+          next(error);
+      }
+  }
+
+  // Resume Subscription
+  async resumeSubscription(req: Request, res: Response, next: NextFunction) {
+      try {
+          const { id } = req.params;
+          const subscription = await Subscription.findOne({ 
+              where: { 
+                  stripe_subscription_id: id,
+                  organization_id: req.organization?.id
+              }
+          });
+
+          if (!subscription) {
+              res.status(404).json({ message: 'Subscription not found' });
+              return;
+          }
+
+          await stripeService.resumeSubscription(id);
+          await subscription.update({ cancel_at_period_end: false });
+
+          res.status(200).json({ message: 'Subscription resumed successfully' });
+      } catch (error) {
+          next(error);
+      }
+  }
+
   // Handles Stripe Webhooks
   async handleWebhook(req: Request, res: Response, next: NextFunction) {
     const sig = req.headers['stripe-signature'];
@@ -212,9 +296,19 @@ class BillingController {
   // --- Webhook Handlers ---
 
   private async handleCheckoutSessionCompleted(session: any) {
+    console.log(`[BillingController] Checkout completed for Org ${session.metadata?.organizationId}, Sub ${session.subscription}`);
     const orgId = session.metadata?.organizationId;
     if (orgId && session.subscription) {
        console.log(`Checkout completed for Org ${orgId}, Sub ${session.subscription}`);
+       
+       // Strict Synchronization: Ensure local DB matches the Customer ID that just paid
+       if (session.customer) {
+           const organization = await Organization.findByPk(orgId);
+           if (organization && organization.stripe_customer_id !== session.customer) {
+               console.log(`[BillingController] syncing Customer ID. Local: ${organization.stripe_customer_id} -> Remote: ${session.customer}`);
+               await organization.update({ stripe_customer_id: session.customer as string });
+           }
+       }
     }
   }
 
@@ -224,6 +318,9 @@ class BillingController {
      const toDateNullable = (ts: any): Date | null => {
          if (typeof ts === 'number') {
              return new Date(ts * 1000);
+         }
+         if (ts) {
+            console.warn(`[BillingController] Invalid timestamp received: ${ts} (${typeof ts})`);
          }
          return null;
      }
@@ -244,6 +341,19 @@ class BillingController {
      }
      
      if (orgId) {
+        console.log(`[BillingController] Processing subscription update for Org ${orgId}. Status: ${stripeSub.status}`);
+        
+        let currentPeriodStart = stripeSub.current_period_start;
+        let currentPeriodEnd = stripeSub.current_period_end;
+        
+        if (!currentPeriodStart && stripeSub.items?.data?.[0]?.current_period_start) {
+             currentPeriodStart = stripeSub.items.data[0].current_period_start;
+             currentPeriodEnd = stripeSub.items.data[0].current_period_end;
+             console.log(`[BillingController] Using period from first subscription item: ${currentPeriodStart} - ${currentPeriodEnd}`);
+        } else {
+             console.log(`[BillingController] Period (Root): ${currentPeriodStart} - ${currentPeriodEnd}`);
+        }
+
         const status = mapStripeStatus(stripeSub.status);
         
         // Resolve Plan or Bundle from Price ID
@@ -257,6 +367,7 @@ class BillingController {
              let resolved = false;
 
              if (priceId) {
+                 console.log(`[BillingController] Resolving item with Price ID: ${priceId}`);
                  // Find Plan
                  const plan = await Plan.findOne({ 
                      where: sequelize.or(
@@ -265,6 +376,7 @@ class BillingController {
                      )
                  });
                  if (plan) {
+                     console.log(`[BillingController] Found Plan: ${plan.name} (${plan.id})`);
                      finalPlanId = plan.id;
                      finalBundleId = null;
                      resolved = true;
@@ -279,10 +391,15 @@ class BillingController {
                          )
                      });
                      if (bundle) {
+                         console.log(`[BillingController] Found Bundle: ${bundle.name} (${bundle.id})`);
                          finalBundleId = bundle.id;
                          finalPlanId = null;
                          resolved = true;
                      }
+                 }
+                 
+                 if (!resolved) {
+                     console.log(`[BillingController] Could not resolve Plan or Bundle for Price ID: ${priceId}`);
                  }
              }
 
@@ -303,16 +420,18 @@ class BillingController {
                  const subscriptionData = {
                     stripe_subscription_id: stripeSub.id,
                     status: status,
-                    current_period_start: toDateNullable(stripeSub.current_period_start),
-                    current_period_end: toDateNullable(stripeSub.current_period_end),
+                    current_period_start: toDateNullable(currentPeriodStart ?? item.current_period_start),
+                    current_period_end: toDateNullable(currentPeriodEnd ?? item.current_period_end),
                     trial_start: toDateNullable(stripeSub.trial_start),
                     trial_end: toDateNullable(stripeSub.trial_end),
                     cancel_at_period_end: stripeSub.cancel_at_period_end,
                 };
 
                  if (subscription) {
+                     console.log(`[BillingController] Updating existing subscription: ${subscription.id}`);
                      await subscription.update(subscriptionData);
                  } else {
+                     console.log(`[BillingController] Creating new subscription for Org ${orgId}`);
                      await Subscription.create({
                          organization_id: orgId,
                          ...subscriptionData,
