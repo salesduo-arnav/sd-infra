@@ -6,6 +6,7 @@ import { PlanLimit } from '../models/plan_limit';
 import { Tool } from '../models/tool';
 import { Feature } from '../models/feature';
 import { PriceInterval, TierType, FeatureResetPeriod } from '../models/enums';
+import { stripeService } from '../services/stripe.service';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
@@ -99,6 +100,19 @@ export const createPlan = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Invalid price interval' });
         }
 
+        // 1. Create Stripe Product & Prices
+        const stripeProduct = await stripeService.createProduct(name, description);
+        
+        let stripePriceMonthly;
+        let stripePriceYearly;
+
+        // Calculate amounts (simplified logic: if monthly plan, yearly = price * 12)
+        const monthlyAmount = interval === 'monthly' ? price : Math.round(price / 12);
+        const yearlyAmount = interval === 'yearly' ? price : price * 12;
+
+        stripePriceMonthly = await stripeService.createPrice(stripeProduct.id, monthlyAmount, currency, 'month');
+        stripePriceYearly = await stripeService.createPrice(stripeProduct.id, yearlyAmount, currency, 'year');
+
         const plan = await sequelize.transaction(async (t) => {
             return await Plan.create({
                 name,
@@ -109,7 +123,10 @@ export const createPlan = async (req: Request, res: Response) => {
                 currency,
                 interval,
                 trial_period_days: trial_period_days ?? 0,
-                active: active ?? true
+                active: active ?? true,
+                stripe_product_id: stripeProduct.id,
+                stripe_price_id_monthly: stripePriceMonthly.id,
+                stripe_price_id_yearly: stripePriceYearly.id
             }, { transaction: t });
         });
 
@@ -143,6 +160,30 @@ export const updatePlan = async (req: Request, res: Response) => {
 
             if (!plan) {
                 throw new Error('NOT_FOUND');
+            }
+
+            // Check if price-affecting fields are changed
+            if (
+                (updates.price !== undefined && updates.price !== plan.price) ||
+                (updates.currency && updates.currency !== plan.currency) ||
+                (updates.interval && updates.interval !== plan.interval)
+            ) {
+                 // Re-calculate prices
+                 const newPrice = updates.price !== undefined ? updates.price : plan.price;
+                 const newCurrency = updates.currency || plan.currency;
+                 const newInterval = updates.interval || plan.interval;
+                 const productId = plan.stripe_product_id;
+
+                 if (productId) {
+                     const monthlyAmount = newInterval === 'monthly' ? newPrice : Math.round(newPrice / 12);
+                     const yearlyAmount = newInterval === 'yearly' ? newPrice : newPrice * 12;
+
+                     const stripePriceMonthly = await stripeService.createPrice(productId, monthlyAmount, newCurrency, 'month');
+                     const stripePriceYearly = await stripeService.createPrice(productId, yearlyAmount, newCurrency, 'year');
+                     
+                     updates.stripe_price_id_monthly = stripePriceMonthly.id;
+                     updates.stripe_price_id_yearly = stripePriceYearly.id;
+                 }
             }
 
             return await plan.update(updates, { transaction: t });

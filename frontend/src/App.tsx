@@ -11,6 +11,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Apps from "./pages/Apps";
 import Plans from "./pages/Plans";
 import Billing from "./pages/Billing";
+import CheckoutPage from "./pages/CheckoutPage";
 import Profile from "./pages/Profile";
 import Organisation from "./pages/Organisation";
 import CreateOrganisation from "./pages/CreateOrganisation";
@@ -138,6 +139,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Billing />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/checkout"
+        element={
+          <ProtectedRoute>
+            <CheckoutPage />
           </ProtectedRoute>
         }
       />

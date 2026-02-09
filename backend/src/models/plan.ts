@@ -17,6 +17,9 @@ export interface PlanAttributes {
   currency: string;
   interval: PriceInterval;
   trial_period_days: number;
+  stripe_product_id?: string;
+  stripe_price_id_monthly?: string;
+  stripe_price_id_yearly?: string;
   active: boolean;
   deleted_at?: Date | null;
   created_at?: Date;
@@ -38,6 +41,9 @@ export class Plan extends Model<PlanAttributes, PlanCreationAttributes> implemen
   public currency!: string;
   public interval!: PriceInterval;
   public trial_period_days!: number;
+  public stripe_product_id!: string;
+  public stripe_price_id_monthly!: string;
+  public stripe_price_id_yearly!: string;
 
   public active!: boolean;
   public readonly deleted_at!: Date | null;
@@ -91,6 +97,18 @@ Plan.init(
       type: DataTypes.INTEGER,
       defaultValue: 0,
       comment: 'If > 0, auto-set trial_end on sub creation',
+    },
+    stripe_product_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    stripe_price_id_monthly: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    stripe_price_id_yearly: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     active: {
       type: DataTypes.BOOLEAN,
