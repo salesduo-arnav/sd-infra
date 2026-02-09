@@ -20,11 +20,12 @@ export interface BundleAttributes {
   stripe_price_id_yearly?: string;
   description?: string;
   active: boolean;
+  deleted_at?: Date | null;
   created_at?: Date;
   updated_at?: Date;
 }
 
-export type BundleCreationAttributes = Optional<BundleAttributes, 'id' | 'description' | 'active' | 'created_at' | 'updated_at'>;
+export type BundleCreationAttributes = Optional<BundleAttributes, 'id' | 'description' | 'active' | 'created_at' | 'updated_at' | 'deleted_at'>;
 
 export class Bundle extends Model<BundleAttributes, BundleCreationAttributes> implements BundleAttributes {
   public id!: string;
@@ -40,7 +41,8 @@ export class Bundle extends Model<BundleAttributes, BundleCreationAttributes> im
   public stripe_price_id_yearly!: string;
   public description!: string;
   public active!: boolean;
-  
+  public readonly deleted_at!: Date | null;
+
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 }
@@ -59,7 +61,7 @@ Bundle.init(
     slug: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
+      unique: false, // Managed by partial index
     },
     bundle_group_id: {
       type: DataTypes.UUID,
@@ -106,12 +108,33 @@ Bundle.init(
       type: DataTypes.BOOLEAN,
       defaultValue: true,
     },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     sequelize,
     tableName: 'bundles',
     timestamps: true,
+    paranoid: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
+    deletedAt: 'deleted_at',
+    indexes: [
+      {
+        unique: true,
+        fields: ['slug'],
+        where: {
+          deleted_at: null,
+        },
+      },
+    ],
+    hooks: {
+      afterDestroy: async (bundle, options) => {
+        const { BundlePlan } = await import('./bundle_plan');
+        await BundlePlan.destroy({ where: { bundle_id: bundle.id }, transaction: options.transaction });
+      }
+    }
   }
 );

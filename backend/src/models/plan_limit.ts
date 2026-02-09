@@ -17,9 +17,10 @@ export interface PlanLimitAttributes {
   reset_period: FeatureResetPeriod;
   created_at?: Date;
   updated_at?: Date;
+  deleted_at?: Date | null;
 }
 
-export type PlanLimitCreationAttributes = Optional<PlanLimitAttributes, 'id' | 'default_limit' | 'is_enabled' | 'reset_period' | 'created_at' | 'updated_at'>;
+export type PlanLimitCreationAttributes = Optional<PlanLimitAttributes, 'id' | 'default_limit' | 'is_enabled' | 'reset_period' | 'created_at' | 'updated_at' | 'deleted_at'>;
 
 export class PlanLimit extends Model<PlanLimitAttributes, PlanLimitCreationAttributes> implements PlanLimitAttributes {
   public id!: string;
@@ -28,9 +29,10 @@ export class PlanLimit extends Model<PlanLimitAttributes, PlanLimitCreationAttri
   public default_limit!: number;
   public is_enabled!: boolean;
   public reset_period!: FeatureResetPeriod;
-  
+
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
+  public readonly deleted_at!: Date | null;
 
   public readonly plan?: Plan;
   public readonly feature?: Feature;
@@ -73,6 +75,10 @@ PlanLimit.init(
       type: DataTypes.ENUM(...Object.values(FeatureResetPeriod)),
       defaultValue: FeatureResetPeriod.MONTHLY,
     },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     sequelize,
@@ -80,6 +86,8 @@ PlanLimit.init(
     timestamps: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
+    deletedAt: 'deleted_at',
+    paranoid: true,
     indexes: [
       {
         unique: true,

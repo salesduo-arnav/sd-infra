@@ -12,11 +12,12 @@ export interface ToolAttributes {
   description?: string;
   tool_link?: string;
   is_active: boolean;
+  deleted_at?: Date | null;
   created_at?: Date;
   updated_at?: Date;
 }
 
-export type ToolCreationAttributes = Optional<ToolAttributes, 'id' | 'description' | 'tool_link' | 'is_active' | 'created_at' | 'updated_at'>;
+export type ToolCreationAttributes = Optional<ToolAttributes, 'id' | 'description' | 'tool_link' | 'is_active' | 'created_at' | 'updated_at' | 'deleted_at'>;
 
 export class Tool extends Model<ToolAttributes, ToolCreationAttributes> implements ToolAttributes {
   public id!: string;
@@ -25,7 +26,8 @@ export class Tool extends Model<ToolAttributes, ToolCreationAttributes> implemen
   public description!: string;
   public tool_link!: string;
   public is_active!: boolean;
-  
+  public readonly deleted_at!: Date | null;
+
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 }
@@ -44,7 +46,7 @@ Tool.init(
     slug: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
+      unique: false, // Managed by partial index
       comment: 'e.g. image-generator',
     },
     description: {
@@ -59,12 +61,38 @@ Tool.init(
       type: DataTypes.BOOLEAN,
       defaultValue: true,
     },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     sequelize,
     tableName: 'tools',
     timestamps: true,
+    paranoid: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
+    deletedAt: 'deleted_at',
+    indexes: [
+      {
+        unique: true,
+        fields: ['slug'],
+        where: {
+          deleted_at: null,
+        },
+      },
+    ],
+    hooks: {
+      afterDestroy: async (tool, options) => {
+        const { Feature } = await import('./feature');
+        const { Plan } = await import('./plan');
+        const { OrganizationEntitlement } = await import('./organization_entitlement');
+
+        await Feature.destroy({ where: { tool_id: tool.id }, transaction: options.transaction, individualHooks: true });
+        await Plan.destroy({ where: { tool_id: tool.id }, transaction: options.transaction, individualHooks: true }); // individualHooks for Plan cascade
+        await OrganizationEntitlement.destroy({ where: { tool_id: tool.id }, transaction: options.transaction });
+      }
+    }
   }
 );

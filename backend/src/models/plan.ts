@@ -21,13 +21,14 @@ export interface PlanAttributes {
   stripe_price_id_monthly?: string;
   stripe_price_id_yearly?: string;
   active: boolean;
+  deleted_at?: Date | null;
   created_at?: Date;
   updated_at?: Date;
 }
 
 export type PlanCreationAttributes = Optional<
   PlanAttributes,
-  'id' | 'description' | 'trial_period_days' | 'active' | 'created_at' | 'updated_at'
+  'id' | 'description' | 'trial_period_days' | 'active' | 'created_at' | 'updated_at' | 'deleted_at'
 >;
 
 export class Plan extends Model<PlanAttributes, PlanCreationAttributes> implements PlanAttributes {
@@ -45,7 +46,8 @@ export class Plan extends Model<PlanAttributes, PlanCreationAttributes> implemen
   public stripe_price_id_yearly!: string;
 
   public active!: boolean;
-  
+  public readonly deleted_at!: Date | null;
+
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 
@@ -117,7 +119,18 @@ Plan.init(
     sequelize,
     tableName: 'plans',
     timestamps: true,
+    paranoid: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
+    deletedAt: 'deleted_at',
+    hooks: {
+      afterDestroy: async (plan, options) => {
+        const { PlanLimit } = await import('./plan_limit');
+        const { BundlePlan } = await import('./bundle_plan');
+
+        await PlanLimit.destroy({ where: { plan_id: plan.id }, transaction: options.transaction });
+        await BundlePlan.destroy({ where: { plan_id: plan.id }, transaction: options.transaction });
+      }
+    }
   }
 );

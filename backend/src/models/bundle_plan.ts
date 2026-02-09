@@ -12,16 +12,18 @@ export interface BundlePlanAttributes {
   plan_id: string;
   created_at?: Date;
   updated_at?: Date;
+  deleted_at?: Date | null;
 }
 
-export type BundlePlanCreationAttributes = Optional<BundlePlanAttributes, 'created_at' | 'updated_at'>;
+export type BundlePlanCreationAttributes = Optional<BundlePlanAttributes, 'created_at' | 'updated_at' | 'deleted_at'>;
 
 export class BundlePlan extends Model<BundlePlanAttributes, BundlePlanCreationAttributes> implements BundlePlanAttributes {
   public bundle_id!: string;
   public plan_id!: string;
-  
+
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
+  public readonly deleted_at!: Date | null;
 
   public readonly bundle?: Bundle;
   public readonly plan?: Plan;
@@ -47,6 +49,10 @@ BundlePlan.init(
         key: 'id',
       },
     },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     sequelize,
@@ -54,6 +60,8 @@ BundlePlan.init(
     timestamps: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
+    deletedAt: 'deleted_at',
+    paranoid: true,
     indexes: [
       {
         unique: true,
