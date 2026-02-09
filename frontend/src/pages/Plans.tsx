@@ -1,212 +1,126 @@
 import { useState, useEffect, useCallback } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, Package, Star, Zap, Crown, Sparkles, FileText, ImageIcon, BarChart, TrendingUp, ShoppingCart, X, Trash2, ChevronRight } from "lucide-react";
+import { Package, Star, Zap, Crown, Sparkles, FileText, ImageIcon, BarChart, TrendingUp, ShoppingCart, X, Trash2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+import * as PublicService from "@/services/public.service";
+import { toast } from "sonner";
+import { BundleCard } from "@/components/plans/BundleCard";
+import { AppCard } from "@/components/plans/AppCard";
+import { Bundle, App, CartItem } from "@/components/plans/types";
+import { PublicBundleGroup, PublicBundlePlan } from "@/services/public.service";
 
-interface BundleTier {
-  name: string;
-  price: number;
-  period: string;
-  limits: string;
-}
-
-interface Bundle {
-  id: string;
-  name: string;
-  description: string;
-  apps: string[];
-  tiers: BundleTier[];
-  popular?: boolean;
-  icon: React.ReactNode;
-}
-
-interface AppTier {
-  name: string;
-  price: number;
-  period: string;
-  limits: string;
-}
-
-interface App {
-  id: string;
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  tiers: AppTier[];
-  features: string[];
-  status: "available" | "coming-soon";
-}
-
-interface CartItem {
-  id: string;
-  type: "bundle" | "app";
-  name: string;
-  tierName: string;
-  price: number;
-  period: string;
-}
-
-const bundles: Bundle[] = [
-  {
-    id: "content-creator",
-    name: "Content Creator Bundle",
-    description: "Everything you need to create compelling product content",
-    apps: ["Listing Content Generator", "Image Editor & Optimizer", "A+ Content Builder"],
-    icon: <Sparkles className="h-5 w-5" />,
-    popular: true,
-    tiers: [
-      { name: "Basic", price: 49, period: "/month", limits: "50 listings/month" },
-      { name: "Pro", price: 99, period: "/month", limits: "200 listings/month" },
-      { name: "Unlimited", price: 179, period: "/month", limits: "Unlimited listings" },
-    ],
-  },
-  {
-    id: "analytics",
-    name: "Analytics Bundle",
-    description: "Deep insights into your Amazon business performance",
-    apps: ["Sales Analytics", "Keyword Tracker", "Competitor Monitor", "Profit Calculator"],
-    icon: <Zap className="h-5 w-5" />,
-    tiers: [
-      { name: "Basic", price: 59, period: "/month", limits: "5 products tracked" },
-      { name: "Pro", price: 119, period: "/month", limits: "50 products tracked" },
-      { name: "Unlimited", price: 199, period: "/month", limits: "Unlimited tracking" },
-    ],
-  },
-  {
-    id: "automation",
-    name: "Automation Bundle",
-    description: "Automate repetitive tasks and save hours every week",
-    apps: ["Auto-Repricer", "Inventory Manager", "Review Requester", "Order Tracker"],
-    icon: <Star className="h-5 w-5" />,
-    tiers: [
-      { name: "Basic", price: 69, period: "/month", limits: "100 SKUs" },
-      { name: "Pro", price: 139, period: "/month", limits: "500 SKUs" },
-      { name: "Unlimited", price: 229, period: "/month", limits: "Unlimited SKUs" },
-    ],
-  },
-  {
-    id: "full-suite",
-    name: "Full Suite Bundle",
-    description: "Complete access to all tools and features",
-    apps: ["All Content Tools", "All Analytics Tools", "All Automation Tools", "Priority Support"],
-    icon: <Crown className="h-5 w-5" />,
-    popular: true,
-    tiers: [
-      { name: "Team", price: 299, period: "/month", limits: "Up to 5 users" },
-      { name: "Business", price: 499, period: "/month", limits: "Up to 15 users" },
-      { name: "Enterprise", price: 799, period: "/month", limits: "Unlimited users" },
-    ],
-  },
-  {
-    id: "starter",
-    name: "Starter Bundle",
-    description: "Perfect for new sellers just getting started",
-    apps: ["Listing Content Generator", "Basic Analytics"],
-    icon: <Package className="h-5 w-5" />,
-    tiers: [
-      { name: "Basic", price: 29, period: "/month", limits: "25 listings/month" },
-      { name: "Pro", price: 49, period: "/month", limits: "75 listings/month" },
-    ],
-  },
-];
-
-const apps: App[] = [
-  {
-    id: "listing-generator",
-    name: "Listing Content Generator",
-    description: "AI-powered product listing creation with optimized titles, bullets, and descriptions",
-    icon: <FileText className="h-5 w-5" />,
-    tiers: [
-      { name: "Starter", price: 19, period: "/month", limits: "25 listings/month" },
-      { name: "Pro", price: 29, period: "/month", limits: "100 listings/month" },
-      { name: "Unlimited", price: 49, period: "/month", limits: "Unlimited listings" },
-    ],
-    features: ["AI-powered content", "SEO optimization", "Multiple variations", "Export to Amazon"],
-    status: "available",
-  },
-  {
-    id: "image-editor",
-    name: "Image Editor & Optimizer",
-    description: "Professional image editing and optimization for your product photos",
-    icon: <ImageIcon className="h-5 w-5" />,
-    tiers: [
-      { name: "Starter", price: 14, period: "/month", limits: "50 images/month" },
-      { name: "Pro", price: 19, period: "/month", limits: "200 images/month" },
-      { name: "Unlimited", price: 34, period: "/month", limits: "Unlimited images" },
-    ],
-    features: ["Background removal", "Image enhancement", "Batch processing", "Format optimization"],
-    status: "available",
-  },
-  {
-    id: "keyword-tracker",
-    name: "Keyword Tracker",
-    description: "Track your product rankings for important keywords",
-    icon: <TrendingUp className="h-5 w-5" />,
-    tiers: [
-      { name: "Starter", price: 19, period: "/month", limits: "50 keywords" },
-      { name: "Pro", price: 24, period: "/month", limits: "200 keywords" },
-      { name: "Unlimited", price: 44, period: "/month", limits: "Unlimited keywords" },
-    ],
-    features: ["Real-time tracking", "Competitor analysis", "Historical data", "Ranking alerts"],
-    status: "coming-soon",
-  },
-  {
-    id: "sales-analytics",
-    name: "Sales Analytics",
-    description: "Comprehensive sales analytics and reporting dashboard",
-    icon: <BarChart className="h-5 w-5" />,
-    tiers: [
-      { name: "Starter", price: 24, period: "/month", limits: "Basic reports" },
-      { name: "Pro", price: 34, period: "/month", limits: "Advanced reports" },
-      { name: "Unlimited", price: 54, period: "/month", limits: "Custom dashboards" },
-    ],
-    features: ["Sales reports", "Profit tracking", "Trend analysis", "Custom dashboards"],
-    status: "coming-soon",
-  },
-  {
-    id: "inventory-manager",
-    name: "Inventory Manager",
-    description: "Smart inventory management with automated restock alerts",
-    icon: <Package className="h-5 w-5" />,
-    tiers: [
-      { name: "Starter", price: 29, period: "/month", limits: "100 SKUs" },
-      { name: "Pro", price: 39, period: "/month", limits: "500 SKUs" },
-      { name: "Unlimited", price: 59, period: "/month", limits: "Unlimited SKUs" },
-    ],
-    features: ["Stock tracking", "Restock alerts", "Multi-warehouse", "FBA integration"],
-    status: "coming-soon",
-  },
-  {
-    id: "competitor-monitor",
-    name: "Competitor Monitor",
-    description: "Monitor competitor prices, listings, and strategies",
-    icon: <Sparkles className="h-5 w-5" />,
-    tiers: [
-      { name: "Starter", price: 34, period: "/month", limits: "10 competitors" },
-      { name: "Pro", price: 44, period: "/month", limits: "50 competitors" },
-      { name: "Unlimited", price: 64, period: "/month", limits: "Unlimited competitors" },
-    ],
-    features: ["Price tracking", "Listing changes", "Review monitoring", "Market insights"],
-    status: "coming-soon",
-  },
-];
-
-const popularBundleIds = ["content-creator", "full-suite"];
+// Icons mapping helper
+const getIconForSlug = (slug: string) => {
+    if (slug.includes('generator') || slug.includes('content')) return <FileText className="h-5 w-5" />;
+    if (slug.includes('image')) return <ImageIcon className="h-5 w-5" />;
+    if (slug.includes('analytics') || slug.includes('tracker')) return <BarChart className="h-5 w-5" />;
+    if (slug.includes('inventory')) return <Package className="h-5 w-5" />;
+    if (slug.includes('competitor')) return <TrendingUp className="h-5 w-5" />;
+    // Bundles
+    if (slug.includes('creator')) return <Sparkles className="h-5 w-5" />;
+    if (slug.includes('automation')) return <Zap className="h-5 w-5" />;
+    if (slug.includes('full')) return <Crown className="h-5 w-5" />;
+    return <Star className="h-5 w-5" />;
+};
 
 export default function Plans() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeTab, setActiveTab] = useState("bundles");
   const [expandedBundle, setExpandedBundle] = useState<string | null>(null);
   const [expandedApp, setExpandedApp] = useState<string | null>(null);
-  const [isCartOpen, setIsCartOpen] = useState(true);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
-  const popularBundles = bundles.filter((b) => popularBundleIds.includes(b.id));
+  // State to control transitions - prevents initial load animation glitch
+  const [enableTransition, setEnableTransition] = useState(false);
+
+  // Dynamic Data State
+  const [bundles, setBundles] = useState<Bundle[]>([]);
+  const [apps, setApps] = useState<App[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+        setIsLoading(true);
+        try {
+            const [publicBundles, publicPlans] = await Promise.all([
+                PublicService.getPublicBundles(),
+                PublicService.getPublicPlans()
+            ]);
+
+            // Transform Bundle Groups into Bundle UI Model
+            const transformedBundles: Bundle[] = publicBundles.map((group: PublicBundleGroup) => {
+                const firstBundle = group.bundles && group.bundles.length > 0 ? group.bundles[0] : null;
+
+                const apps = firstBundle ? firstBundle.bundle_plans.map((bp: PublicBundlePlan) => ({
+                    name: bp.plan.tool?.name || "Unknown App",
+                    features: bp.plan.tool?.features?.map((f: { name: string }) => f.name) || []
+                })) : [];
+
+                return {
+                    id: group.id,
+                    name: group.name,
+                    description: group.description,
+                    apps: apps,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    tiers: group.bundles.map((b: any) => ({
+                        name: b.tier_label || b.name, // Use label vs name fallback
+                        price: b.price,
+                        period: "/" + b.interval,
+                        limits: b.description || "Full access" // Use description as limits/details
+                    })),
+                    popular: false, 
+                    icon: getIconForSlug(group.slug)
+                };
+            });
+            setBundles(transformedBundles);
+
+            // Transform Plans into Apps (grouped by Tool)
+            const appsMap = new Map<string, App>();
+
+            publicPlans.forEach(plan => {
+                const tool = plan.tool;
+                if (!tool) return;
+
+                if (!appsMap.has(tool.id)) {
+                    appsMap.set(tool.id, {
+                        id: tool.id,
+                        name: tool.name,
+                        description: tool.description,
+                        icon: getIconForSlug(tool.slug),
+                        tiers: [],
+                        features: tool.features?.map(f => f.name) || [],
+                        status: tool.is_active ? "available" : "coming-soon"
+                    });
+                }
+
+                const app = appsMap.get(tool.id)!;
+                app.tiers.push({
+                    name: plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1), // Capitalize
+                    price: plan.price,
+                    period: "/" + plan.interval,
+                    limits: plan.description || "See details"
+                });
+            });
+
+            setApps(Array.from(appsMap.values()));
+
+        } catch (error) {
+            console.error("Failed to fetch plans data", error);
+            toast.error("Failed to load plans.");
+        } finally {
+            setIsLoading(false);
+            // Enable transitions after a short delay to prevent initial layout shift animation
+            setTimeout(() => setEnableTransition(true), 100);
+        }
+    };
+
+    fetchData();
+  }, []);
+
   const allBundles = bundles;
 
   /**
@@ -216,21 +130,22 @@ export default function Plans() {
    * - Otherwise, add the new tier
    */
   const toggleCartItem = (item: CartItem) => {
-    setCart((prev) => {
-      // Check if this exact tier is already in cart
-      const exactMatch = prev.find(
-        (cartItem) => cartItem.id === item.id && cartItem.tierName === item.tierName
-      );
+    // Check if this exact tier is already in cart
+    const exactMatch = cart.find(
+      (cartItem) => cartItem.id === item.id && cartItem.tierName === item.tierName
+    );
 
-      if (exactMatch) {
-        // Toggle off - remove from cart
-        return prev.filter((cartItem) => !(cartItem.id === item.id && cartItem.tierName === item.tierName));
-      }
-
+    if (exactMatch) {
+      // Toggle off - remove from cart
+      setCart((prev) => prev.filter((cartItem) => !(cartItem.id === item.id && cartItem.tierName === item.tierName)));
+    } else {
       // Remove any existing tier from the same bundle/app, then add the new one
-      const filtered = prev.filter((cartItem) => cartItem.id !== item.id);
-      return [...filtered, item];
-    });
+      setCart((prev) => {
+        const filtered = prev.filter((cartItem) => cartItem.id !== item.id);
+        return [...filtered, item];
+      });
+      setIsCartOpen(true);
+    }
   };
 
   const removeFromCart = (id: string, tierName: string) => {
@@ -277,11 +192,21 @@ export default function Plans() {
     };
   }, [handleOutsideClick]);
 
+  if (isLoading) {
+      return (
+          <Layout>
+              <div className="flex h-[50vh] items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+          </Layout>
+      )
+  }
+
   return (
-    <Layout>
-      <div className="flex">
+    <Layout animationClass="">
+      <div className="flex animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Main Content */}
-        <div className={cn("flex-1 container py-8 transition-all duration-300", isCartOpen ? "pr-[340px]" : "pr-4")}>
+        <div className={cn("flex-1 container py-8", enableTransition && "transition-[padding] duration-300", isCartOpen ? "pr-[340px]" : "pr-4")}>
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold">Choose Your Plan</h1>
             <p className="mt-2 text-muted-foreground">
@@ -298,32 +223,11 @@ export default function Plans() {
 
             {/* Bundles Tab */}
             <TabsContent value="bundles" className="space-y-12">
-              {/* Popular Bundles */}
-              <section>
-                <div className="mb-6 flex items-center gap-2">
-                  <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
-                  <h2 className="text-xl font-semibold">Popular Bundles</h2>
-                </div>
-                <div className={cn("grid gap-6", isCartOpen ? "md:grid-cols-1 lg:grid-cols-2" : "md:grid-cols-2")}>
-                  {popularBundles.map((bundle) => (
-                    <BundleCard
-                      key={bundle.id}
-                      bundle={bundle}
-                      isExpanded={expandedBundle === bundle.id}
-                      onToggle={() => handleBundleClick(bundle.id)}
-                      onToggleCartItem={toggleCartItem}
-                      isInCart={isInCart}
-                      hasAnyTierInCart={hasAnyTierInCart}
-                    />
-                  ))}
-                </div>
-              </section>
-
               {/* All Bundles */}
               <section>
                 <div className="mb-6 flex items-center gap-2">
                   <Package className="h-5 w-5 text-primary" />
-                  <h2 className="text-xl font-semibold">All Bundles</h2>
+                  <h2 className="text-xl font-semibold">Available Bundles</h2>
                 </div>
                 <div className={cn("grid gap-6", isCartOpen ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3")}>
                   {allBundles.map((bundle) => (
@@ -338,6 +242,11 @@ export default function Plans() {
                       compact
                     />
                   ))}
+                  {allBundles.length === 0 && (
+                      <div className="col-span-full text-center text-muted-foreground py-8">
+                          No bundles available at the moment.
+                      </div>
+                  )}
                 </div>
               </section>
             </TabsContent>
@@ -362,16 +271,23 @@ export default function Plans() {
                     hasAnyTierInCart={hasAnyTierInCart}
                   />
                 ))}
+                 {apps.length === 0 && (
+                      <div className="col-span-full text-center text-muted-foreground py-8">
+                          No apps available at the moment.
+                      </div>
+                  )}
               </div>
             </TabsContent>
           </Tabs>
         </div>
+      </div>
 
         {/* Minimized Cart Floating Button */}
         <button
           onClick={() => setIsCartOpen(!isCartOpen)}
           className={cn(
-            "fixed z-50 flex items-center gap-2 rounded-full shadow-lg transition-all duration-300",
+            "fixed z-50 flex items-center gap-2 rounded-full shadow-lg",
+            enableTransition && "transition-all duration-300",
             isCartOpen
               ? "right-[336px] top-4 bg-muted/80 backdrop-blur-sm px-3 py-2 text-muted-foreground hover:bg-muted"
               : "right-4 bottom-4 bg-primary px-4 py-3 text-primary-foreground hover:bg-primary/90"
@@ -394,8 +310,10 @@ export default function Plans() {
 
         {/* Sticky Cart Sidebar */}
         <div
+          data-cart
           className={cn(
-            "fixed right-0 top-0 h-screen border-l bg-background/95 backdrop-blur-sm shadow-xl flex flex-col z-40 transition-all duration-300 ease-in-out",
+            "fixed right-0 bottom-0 h-screen border-l bg-background/95 backdrop-blur-sm shadow-xl flex flex-col z-40 ease-in-out",
+            enableTransition && "transition-all duration-300",
             isCartOpen ? "w-80 translate-x-0" : "w-80 translate-x-full"
           )}
         >
@@ -424,7 +342,7 @@ export default function Plans() {
                   <div className="rounded-full bg-muted/50 p-4 w-fit mx-auto mb-4">
                     <ShoppingCart className="h-8 w-8 opacity-40" />
                   </div>
-                  <p className="text-sm font-medium">No Plns Selected</p>
+                  <p className="text-sm font-medium">No Plans Selected</p>
                   <p className="text-xs mt-1 text-muted-foreground/70">
                     Click on a tier to add it to selected plans
                   </p>
@@ -494,289 +412,6 @@ export default function Plans() {
             </div>
           )}
         </div>
-      </div>
     </Layout>
-  );
-}
-
-interface BundleCardProps {
-  bundle: Bundle;
-  isExpanded: boolean;
-  onToggle: () => void;
-  onToggleCartItem: (item: CartItem) => void;
-  isInCart: (id: string, tierName: string) => boolean;
-  hasAnyTierInCart: (id: string) => boolean;
-  compact?: boolean;
-}
-
-function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isInCart, hasAnyTierInCart, compact }: BundleCardProps) {
-  const hasTierSelected = hasAnyTierInCart(bundle.id);
-  return (
-    <Card
-      data-card
-      className={cn(
-        "relative cursor-pointer transition-all duration-200",
-        isExpanded
-          ? "border-primary ring-2 ring-primary/20 shadow-lg"
-          : "hover:border-primary/50 hover:shadow-md",
-        bundle.popular && !isExpanded && "border-primary/30",
-        hasTierSelected && !isExpanded && "border-primary/50 bg-primary/5"
-      )}
-      onClick={onToggle}
-    >
-      {bundle.popular && (
-        <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500">
-          <Star className="mr-1 h-3 w-3 fill-white" />
-          Best Value
-        </Badge>
-      )}
-      <CardHeader className={compact ? "pb-3" : ""}>
-        <CardTitle className="flex items-center gap-2">
-          <span
-            className={cn(
-              "rounded-lg p-2",
-              isExpanded ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
-            )}
-          >
-            {bundle.icon}
-          </span>
-          <span className={compact ? "text-base" : ""}>{bundle.name}</span>
-        </CardTitle>
-        <CardDescription className={compact ? "text-xs" : ""}>{bundle.description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Included Apps */}
-        <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">Included Apps</p>
-          <ul className={cn("space-y-1", compact && "text-sm")}>
-            {bundle.apps.slice(0, compact ? 3 : bundle.apps.length).map((app) => (
-              <li key={app} className="flex items-center gap-2 text-sm">
-                <Check className="h-3 w-3 text-primary shrink-0" />
-                <span className="truncate">{app}</span>
-              </li>
-            ))}
-            {compact && bundle.apps.length > 3 && (
-              <li className="text-xs text-muted-foreground">+{bundle.apps.length - 3} more</li>
-            )}
-          </ul>
-        </div>
-
-        {/* Pricing Tiers */}
-        {isExpanded && (
-          <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300" onClick={(e) => e.stopPropagation()}>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Select a Tier {hasTierSelected && <span className="text-primary">(1 selected)</span>}
-            </p>
-            {bundle.tiers.map((tier) => {
-              const inCart = isInCart(bundle.id, tier.name);
-              return (
-                <div
-                  key={tier.name}
-                  onClick={() =>
-                    onToggleCartItem({
-                      id: bundle.id,
-                      type: "bundle",
-                      name: bundle.name,
-                      tierName: tier.name,
-                      price: tier.price,
-                      period: tier.period,
-                    })
-                  }
-                  className={cn(
-                    "group flex items-center justify-between rounded-lg border p-3 transition-all duration-200 cursor-pointer",
-                    inCart
-                      ? "border-primary bg-primary/10 shadow-sm"
-                      : "hover:bg-muted/50 hover:border-primary/50"
-                  )}
-                >
-                  <div>
-                    <p className="font-medium">{tier.name}</p>
-                    <p className="text-xs text-muted-foreground">{tier.limits}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className="font-semibold">
-                        ${tier.price}
-                        <span className="text-xs text-muted-foreground">{tier.period}</span>
-                      </p>
-                    </div>
-                    <Badge
-                      variant={inCart ? "default" : "outline"}
-                      className={cn(
-                        "transition-all duration-200",
-                        inCart
-                          ? "bg-primary hover:bg-primary/80"
-                          : "opacity-0 group-hover:opacity-100"
-                      )}
-                    >
-                      {inCart ? (
-                        <>
-                          <Check className="h-3 w-3 mr-1" />
-                          Selected
-                        </>
-                      ) : (
-                        "Select"
-                      )}
-                    </Badge>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Price Range Preview */}
-        {!isExpanded && (
-          <div className="pt-2 border-t">
-            <p className="text-xs text-muted-foreground">Starting from</p>
-            <p className="text-lg font-bold">
-              ${bundle.tiers[0].price}
-              <span className="text-sm font-normal text-muted-foreground">{bundle.tiers[0].period}</span>
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-interface AppCardProps {
-  app: App;
-  isExpanded: boolean;
-  onToggle: () => void;
-  onToggleCartItem: (item: CartItem) => void;
-  isInCart: (id: string, tierName: string) => boolean;
-  hasAnyTierInCart: (id: string) => boolean;
-}
-
-function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart, hasAnyTierInCart }: AppCardProps) {
-  const isComingSoon = app.status === "coming-soon";
-  const hasTierSelected = hasAnyTierInCart(app.id);
-
-  return (
-    <Card
-      data-card
-      className={cn(
-        "relative cursor-pointer transition-all duration-200",
-        isComingSoon && "opacity-70",
-        isExpanded
-          ? "border-primary ring-2 ring-primary/20 shadow-lg"
-          : !isComingSoon && "hover:border-primary/50 hover:shadow-md",
-        hasTierSelected && !isExpanded && !isComingSoon && "border-primary/50 bg-primary/5"
-      )}
-      onClick={!isComingSoon ? onToggle : undefined}
-    >
-      {isComingSoon && (
-        <Badge className="absolute -top-3 right-4 bg-secondary">
-          Coming Soon
-        </Badge>
-      )}
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <span
-            className={cn(
-              "rounded-lg p-2",
-              isExpanded ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
-            )}
-          >
-            {app.icon}
-          </span>
-          <span className="text-base">{app.name}</span>
-        </CardTitle>
-        <CardDescription className="text-xs">{app.description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Features */}
-        <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">Key Features</p>
-          <ul className="space-y-1">
-            {app.features.slice(0, 3).map((feature) => (
-              <li key={feature} className="flex items-center gap-2 text-sm">
-                <Check className="h-3 w-3 text-primary shrink-0" />
-                <span>{feature}</span>
-              </li>
-            ))}
-            {app.features.length > 3 && (
-              <li className="text-xs text-muted-foreground">+{app.features.length - 3} more</li>
-            )}
-          </ul>
-        </div>
-
-        {/* Pricing Tiers */}
-        {isExpanded && !isComingSoon && (
-          <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300" onClick={(e) => e.stopPropagation()}>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Select a Tier {hasTierSelected && <span className="text-primary">(1 selected)</span>}
-            </p>
-            {app.tiers.map((tier) => {
-              const inCart = isInCart(app.id, tier.name);
-              return (
-                <div
-                  key={tier.name}
-                  onClick={() =>
-                    onToggleCartItem({
-                      id: app.id,
-                      type: "app",
-                      name: app.name,
-                      tierName: tier.name,
-                      price: tier.price,
-                      period: tier.period,
-                    })
-                  }
-                  className={cn(
-                    "group flex items-center justify-between rounded-lg border p-3 transition-all duration-200 cursor-pointer",
-                    inCart
-                      ? "border-primary bg-primary/10 shadow-sm"
-                      : "hover:bg-muted/50 hover:border-primary/50"
-                  )}
-                >
-                  <div>
-                    <p className="font-medium">{tier.name}</p>
-                    <p className="text-xs text-muted-foreground">{tier.limits}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className="font-semibold">
-                        ${tier.price}
-                        <span className="text-xs text-muted-foreground">{tier.period}</span>
-                      </p>
-                    </div>
-                    <Badge
-                      variant={inCart ? "default" : "outline"}
-                      className={cn(
-                        "transition-all duration-200",
-                        inCart
-                          ? "bg-primary hover:bg-primary/80"
-                          : "opacity-0 group-hover:opacity-100"
-                      )}
-                    >
-                      {inCart ? (
-                        <>
-                          <Check className="h-3 w-3 mr-1" />
-                          Selected
-                        </>
-                      ) : (
-                        "Select"
-                      )}
-                    </Badge>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Price Range Preview */}
-        {!isExpanded && (
-          <div className="pt-2 border-t">
-            <p className="text-xs text-muted-foreground">Starting from</p>
-            <p className="text-lg font-bold">
-              ${app.tiers[0].price}
-              <span className="text-sm font-normal text-muted-foreground">{app.tiers[0].period}</span>
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 }
