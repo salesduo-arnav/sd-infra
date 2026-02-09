@@ -52,6 +52,28 @@ export class StripeService {
     });
   }
 
+  async resumeSubscription(subscriptionId: string) {
+    return this.stripe.subscriptions.update(subscriptionId, {
+        cancel_at_period_end: false,
+    });
+  }
+
+  // Invoices
+  async getInvoices(customerId: string, limit: number = 10) {
+      return this.stripe.invoices.list({
+          customer: customerId,
+          limit: limit,
+      });
+  }
+
+  // Payment Methods
+  async getPaymentMethods(customerId: string) {
+      return this.stripe.paymentMethods.list({
+          customer: customerId,
+          type: 'card',
+      });
+  }
+
   // Webhook Construction
   constructEvent(payload: string | Buffer, signature: string, secret: string) {
     return this.stripe.webhooks.constructEvent(payload, signature, secret);
