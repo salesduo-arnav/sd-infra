@@ -216,8 +216,10 @@ export const createBundle = async (req: Request, res: Response) => {
         let stripePriceMonthly;
         let stripePriceYearly;
 
-        const monthlyAmount = interval === 'monthly' ? price : Math.round(price / 12);
-        const yearlyAmount = interval === 'yearly' ? price : price * 12;
+        // STRIPE EXPECTS AMOUNTS IN CENTS
+        const PRICE_IN_CENTS = Math.round(price * 100);
+        const monthlyAmount = interval === 'monthly' ? PRICE_IN_CENTS : Math.round(PRICE_IN_CENTS / 12);
+        const yearlyAmount = interval === 'yearly' ? PRICE_IN_CENTS : PRICE_IN_CENTS * 12;
 
         stripePriceMonthly = await stripeService.createPrice(stripeProduct.id, monthlyAmount, currency, 'month');
         stripePriceYearly = await stripeService.createPrice(stripeProduct.id, yearlyAmount, currency, 'year');
@@ -302,8 +304,10 @@ export const updateBundle = async (req: Request, res: Response) => {
                      const newCurrency = updates.currency;
                      const newInterval = updates.interval;
 
-                     const monthlyAmount = newInterval === 'monthly' ? newPrice : Math.round(newPrice / 12);
-                     const yearlyAmount = newInterval === 'yearly' ? newPrice : newPrice * 12;
+                     // STRIPE EXPECTS AMOUNTS IN CENTS
+                     const PRICE_IN_CENTS = Math.round(newPrice * 100);
+                     const monthlyAmount = newInterval === 'monthly' ? PRICE_IN_CENTS : Math.round(PRICE_IN_CENTS / 12);
+                     const yearlyAmount = newInterval === 'yearly' ? PRICE_IN_CENTS : PRICE_IN_CENTS * 12;
 
                      const stripePriceMonthly = await stripeService.createPrice(productId, monthlyAmount, newCurrency, 'month');
                      const stripePriceYearly = await stripeService.createPrice(productId, yearlyAmount, newCurrency, 'year');
