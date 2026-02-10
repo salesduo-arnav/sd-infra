@@ -58,6 +58,14 @@ export class StripeService {
     });
   }
 
+  async getCustomerSubscriptions(customerId: string) {
+      return this.stripe.subscriptions.list({
+          customer: customerId,
+          status: 'all',
+          expand: ['data.default_payment_method'],
+      });
+  }
+
   // Invoices
   async getInvoices(customerId: string, limit: number = 10) {
       return this.stripe.invoices.list({
