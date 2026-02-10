@@ -11,6 +11,7 @@ import { BundlePlan } from '../models/bundle_plan';
 import { PriceInterval } from '../models/enums';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
+import { SubStatus } from '../models/enums';
 import { AuditService } from '../services/audit.service';
 
 // ==========================
@@ -106,27 +107,61 @@ export const updateBundleGroup = async (req: Request, res: Response) => {
 export const deleteBundleGroup = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const group = await BundleGroup.findByPk(id);
+        
+        await sequelize.transaction(async (t) => {
+            const group = await BundleGroup.findByPk(id, { transaction: t });
+            
+            if (!group) {
+                 throw new Error('NOT_FOUND');
+            }
 
-        if (!group) {
-            return res.status(404).json({ message: 'Bundle Group not found' });
-        }
+            // Check if any bundles in this group have active subscriptions
+            const bundles = await Bundle.findAll({
+                where: { bundle_group_id: id },
+                attributes: ['id'],
+                transaction: t
+            });
 
-        const groupId = group.id;
-        const groupName = group.name;
-        await group.destroy();
+            const bundleIds = bundles.map(b => b.id);
 
-        await AuditService.log({
+            if (bundleIds.length > 0) {
+                 const activeSubscription = await import('../models/subscription').then(({ Subscription }) => 
+                    Subscription.findOne({
+                        where: {
+                            bundle_id: { [Op.in]: bundleIds },
+                            status: { [Op.in]: [SubStatus.ACTIVE, SubStatus.TRIALING, SubStatus.PAST_DUE] }
+                        },
+                        transaction: t
+                    })
+                );
+
+                if (activeSubscription) {
+                    throw new Error('HAS_ACTIVE_SUBSCRIPTIONS');
+                }
+            }
+
+            await group.destroy({ transaction: t });
+            const groupId = group.id;
+            const groupName = group.name;
+
+            await AuditService.log({
             actorId: req.user?.id,
             action: 'DELETE_BUNDLE_GROUP',
             entityType: 'BundleGroup',
             entityId: groupId,
             details: { deleted_group_name: groupName },
             req
+            });
         });
 
         res.status(200).json({ message: 'Bundle Group deleted' });
     } catch (error) {
+        const err = error as Error;
+        if (err.message === 'HAS_ACTIVE_SUBSCRIPTIONS') {
+             return res.status(400).json({ 
+                message: 'Cannot delete bundle group. There are active subscriptions associated with bundles in this group.' 
+            });
+        }
         handleError(res, error, 'Delete Bundle Group Error');
     }
 };
@@ -346,6 +381,21 @@ export const deleteBundle = async (req: Request, res: Response) => {
                 throw new Error('NOT_FOUND');
             }
 
+            // Check for active subscriptions for this bundle
+            const activeSubscription = await import('../models/subscription').then(({ Subscription }) => 
+                Subscription.findOne({
+                    where: {
+                        bundle_id: id,
+                        status: { [Op.in]: [SubStatus.ACTIVE, SubStatus.TRIALING, SubStatus.PAST_DUE] }
+                    },
+                    transaction: t
+                })
+            );
+
+            if (activeSubscription) {
+                throw new Error('HAS_ACTIVE_SUBSCRIPTIONS');
+            }
+
             await bundle.destroy({ transaction: t });
         });
 
@@ -360,6 +410,12 @@ export const deleteBundle = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Bundle deleted successfully' });
     } catch (error) {
+        const err = error as Error;
+        if (err.message === 'HAS_ACTIVE_SUBSCRIPTIONS') {
+             return res.status(400).json({ 
+                message: 'Cannot delete bundle. There are active subscriptions associated with this bundle.' 
+            });
+        }
         handleError(res, error, 'Delete Bundle Error');
     }
 };
