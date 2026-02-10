@@ -163,7 +163,8 @@ export const deleteTool = async (req: Request, res: Response) => {
             const planIds = plans.map(p => p.id);
 
             if (planIds.length > 0) {
-                const activeSubscriptions = await Subscription.findOne({
+                // 1. Check direct Plan subscriptions
+                const activePlanSubscription = await Subscription.findOne({
                     where: {
                         plan_id: { [Op.in]: planIds },
                         status: { [Op.in]: [SubStatus.ACTIVE, SubStatus.TRIALING, SubStatus.PAST_DUE] }
@@ -171,8 +172,32 @@ export const deleteTool = async (req: Request, res: Response) => {
                     transaction: t
                 });
 
-                if (activeSubscriptions) {
+                if (activePlanSubscription) {
                     throw new Error('HAS_ACTIVE_SUBSCRIPTIONS');
+                }
+
+                // 2. Check Bundle subscriptions where the bundle contains any of these plans
+                const { BundlePlan } = await import('../models/bundle_plan');
+                const bundlePlans = await BundlePlan.findAll({
+                    where: { plan_id: { [Op.in]: planIds } },
+                    attributes: ['bundle_id'],
+                    transaction: t
+                });
+                
+                const bundleIds = bundlePlans.map(bp => bp.bundle_id);
+
+                if (bundleIds.length > 0) {
+                     const activeBundleSubscription = await Subscription.findOne({
+                        where: {
+                            bundle_id: { [Op.in]: bundleIds },
+                            status: { [Op.in]: [SubStatus.ACTIVE, SubStatus.TRIALING, SubStatus.PAST_DUE] }
+                        },
+                        transaction: t
+                    });
+
+                    if (activeBundleSubscription) {
+                        throw new Error('HAS_ACTIVE_SUBSCRIPTIONS');
+                    }
                 }
             }
 
