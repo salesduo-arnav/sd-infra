@@ -5,6 +5,7 @@ import { User } from '../models/user';
 import sequelize from '../config/db';
 import { handleError } from '../utils/error';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
+import { AuditService } from '../services/audit.service';
 
 export const createOrganization = async (req: Request, res: Response) => {
     try {
@@ -18,7 +19,7 @@ export const createOrganization = async (req: Request, res: Response) => {
         const result = await sequelize.transaction(async (t) => {
             // Generate slug from name
             let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-            
+
             // Append random string if slug exists
             const slugExists = await Organization.findOne({ where: { slug }, transaction: t });
             if (slugExists) {
@@ -48,6 +49,15 @@ export const createOrganization = async (req: Request, res: Response) => {
             }, { transaction: t });
 
             return organization;
+        });
+
+        await AuditService.log({
+            actorId: userId,
+            action: 'CREATE_ORGANIZATION',
+            entityType: 'Organization',
+            entityId: result.id,
+            details: { name: result.name, slug: result.slug },
+            req
         });
 
         res.status(201).json({
@@ -244,6 +254,15 @@ export const updateOrganization = async (req: Request, res: Response) => {
             return organization;
         });
 
+        await AuditService.log({
+            actorId: userId,
+            action: 'UPDATE_ORGANIZATION',
+            entityType: 'Organization',
+            entityId: updatedOrg.id,
+            details: { name, website },
+            req
+        });
+
         res.json({
             message: 'Organization updated successfully',
             organization: updatedOrg
@@ -313,6 +332,15 @@ export const removeMember = async (req: Request, res: Response) => {
 
         await memberToRemove.destroy();
 
+        await AuditService.log({
+            actorId: userId,
+            action: 'REMOVE_MEMBER',
+            entityType: 'OrganizationMember',
+            entityId: memberId,
+            details: { organization_id: orgId, removed_user_id: memberToRemove.user_id },
+            req
+        });
+
         res.json({ message: 'Member removed successfully' });
 
     } catch (error) {
@@ -375,6 +403,15 @@ export const updateMemberRole = async (req: Request, res: Response) => {
 
         memberToUpdate.role_id = role_id;
         await memberToUpdate.save();
+
+        await AuditService.log({
+            actorId: userId,
+            action: 'UPDATE_MEMBER_ROLE',
+            entityType: 'OrganizationMember',
+            entityId: memberId,
+            details: { organization_id: orgId, new_role: newRole.name },
+            req
+        });
 
         res.json({
             message: 'Member role updated successfully',
@@ -451,6 +488,15 @@ export const transferOwnership = async (req: Request, res: Response) => {
             await newOwnerMembership.save({ transaction: t });
         });
 
+        await AuditService.log({
+            actorId: userId,
+            action: 'TRANSFER_OWNERSHIP',
+            entityType: 'Organization',
+            entityId: orgId,
+            details: { new_owner_id, previous_owner_id: userId },
+            req
+        });
+
         res.json({ message: 'Ownership transferred successfully' });
 
     } catch (error) {
@@ -490,6 +536,15 @@ export const deleteOrganization = async (req: Request, res: Response) => {
                 individualHooks: true,
                 transaction: t
             });
+        });
+
+        await AuditService.log({
+            actorId: userId,
+            action: 'DELETE_ORGANIZATION',
+            entityType: 'Organization',
+            entityId: orgId,
+            details: {},
+            req
         });
 
         res.json({ message: 'Organization deleted successfully' });

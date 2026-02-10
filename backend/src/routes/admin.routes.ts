@@ -5,6 +5,8 @@ import * as ToolController from '../controllers/admin.tool.controller';
 import * as FeatureController from '../controllers/admin.feature.controller';
 import * as BundleController from '../controllers/admin.bundle.controller';
 import * as PlanController from '../controllers/admin.plan.controller';
+import * as AuditController from '../controllers/admin.audit.controller';
+import * as StatsController from '../controllers/admin.stats.controller';
 
 const router = Router();
 
@@ -63,5 +65,15 @@ router.delete('/plans/:id', PlanController.deletePlan);
 // Plan Limits
 router.put('/plans/:plan_id/limits', PlanController.upsertPlanLimit);
 router.delete('/plans/:plan_id/limits/:feature_id', PlanController.deletePlanLimit);
+
+// Audit Logs
+router.get('/audit-logs', AuditController.getAuditLogs);
+router.get('/audit-logs/:id', AuditController.getAuditLogById);
+
+// Stats
+router.get('/stats/overview', StatsController.getOverviewStats);
+router.get('/stats/revenue', StatsController.getRevenueChart);
+router.get('/stats/users', StatsController.getUserGrowthChart);
+router.get('/stats/tools', StatsController.getToolUsageChart);
 
 export default router;

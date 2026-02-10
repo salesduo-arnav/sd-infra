@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Sparkles, Copy, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { trackToolUsage } from "@/services/tool.service";
 
 export default function ListingGenerator() {
   const navigate = useNavigate();
@@ -38,6 +39,11 @@ export default function ListingGenerator() {
       ],
       description: `Introducing the ${productName} - your ultimate solution for quality and convenience. ${keywords ? `Perfect for ${keywords}.` : ""} Our product stands out from the competition with its superior craftsmanship and attention to detail. Whether you're a first-time buyer or a returning customer, you'll appreciate the value and quality we deliver with every order. Order now and experience the difference!`,
     });
+
+
+    // Track usage
+    trackToolUsage('listing-generator'); // Assuming slug is listing-generator
+
     setIsGenerating(false);
   };
 

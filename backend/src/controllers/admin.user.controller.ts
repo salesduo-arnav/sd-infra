@@ -6,6 +6,7 @@ import { Role } from '../models/role';
 import sequelize from '../config/db';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
+import { AuditService } from '../services/audit.service';
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
@@ -60,9 +61,27 @@ export const updateUser = async (req: Request, res: Response) => {
             return res.status(403).json({ message: 'You cannot revoke your own admin privileges' });
         }
 
+        const oldValues = {
+            full_name: user.full_name,
+            is_superuser: user.is_superuser
+        };
+
         await user.update({
             full_name: full_name !== undefined ? full_name : user.full_name,
             is_superuser: is_superuser !== undefined ? is_superuser : user.is_superuser
+        });
+
+        // Log the audit
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'UPDATE_USER',
+            entityType: 'User',
+            entityId: user.id,
+            details: {
+                old_values: oldValues,
+                new_values: { full_name, is_superuser }
+            },
+            req
         });
 
         res.status(200).json({ message: 'User updated successfully', user });
@@ -174,6 +193,19 @@ export const deleteUser = async (req: Request, res: Response) => {
         });
 
         res.status(200).json({ message: 'User deleted successfully' });
+
+        // Log after successful transaction
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'DELETE_USER',
+            entityType: 'User',
+            entityId: id,
+            details: {
+                deleted_user_email: user.email,
+                reason: 'Admin deletion'
+            },
+            req
+        });
     } catch (error) {
         handleError(res, error, 'Delete User Error');
     }

@@ -22,6 +22,7 @@ import AdminApps from "./pages/admin/AdminApps";
 import AdminPlans from "./pages/admin/AdminPlans";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminOrganizations from "./pages/admin/AdminOrganizations";
+import AuditLogs from "./pages/admin/AuditLogs";
 import InviteAccepted from "./pages/InviteAccepted";
 import PendingInvitations from "./pages/PendingInvitations";
 import DesignSystem from "./pages/DesignSystem";
@@ -207,6 +208,14 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <AdminUsers />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/audit-logs"
+        element={
+          <AdminRoute>
+            <AuditLogs />
           </AdminRoute>
         }
       />
