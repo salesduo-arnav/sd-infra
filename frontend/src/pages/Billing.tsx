@@ -1,16 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Download, CreditCard, Loader2 } from "lucide-react";
+import { Download, CreditCard, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import axios from 'axios';
 import { toast } from "sonner";
+import { ColumnDef, SortingState, PaginationState } from "@tanstack/react-table";
+import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-
 
 export default function Billing() {
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
@@ -21,10 +20,31 @@ export default function Billing() {
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Subscription Pagination
+  const [subPageIndex, setSubPageIndex] = useState(0);
+  const SUBSCRIPTIONS_PER_PAGE = 5;
+
+  const paginatedSubscriptions = useMemo(() => {
+    const start = subPageIndex * SUBSCRIPTIONS_PER_PAGE;
+    return subscriptions.slice(start, start + SUBSCRIPTIONS_PER_PAGE);
+  }, [subscriptions, subPageIndex]);
+
+  const totalSubPages = Math.ceil(subscriptions.length / SUBSCRIPTIONS_PER_PAGE);
+
+  // DataTable state
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const [searchQuery, setSearchQuery] = useState("");
+
   useEffect(() => {
-    fetchSubscription();
-    fetchInvoices();
-    fetchPaymentMethods();
+    const fetchData = async () => {
+        await Promise.all([fetchSubscription(), fetchInvoices(), fetchPaymentMethods()]);
+        setLoading(false);
+    };
+    fetchData();
   }, []);
 
   const fetchSubscription = async () => {
@@ -33,14 +53,12 @@ export default function Billing() {
       setSubscriptions(response.data.subscriptions);
     } catch (error) {
       console.error("Failed to fetch subscription", error);
-    } finally {
-      setLoading(false);
     }
   };
 
   const fetchInvoices = async () => {
     try {
-      const response = await axios.get(`${API_URL}/billing/invoices`, { withCredentials: true });
+      const response = await axios.get(`${API_URL}/billing/invoices?limit=100`, { withCredentials: true });
       setInvoices(response.data.invoices || []);
     } catch (error) {
       console.error("Failed to fetch invoices", error);
@@ -100,6 +118,99 @@ export default function Billing() {
     }
   };
 
+  // Columns for the invoices table
+  const columns = useMemo<ColumnDef<any>[]>(() => [
+    {
+      accessorKey: "number",
+      header: "Invoice",
+      cell: ({ row }) => <span className="font-medium">{row.original.number}</span>,
+    },
+    {
+      accessorKey: "created",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Date" />
+      ),
+      cell: ({ row }) => new Date(row.original.created * 1000).toLocaleDateString(),
+    },
+    {
+      accessorKey: "amount_due",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Amount" />
+      ),
+      cell: ({ row }) => (row.original.amount_due / 100).toLocaleString('en-US', { style: 'currency', currency: row.original.currency.toUpperCase() }),
+    },
+    {
+      accessorKey: "status",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Status" />
+      ),
+      cell: ({ row }) => (
+        <Badge variant={row.original.status === 'paid' ? 'default' : 'secondary'}>{row.original.status}</Badge>
+      ),
+    },
+    {
+      id: "actions",
+      header: ({ column }) => (
+        <div className="text-right">Download</div>
+      ),
+      cell: ({ row }) => {
+        return row.original.invoice_pdf ? (
+             <div className="text-right">
+                <Button variant="ghost" size="sm" asChild>
+                    <a href={row.original.invoice_pdf} target="_blank" rel="noopener noreferrer">
+                        <Download className="h-4 w-4" />
+                    </a>
+                </Button>
+            </div>
+        ) : null;
+      },
+    },
+  ], []);
+
+  // Client-side sorting and simple search
+  const filteredAndSortedInvoices = useMemo(() => {
+    let result = [...invoices];
+
+    if (searchQuery) {
+        const lowerQuery = searchQuery.toLowerCase();
+        result = result.filter(inv => 
+            inv.number?.toLowerCase().includes(lowerQuery) || 
+            inv.status?.toLowerCase().includes(lowerQuery)
+        );
+    }
+
+    if (sorting.length > 0) {
+        const { id, desc } = sorting[0];
+        result.sort((a, b) => {
+            let aValue = a[id];
+            let bValue = b[id];
+            
+            // Handle specific column types if needed
+            if (id === 'amount_due' || id === 'created') {
+                aValue = Number(aValue);
+                bValue = Number(bValue);
+            } else {
+                aValue = String(aValue).toLowerCase();
+                bValue = String(bValue).toLowerCase();
+            }
+
+            if (aValue < bValue) return desc ? 1 : -1;
+            if (aValue > bValue) return desc ? -1 : 1;
+            return 0;
+        });
+    }
+
+    return result;
+  }, [invoices, sorting, searchQuery]);
+
+  // Client-side pagination
+  const paginatedInvoices = useMemo(() => {
+    const start = pagination.pageIndex * pagination.pageSize;
+    return filteredAndSortedInvoices.slice(start, start + pagination.pageSize);
+  }, [filteredAndSortedInvoices, pagination]);
+
+  const pageCount = Math.ceil(filteredAndSortedInvoices.length / pagination.pageSize);
+
   if (loading) {
      return (
         <Layout>
@@ -131,14 +242,13 @@ export default function Billing() {
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Current Subscriptions</CardTitle>
-              <CardDescription>
-                Your active plan details
-              </CardDescription>
+              <CardDescription>Your active plan details</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {subscriptions && subscriptions.length > 0 ? (
-                 <div className="space-y-4">
-                     {subscriptions.map((sub: any) => (
+                 <div className="flex min-h-[550px] flex-col">
+                     <div className="space-y-4">
+                         {paginatedSubscriptions.map((sub: any) => (
                          <div key={sub.id} className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <div className="flex items-center gap-2">
@@ -167,6 +277,33 @@ export default function Billing() {
                             </div>
                         </div>
                      ))}
+                     </div>
+                     
+                     {subscriptions.length > SUBSCRIPTIONS_PER_PAGE && (
+                        <div className="mt-auto flex items-center justify-end space-x-2 pt-4">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSubPageIndex((prev) => Math.max(prev - 1, 0))}
+                                disabled={subPageIndex === 0}
+                            >
+                                <ChevronLeft className="h-4 w-4 mr-1" />
+                                Previous
+                            </Button>
+                            <div className="text-sm font-medium">
+                                Page {subPageIndex + 1} of {totalSubPages}
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSubPageIndex((prev) => Math.min(prev + 1, totalSubPages - 1))}
+                                disabled={subPageIndex >= totalSubPages - 1}
+                            >
+                                Next
+                                <ChevronRight className="h-4 w-4 ml-1" />
+                            </Button>
+                        </div>
+                     )}
                  </div>
               ) : (
                 <div className="text-center py-8">
@@ -181,9 +318,7 @@ export default function Billing() {
           <Card>
             <CardHeader>
               <CardTitle>Payment Method</CardTitle>
-              <CardDescription>
-                Manage your payment details
-              </CardDescription>
+              <CardDescription>Manage your payment details</CardDescription>
             </CardHeader>
              <CardContent>
                {paymentMethods.length > 0 ? (
@@ -213,59 +348,24 @@ export default function Billing() {
 
         {/* Billing History */}
         <Card className="mt-6">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Billing History</CardTitle>
-              <CardDescription>
-                Download your past invoices
-              </CardDescription>
-            </div>
-            {/* 
-            <Button variant="outline" size="sm">
-              <Download className="mr-2 h-4 w-4" />
-              Export All
-            </Button> 
-            */}
+          <CardHeader>
+            <CardTitle>Billing History</CardTitle>
+            <CardDescription>Download your past invoices</CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Download</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices.length > 0 ? (
-                    invoices.map((invoice) => (
-                    <TableRow key={invoice.id}>
-                        <TableCell className="font-medium">{invoice.number}</TableCell>
-                        <TableCell>{new Date(invoice.created * 1000).toLocaleDateString()}</TableCell>
-                        <TableCell>{(invoice.amount_due / 100).toLocaleString('en-US', { style: 'currency', currency: invoice.currency.toUpperCase() })}</TableCell>
-                        <TableCell>
-                        <Badge variant={invoice.status === 'paid' ? 'default' : 'secondary'}>{invoice.status}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                        {invoice.invoice_pdf && (
-                            <Button variant="ghost" size="sm" asChild>
-                                <a href={invoice.invoice_pdf} target="_blank" rel="noopener noreferrer">
-                                    <Download className="h-4 w-4" />
-                                </a>
-                            </Button>
-                        )}
-                        </TableCell>
-                    </TableRow>
-                    ))
-                ) : (
-                    <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground">No invoices found</TableCell>
-                    </TableRow>
-                )}
-              </TableBody>
-            </Table>
+            <DataTable
+                columns={columns}
+                data={paginatedInvoices}
+                pageCount={pageCount}
+                pagination={pagination}
+                onPaginationChange={setPagination}
+                sorting={sorting}
+                onSortingChange={setSorting}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                placeholder="Search invoices..."
+                isLoading={loading}
+            />
           </CardContent>
         </Card>
       </div>

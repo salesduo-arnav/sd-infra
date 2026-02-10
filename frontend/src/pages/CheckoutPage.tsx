@@ -122,7 +122,7 @@ export default function CheckoutPage() {
                                     <div key={idx} className="space-y-3 pb-4 border-b last:border-0">
                                         <div className="flex justify-between items-start">
                                             <div>
-                                                <h3 className="font-semibold text-lg">{item.name}</h3>
+                                                <h3 className="font-semibold text-lg">{item.name} {item.tier ? `(${item.tier})` : ''}</h3>
                                                 <div className="flex gap-2 mt-1">
                                                     <Badge variant="outline" className="capitalize">{item.type}</Badge>
                                                     <Badge variant="secondary" className="capitalize">{item.interval}</Badge>
