@@ -252,3 +252,24 @@ export const getAuditLogById = async (id: string) => {
   return response.data;
 };
 
+// Stats
+export const getOverviewStats = async () => {
+  const response = await api.get('/admin/stats/overview');
+  return response.data;
+};
+
+export const getRevenueChart = async () => {
+  const response = await api.get('/admin/stats/revenue');
+  return response.data;
+};
+
+export const getUserGrowthChart = async () => {
+  const response = await api.get('/admin/stats/users');
+  return response.data;
+};
+
+export const getToolUsageChart = async () => {
+  const response = await api.get('/admin/stats/tools');
+  return response.data;
+};
+

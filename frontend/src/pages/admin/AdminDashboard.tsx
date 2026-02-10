@@ -1,45 +1,38 @@
 import { Layout } from "@/components/layout/Layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Users,
   Building2,
-  TrendingUp,
-  UserCheck,
   DollarSign,
+  Activity,
+  Zap
 } from "lucide-react";
-
-const stats = [
-  {
-    title: "Total Users",
-    value: "2,847",
-    change: "+12.5%",
-    changeType: "positive" as const,
-    icon: Users,
-  },
-  {
-    title: "Active Users",
-    value: "1,234",
-    change: "+8.2%",
-    changeType: "positive" as const,
-    icon: UserCheck,
-  },
-  {
-    title: "Organizations",
-    value: "456",
-    change: "+5.1%",
-    changeType: "positive" as const,
-    icon: Building2,
-  },
-  {
-    title: "Monthly Revenue",
-    value: "$48,250",
-    change: "+18.7%",
-    changeType: "positive" as const,
-    icon: DollarSign,
-  },
-];
+import { useQuery } from "@tanstack/react-query";
+import { getOverviewStats, getRevenueChart, getUserGrowthChart, getToolUsageChart } from "@/services/admin.service";
+import { StatsCard } from "@/components/admin/overview/StatsCard";
+import { OverviewChart } from "@/components/admin/overview/OverviewChart";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AdminDashboard() {
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ['admin', 'stats', 'overview'],
+    queryFn: getOverviewStats
+  });
+
+  const { data: revenueData, isLoading: revenueLoading } = useQuery({
+    queryKey: ['admin', 'stats', 'revenue'],
+    queryFn: getRevenueChart
+  });
+
+  const { data: userData, isLoading: userLoading } = useQuery({
+    queryKey: ['admin', 'stats', 'users'],
+    queryFn: getUserGrowthChart
+  });
+
+  const { data: toolData, isLoading: toolLoading } = useQuery({
+    queryKey: ['admin', 'stats', 'tools'],
+    queryFn: getToolUsageChart
+  });
+
   return (
     <Layout>
       <div className="space-y-8">
@@ -52,26 +45,87 @@ export default function AdminDashboard() {
 
         {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <Card key={stat.title}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {stat.title}
-                </CardTitle>
-                <stat.icon className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <TrendingUp className="h-3 w-3 text-green-500" />
-                  <span className="text-green-500">{stat.change}</span>
-                  from last month
-                </p>
-              </CardContent>
-            </Card>
-          ))}
+          {statsLoading ? (
+            Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-32 w-full" />)
+          ) : (
+            <>
+              <StatsCard
+                title="Total Users"
+                value={stats?.totalUsers?.toLocaleString() || 0}
+                icon={Users}
+                growth={stats?.userGrowth}
+                growthAbsolute={stats?.userGrowthAbsolute}
+              />
+              <StatsCard
+                title="Active Organizations"
+                value={stats?.totalOrgs?.toLocaleString() || 0}
+                icon={Building2}
+                growth={stats?.orgGrowth}
+                growthAbsolute={stats?.orgGrowthAbsolute}
+              />
+              <StatsCard
+                title="Active Subscriptions"
+                value={stats?.activeSubs?.toLocaleString() || 0}
+                icon={Activity}
+                growth={stats?.activeSubsGrowth}
+                growthAbsolute={stats?.activeSubsGrowthAbsolute}
+              />
+              <StatsCard
+                title="Monthly Recurring Revenue"
+                value={`$${(stats?.mrr || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                description={undefined} // Remove old description to use growth
+                growth={stats?.mrrGrowth}
+                growthAbsolute={stats?.mrrGrowthAbsolute}
+                icon={DollarSign}
+              />
+            </>
+          )}
+        </div>
+
+        {/* Charts */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+          <div className="col-span-4">
+            {userLoading ? <Skeleton className="h-[350px] w-full" /> : (
+              <OverviewChart
+                title="User Growth"
+                description="Active user registrations over time"
+                data={userData || []}
+                dataKey="count"
+                xAxisKey="month"
+                color="#2563eb"
+              />
+            )}
+          </div>
+          <div className="col-span-3">
+            {toolLoading ? <Skeleton className="h-[350px] w-full" /> : (
+              <OverviewChart
+                title="Top Tool Usage"
+                description="Most popular AI tools by usage count"
+                data={toolData || []}
+                dataKey="total_usage"
+                xAxisKey="tool.name"
+                type="bar"
+                color="#16a34a"
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Revenue Chart - maybe simpler full width or another row */}
+        <div className="grid gap-4 md:grid-cols-1">
+          {revenueLoading ? <Skeleton className="h-[350px] w-full" /> : (
+            <OverviewChart
+              title="Revenue Trend (One-Time)"
+              description="Monthly revenue from one-time purchases"
+              data={revenueData || []}
+              dataKey="revenue"
+              xAxisKey="month"
+              color="#d97706"
+            />
+          )}
         </div>
       </div>
     </Layout>
   );
 }
+
