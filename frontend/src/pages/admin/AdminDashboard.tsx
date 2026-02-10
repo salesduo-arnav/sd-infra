@@ -160,7 +160,7 @@ export default function AdminDashboard() {
       }
 
       if (endDateTime) {
-        params.end_date = endDateTime;
+        params.end_date = endDateTime.toISOString();
       }
 
       const result = await getAuditLogs(params);
@@ -404,6 +404,8 @@ export default function AdminDashboard() {
                       value={startDateTime}
                       onChange={setStartDateTime}
                       placeholder="Start date & time"
+                      minuteInterval={1}
+                      timeFormat="24h"
                     />
                   </div>
                   <span className="hidden sm:inline text-muted-foreground text-sm pb-2">→</span>
@@ -413,6 +415,8 @@ export default function AdminDashboard() {
                       value={endDateTime}
                       onChange={setEndDateTime}
                       placeholder="End date & time"
+                      minuteInterval={1}
+                      timeFormat="24h"
                     />
                   </div>
                 </div>

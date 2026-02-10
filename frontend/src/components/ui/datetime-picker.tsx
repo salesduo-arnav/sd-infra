@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CalendarIcon, Clock } from "lucide-react";
+import { CalendarIcon, Clock, RotateCcw, Timer } from "lucide-react";
 import { format } from "date-fns";
 
 import { cn } from "@/lib/utils";
@@ -64,6 +64,7 @@ interface DateTimeRangePickerProps {
 const HOURS_12 = Array.from({ length: 12 }, (_, i) => i + 1);
 const HOURS_24 = Array.from({ length: 24 }, (_, i) => i);
 const PERIODS = ["AM", "PM"] as const;
+const TIME_ITEM_HEIGHT = 32;
 
 // ============================================================================
 // Utility Hooks
@@ -82,7 +83,7 @@ function useTimeOptions(minuteInterval: number, showSeconds: boolean) {
     }, [minuteInterval, showSeconds]);
 }
 
-function useTimeState(value: Date | undefined, timeFormat: TimeFormat) {
+function useTimeState(value: Date | undefined) {
     return React.useMemo(() => {
         if (!value) {
             return {
@@ -105,7 +106,7 @@ function useTimeState(value: Date | undefined, timeFormat: TimeFormat) {
             second: value.getSeconds(),
             period,
         };
-    }, [value, timeFormat]);
+    }, [value]);
 }
 
 // ============================================================================
@@ -113,64 +114,66 @@ function useTimeState(value: Date | undefined, timeFormat: TimeFormat) {
 // ============================================================================
 
 interface TimeColumnProps {
-    label: string;
     items: (number | string)[];
     selectedValue: number | string;
     onSelect: (value: number | string) => void;
     formatItem?: (item: number | string) => string;
     className?: string;
+    isOpen?: boolean;
 }
 
 function TimeColumn({
-    label,
     items,
     selectedValue,
     onSelect,
     formatItem = (v) => String(v).padStart(2, "0"),
     className,
+    isOpen,
 }: TimeColumnProps) {
     const listRef = React.useRef<HTMLDivElement>(null);
 
-    // Scroll to selected item on mount
+    // Scroll to selected item when popover opens or selection changes
     React.useEffect(() => {
-        if (listRef.current) {
-            const selectedIndex = items.findIndex((item) => item === selectedValue);
-            if (selectedIndex >= 0) {
-                const itemHeight = 32;
-                listRef.current.scrollTop = selectedIndex * itemHeight - itemHeight * 2;
-            }
+        if (!isOpen || !listRef.current) return;
+
+        const selectedIndex = items.findIndex((item) => item === selectedValue);
+        if (selectedIndex >= 0) {
+            requestAnimationFrame(() => {
+                if (listRef.current) {
+                    listRef.current.scrollTop =
+                        selectedIndex * TIME_ITEM_HEIGHT - TIME_ITEM_HEIGHT * 2;
+                }
+            });
         }
-    }, [items, selectedValue]);
+    }, [isOpen, items, selectedValue]);
 
     return (
-        <div className={cn("flex flex-col min-w-[52px]", className)}>
-            <div className="px-2 py-1.5 text-[10px] font-medium text-muted-foreground text-center uppercase tracking-wider bg-muted/50 border-b">
-                {label}
-            </div>
-            <div
-                ref={listRef}
-                className="flex-1 max-h-[180px] overflow-y-auto overscroll-contain scrollbar-thin"
-            >
-                {items.map((item) => {
-                    const isSelected = item === selectedValue;
-                    return (
-                        <button
-                            key={item}
-                            type="button"
-                            onClick={() => onSelect(item)}
-                            className={cn(
-                                "w-full h-8 text-sm flex items-center justify-center transition-colors",
-                                "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-                                isSelected
-                                    ? "bg-primary text-primary-foreground font-medium"
-                                    : "hover:bg-accent hover:text-accent-foreground"
-                            )}
-                        >
-                            {formatItem(item)}
-                        </button>
-                    );
-                })}
-            </div>
+        <div
+            ref={listRef}
+            className={cn(
+                "flex-1 min-w-[48px] overflow-y-auto overscroll-contain scrollbar-thin",
+                className
+            )}
+        >
+            {items.map((item) => {
+                const isSelected = item === selectedValue;
+                return (
+                    <button
+                        key={item}
+                        type="button"
+                        onClick={() => onSelect(item)}
+                        className={cn(
+                            "w-full h-8 text-sm flex items-center justify-center transition-colors",
+                            "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                            isSelected
+                                ? "bg-primary text-primary-foreground font-medium"
+                                : "hover:bg-accent hover:text-accent-foreground"
+                        )}
+                    >
+                        {formatItem(item)}
+                    </button>
+                );
+            })}
         </div>
     );
 }
@@ -181,6 +184,7 @@ interface TimeSelectorProps {
     timeFormat: TimeFormat;
     minuteInterval: number;
     showSeconds: boolean;
+    isOpen: boolean;
 }
 
 function TimeSelector({
@@ -189,9 +193,10 @@ function TimeSelector({
     timeFormat,
     minuteInterval,
     showSeconds,
+    isOpen,
 }: TimeSelectorProps) {
     const { minutes, seconds } = useTimeOptions(minuteInterval, showSeconds);
-    const timeState = useTimeState(value, timeFormat);
+    const timeState = useTimeState(value);
 
     const hours = timeFormat === "12h" ? HOURS_12 : HOURS_24;
 
@@ -199,7 +204,15 @@ function TimeSelector({
         type: "hour" | "minute" | "second" | "period",
         newValue: number | string
     ) => {
-        const baseDate = value ? new Date(value) : new Date();
+        // If no date selected yet, default to today
+        const baseDate = value ? new Date(value.getTime()) : new Date();
+
+        // If no date was selected, set to today at noon first
+        if (!value) {
+            const now = new Date();
+            baseDate.setFullYear(now.getFullYear(), now.getMonth(), now.getDate());
+            baseDate.setHours(12, 0, 0, 0);
+        }
 
         if (type === "hour") {
             if (timeFormat === "12h") {
@@ -224,53 +237,89 @@ function TimeSelector({
     };
 
     return (
-        <div className="flex border-t">
-            {/* Hours */}
-            <TimeColumn
-                label="Hour"
-                items={hours}
-                selectedValue={timeFormat === "12h" ? timeState.hour12 : timeState.hour24}
-                onSelect={(v) => handleTimeChange("hour", v)}
-                formatItem={(v) => String(v).padStart(2, "0")}
-            />
+        <div className="flex flex-col border-l">
+            {/* Time Panel Header */}
+            <div className="px-3 py-2 bg-muted/50 border-b flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground">Time</span>
+            </div>
 
-            <div className="w-px bg-border" />
+            {/* Column Headers */}
+            <div className="flex border-b">
+                <div className="flex-1 min-w-[48px] px-1 py-1 text-[10px] font-medium text-muted-foreground text-center uppercase tracking-wider">
+                    Hr
+                </div>
+                <div className="w-px bg-border" />
+                <div className="flex-1 min-w-[48px] px-1 py-1 text-[10px] font-medium text-muted-foreground text-center uppercase tracking-wider">
+                    Min
+                </div>
+                {showSeconds && (
+                    <>
+                        <div className="w-px bg-border" />
+                        <div className="flex-1 min-w-[48px] px-1 py-1 text-[10px] font-medium text-muted-foreground text-center uppercase tracking-wider">
+                            Sec
+                        </div>
+                    </>
+                )}
+                {timeFormat === "12h" && (
+                    <>
+                        <div className="w-px bg-border" />
+                        <div className="flex-1 min-w-[42px] px-1 py-1 text-[10px] font-medium text-muted-foreground text-center uppercase tracking-wider">
+                            &nbsp;
+                        </div>
+                    </>
+                )}
+            </div>
 
-            {/* Minutes */}
-            <TimeColumn
-                label="Min"
-                items={minutes}
-                selectedValue={timeState.minute}
-                onSelect={(v) => handleTimeChange("minute", v)}
-            />
+            {/* Scrollable Columns */}
+            <div className="flex flex-1 max-h-[260px]">
+                {/* Hours */}
+                <TimeColumn
+                    items={hours}
+                    selectedValue={timeFormat === "12h" ? timeState.hour12 : timeState.hour24}
+                    onSelect={(v) => handleTimeChange("hour", v)}
+                    formatItem={(v) => String(v).padStart(2, "0")}
+                    isOpen={isOpen}
+                />
 
-            {/* Seconds (optional) */}
-            {showSeconds && (
-                <>
-                    <div className="w-px bg-border" />
-                    <TimeColumn
-                        label="Sec"
-                        items={seconds}
-                        selectedValue={timeState.second}
-                        onSelect={(v) => handleTimeChange("second", v)}
-                    />
-                </>
-            )}
+                <div className="w-px bg-border" />
 
-            {/* AM/PM (only for 12h format) */}
-            {timeFormat === "12h" && (
-                <>
-                    <div className="w-px bg-border" />
-                    <TimeColumn
-                        label=""
-                        items={[...PERIODS]}
-                        selectedValue={timeState.period}
-                        onSelect={(v) => handleTimeChange("period", v)}
-                        formatItem={(v) => String(v)}
-                        className="min-w-[44px]"
-                    />
-                </>
-            )}
+                {/* Minutes */}
+                <TimeColumn
+                    items={minutes}
+                    selectedValue={timeState.minute}
+                    onSelect={(v) => handleTimeChange("minute", v)}
+                    isOpen={isOpen}
+                />
+
+                {/* Seconds (optional) */}
+                {showSeconds && (
+                    <>
+                        <div className="w-px bg-border" />
+                        <TimeColumn
+                            items={seconds}
+                            selectedValue={timeState.second}
+                            onSelect={(v) => handleTimeChange("second", v)}
+                            isOpen={isOpen}
+                        />
+                    </>
+                )}
+
+                {/* AM/PM (only for 12h format) */}
+                {timeFormat === "12h" && (
+                    <>
+                        <div className="w-px bg-border" />
+                        <TimeColumn
+                            items={[...PERIODS]}
+                            selectedValue={timeState.period}
+                            onSelect={(v) => handleTimeChange("period", v)}
+                            formatItem={(v) => String(v)}
+                            className="min-w-[42px] flex-none"
+                            isOpen={isOpen}
+                        />
+                    </>
+                )}
+            </div>
         </div>
     );
 }
@@ -292,23 +341,39 @@ export function DateTimePicker({
     const [isOpen, setIsOpen] = React.useState(false);
 
     const handleDateSelect = (selectedDate: Date | undefined) => {
-        if (!selectedDate) return;
-
-        // Preserve time if date already exists
-        if (value) {
-            selectedDate.setHours(value.getHours());
-            selectedDate.setMinutes(value.getMinutes());
-            selectedDate.setSeconds(value.getSeconds());
-        } else {
-            // Default to noon for new dates
-            selectedDate.setHours(12, 0, 0, 0);
+        if (!selectedDate) {
+            onChange?.(undefined);
+            return;
         }
 
-        onChange?.(selectedDate);
+        // Clone to avoid mutating the calendar's internal object
+        const newDate = new Date(selectedDate.getTime());
+
+        // Preserve time from existing value, or default to noon
+        if (value) {
+            newDate.setHours(
+                value.getHours(),
+                value.getMinutes(),
+                value.getSeconds(),
+                value.getMilliseconds()
+            );
+        } else {
+            newDate.setHours(12, 0, 0, 0);
+        }
+
+        onChange?.(newDate);
     };
 
     const handleTimeChange = (newDate: Date) => {
         onChange?.(newDate);
+    };
+
+    const handleSetNow = () => {
+        onChange?.(new Date());
+    };
+
+    const handleClear = () => {
+        onChange?.(undefined);
     };
 
     const formatDisplayDate = () => {
@@ -347,34 +412,58 @@ export function DateTimePicker({
                 align="start"
                 sideOffset={4}
             >
-                <div className="flex flex-col">
+                {/* Side-by-side layout: Calendar left, Time right */}
+                <div className="flex flex-col sm:flex-row">
                     {/* Calendar */}
-                    <Calendar
-                        mode="single"
-                        selected={value}
-                        onSelect={handleDateSelect}
-                        initialFocus
-                    />
+                    <div className="flex flex-col">
+                        <Calendar
+                            mode="single"
+                            selected={value}
+                            onSelect={handleDateSelect}
+                            initialFocus
+                        />
 
-                    {/* Time Selector */}
+                        {/* Footer */}
+                        <div className="border-t px-3 py-2 bg-muted/30 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs"
+                                    onClick={handleSetNow}
+                                >
+                                    <Timer className="h-3 w-3 mr-1" />
+                                    Now
+                                </Button>
+                                {value && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                                        onClick={handleClear}
+                                    >
+                                        <RotateCcw className="h-3 w-3 mr-1" />
+                                        Clear
+                                    </Button>
+                                )}
+                            </div>
+                            <span className="text-xs font-medium text-muted-foreground truncate max-w-[160px]">
+                                {formatDisplayDate() || "No selection"}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Time Selector — right side on desktop, below on mobile */}
                     <TimeSelector
                         value={value}
                         onChange={handleTimeChange}
                         timeFormat={timeFormat}
                         minuteInterval={minuteInterval}
                         showSeconds={showSeconds}
+                        isOpen={isOpen}
                     />
-
-                    {/* Footer with selected time display */}
-                    <div className="border-t px-3 py-2 bg-muted/30 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                            <Clock className="h-3.5 w-3.5" />
-                            <span className="text-xs">Selected:</span>
-                        </div>
-                        <span className="text-sm font-medium">
-                            {formatDisplayDate() || "None"}
-                        </span>
-                    </div>
                 </div>
             </PopoverContent>
         </Popover>
@@ -445,4 +534,4 @@ export function DateTimeRangePicker({
 // Exports
 // ============================================================================
 
-export type { DateTimePickerProps, DateTimeRangePickerProps };
+export type { DateTimePickerProps, DateTimeRangePickerProps, TimeFormat };

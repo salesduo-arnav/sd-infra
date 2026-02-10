@@ -46,6 +46,7 @@ import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { TimePicker, TimePickerInline } from "@/components/ui/time-picker";
 import { DateTimePicker, DateTimeRangePicker } from "@/components/ui/datetime-picker";
 import React, { useMemo, useState } from "react";
+import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
@@ -324,6 +325,7 @@ const InteractiveSection = () => {
     const [dateTime24h, setDateTime24h] = React.useState<Date | undefined>(new Date());
     const [rangeFrom, setRangeFrom] = React.useState<Date | undefined>();
     const [rangeTo, setRangeTo] = React.useState<Date | undefined>();
+    const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
     const [selectedTime, setSelectedTime] = React.useState("14:30");
     const [inlineTime, setInlineTime] = React.useState("09:00");
 
@@ -366,7 +368,11 @@ const InteractiveSection = () => {
                     </PopoverContent>
                 </Popover>
 
-                <DatePickerWithRange className="w-[300px]" />
+                <DatePickerWithRange
+                    value={dateRange}
+                    onChange={setDateRange}
+                    placeholder="Pick a date range"
+                />
 
                 {/* Tooltip */}
                 <TooltipProvider>
