@@ -3,7 +3,8 @@ import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Download, CreditCard, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Download, CreditCard, Loader2, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import axios from 'axios';
 import { toast } from "sonner";
 import { ColumnDef, SortingState, PaginationState } from "@tanstack/react-table";
@@ -236,6 +237,52 @@ export default function Billing() {
                 Manage Subscription
             </Button>
         </div>
+
+        {subscriptions.find(sub => sub.status === 'past_due') && (() => {
+            const sub = subscriptions.find(s => s.status === 'past_due');
+            // Check for grace period (3 days)
+            // If last_payment_failure_at is null, assume we show it (or handling legacy)
+            // But requirement says "during that grace period of 3 days"
+            const failureDate = sub.last_payment_failure_at ? new Date(sub.last_payment_failure_at) : new Date(); // fallback if missing
+            const threeDaysInMillis = 3 * 24 * 60 * 60 * 1000;
+            const isGracePeriod = (new Date().getTime() - failureDate.getTime()) < threeDaysInMillis;
+
+            if (isGracePeriod) {
+                return (
+                    <Alert variant="destructive" className="mb-6 border-destructive/50 bg-destructive/10 text-destructive dark:border-destructive/50">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Payment Failed</AlertTitle>
+                        <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <span className="text-foreground">
+                                Your last payment for subscription of <strong>{sub.plan?.name || sub.bundle?.name || "Unknown Plan"}</strong> failed. 
+                                Please try again or cancel your subscription.
+                            </span>
+                            <div className="flex gap-2 mt-2 sm:mt-0">
+                                <Button 
+                                    variant="default" // Changed to default for better visibility in alert
+                                    size="sm" 
+                                    onClick={handleManageSubscription} 
+                                    disabled={portalLoading}
+                                >
+                                    {portalLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    Try Again
+                                </Button>
+                                <Button 
+                                    variant="destructive" 
+                                    size="sm" 
+                                    onClick={() => handleCancelSubscription(sub.id, sub.stripe_subscription_id)} 
+                                    disabled={actionLoading === sub.id}
+                                >
+                                    {actionLoading === sub.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    Cancel Subscription
+                                </Button>
+                            </div>
+                        </AlertDescription>
+                    </Alert>
+                )
+            }
+            return null;
+        })()}
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Active Subscriptions */}

@@ -284,6 +284,9 @@ class BillingController {
         case 'invoice.payment_failed':
           await this.handleInvoicePaymentFailed(event.data.object);
           break;
+        case 'invoice.payment_succeeded':
+          await this.handleInvoicePaymentSucceeded(event.data.object);
+          break;
         default:
           console.log(`Unhandled event type ${event.type}`);
       }
@@ -446,6 +449,7 @@ class BillingController {
   }
 
   private async handleSubscriptionDeleted(stripeSub: any) {
+    console.log('Subscription deleted', stripeSub.id);
       const subscriptions = await Subscription.findAll({ where: { stripe_subscription_id: stripeSub.id }});
       if (subscriptions && subscriptions.length > 0) {
           for (const sub of subscriptions) {
@@ -455,8 +459,54 @@ class BillingController {
   }
 
   private async handleInvoicePaymentFailed(invoice: any) {
-    // Notify user, update status to past_due usually happens in subscription.updated
      console.log('Invoice payment failed', invoice.id);
+     
+     // Resolve subscription ID (handle different invoice structures)
+     const subscriptionId = typeof invoice.subscription === 'string' 
+        ? invoice.subscription 
+        : invoice.parent?.subscription_details?.subscription;
+
+     // Find the subscription associated with this invoice
+     if (subscriptionId) {
+        const subscription = await Subscription.findOne({
+            where: { stripe_subscription_id: subscriptionId }
+        });
+
+        if (subscription) {
+            console.log(`[BillingController] Marking subscription ${subscription.id} as past_due due to payment failure.`);
+            await subscription.update({
+                status: SubStatus.PAST_DUE,
+                last_payment_failure_at: new Date()
+            });
+        } else {
+            console.warn(`[BillingController] Subscription not found for failed invoice: ${invoice.id}, Sub ID: ${subscriptionId}`);
+        }
+     } else {
+         console.warn(`[BillingController] No subscription ID found in invoice: ${invoice.id}`);
+     }
+  }
+
+  private async handleInvoicePaymentSucceeded(invoice: any) {
+    console.log('Invoice payment succeeded', invoice.id);
+    
+    // Resolve subscription ID (handle different invoice structures)
+    const subscriptionId = typeof invoice.subscription === 'string' 
+       ? invoice.subscription 
+       : invoice.parent?.subscription_details?.subscription;
+
+    if (subscriptionId) {
+        const subscription = await Subscription.findOne({
+            where: { stripe_subscription_id: subscriptionId }
+        });
+
+        if (subscription) {
+            console.log(`[BillingController] Validating subscription ${subscription.id} status after payment success.`);
+            await subscription.update({
+                status: SubStatus.ACTIVE,
+                last_payment_failure_at: null
+            });
+        }
+    }
   }
 }
 
