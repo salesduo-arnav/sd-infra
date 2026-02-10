@@ -9,6 +9,7 @@ import { PriceInterval, TierType, FeatureResetPeriod } from '../models/enums';
 import { stripeService } from '../services/stripe.service';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
+import { SubStatus } from '../models/enums';
 
 // ==========================
 // Plan Config Controllers
@@ -196,11 +197,32 @@ export const deletePlan = async (req: Request, res: Response) => {
                 throw new Error('NOT_FOUND');
             }
 
+            // Check for active subscriptions for this plan
+            const activeSubscription = await import('../models/subscription').then(({ Subscription }) => 
+                Subscription.findOne({
+                    where: {
+                        plan_id: id,
+                        status: { [Op.in]: [SubStatus.ACTIVE, SubStatus.TRIALING, SubStatus.PAST_DUE] }
+                    },
+                    transaction: t
+                })
+            );
+
+            if (activeSubscription) {
+                throw new Error('HAS_ACTIVE_SUBSCRIPTIONS');
+            }
+
             await plan.destroy({ transaction: t });
         });
         
         res.status(200).json({ message: 'Plan deleted successfully' });
     } catch (error) {
+        const err = error as Error;
+        if (err.message === 'HAS_ACTIVE_SUBSCRIPTIONS') {
+             return res.status(400).json({ 
+                message: 'Cannot delete plan. There are active subscriptions associated with this plan.' 
+            });
+        }
         handleError(res, error, 'Delete Plan Error');
     }
 };
