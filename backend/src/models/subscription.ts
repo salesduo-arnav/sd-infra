@@ -21,6 +21,7 @@ export interface SubscriptionAttributes {
   current_period_start?: Date | null;
   current_period_end?: Date | null;
   cancel_at_period_end: boolean;
+  last_payment_failure_at?: Date | null;
   deleted_at?: Date | null;
   created_at?: Date;
   updated_at?: Date;
@@ -40,6 +41,7 @@ export type SubscriptionCreationAttributes = Optional<
   | 'created_at'
   | 'updated_at'
   | 'deleted_at'
+  | 'last_payment_failure_at'
 >;
 
 export class Subscription extends Model<SubscriptionAttributes, SubscriptionCreationAttributes> implements SubscriptionAttributes {
@@ -54,6 +56,7 @@ export class Subscription extends Model<SubscriptionAttributes, SubscriptionCrea
   public current_period_start!: Date | null;
   public current_period_end!: Date | null;
   public cancel_at_period_end!: boolean;
+  public last_payment_failure_at!: Date | null;
   public readonly deleted_at!: Date | null;
 
   public readonly created_at!: Date;
@@ -125,6 +128,10 @@ Subscription.init(
       defaultValue: false,
     },
     deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    last_payment_failure_at: {
       type: DataTypes.DATE,
       allowNull: true,
     },
