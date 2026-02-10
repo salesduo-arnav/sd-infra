@@ -1,13 +1,14 @@
 import AuditLog from "../models/audit_log";
+import { Request } from 'express';
 
 interface LogParams {
     actorId?: string;
     action: string;
     entityType: string;
     entityId: string;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
     ipAddress?: string;
-    req?: any; // generic express req
+    req?: Request; // generic express req
 }
 
 export class AuditService {

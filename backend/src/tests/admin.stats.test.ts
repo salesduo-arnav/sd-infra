@@ -52,7 +52,7 @@ describe('Admin Stats Controller', () => {
         it('should return overview stats', async () => {
             // Seed some data
             const now = new Date();
-            const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
 
             // Create Users
             await User.create({ email: 'u1@test.com', full_name: 'U1', created_at: now });

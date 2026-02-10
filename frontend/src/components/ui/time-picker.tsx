@@ -341,11 +341,12 @@ export function TimePicker({
     const picker = useTimePicker(value, onChange, timeFormat, minuteInterval);
 
     // Scroll on open
+    const { open, scrollToSelected, setOpen } = picker;
     React.useEffect(() => {
-        if (picker.open) {
-            picker.scrollToSelected(ITEM_HEIGHT);
+        if (open) {
+            scrollToSelected(ITEM_HEIGHT);
         }
-    }, [picker.open, picker.scrollToSelected]);
+    }, [open, scrollToSelected]);
 
     return (
         <Popover open={picker.open} onOpenChange={picker.setOpen}>
@@ -397,11 +398,12 @@ export function TimePickerInline({
     const picker = useTimePicker(value, onChange, timeFormat, minuteInterval);
 
     // Scroll on open
+    const { open: openInline, scrollToSelected: scrollToSelectedInline, setOpen: setOpenInline } = picker;
     React.useEffect(() => {
-        if (picker.open) {
-            picker.scrollToSelected(ITEM_HEIGHT_COMPACT);
+        if (openInline) {
+            scrollToSelectedInline(ITEM_HEIGHT_COMPACT);
         }
-    }, [picker.open, picker.scrollToSelected]);
+    }, [openInline, scrollToSelectedInline]);
 
     return (
         <Popover open={picker.open} onOpenChange={picker.setOpen}>

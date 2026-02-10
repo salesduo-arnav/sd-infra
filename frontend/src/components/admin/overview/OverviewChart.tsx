@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { cn } from "@/lib/utils";
 
 interface ChartProps {
-    data: any[];
+    data: Record<string, unknown>[];
     title: string;
     description?: string;
     dataKey: string;
