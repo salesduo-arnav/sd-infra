@@ -188,6 +188,7 @@ export default function Plans() {
         interval: item.period.includes('year') ? 'yearly' : 'monthly',
         price: item.price,
         name: item.name,
+        tier: item.tierName,
         features: item.features,
         limits: item.limits
     }));

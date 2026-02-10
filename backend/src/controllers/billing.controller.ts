@@ -168,7 +168,8 @@ class BillingController {
               return;
           }
 
-          const invoices = await stripeService.getInvoices(organization.stripe_customer_id);
+          const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+          const invoices = await stripeService.getInvoices(organization.stripe_customer_id, limit);
           res.status(200).json({ invoices: invoices.data });
       } catch (error) {
           next(error);
