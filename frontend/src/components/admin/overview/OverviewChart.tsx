@@ -21,9 +21,6 @@ export function OverviewChart({ data, title, description, dataKey, xAxisKey, typ
             "bg-white dark:bg-slate-950/50",
             className
         )}>
-            {/* Subtle top border accent */}
-            <div className={cn("absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-50")} />
-
             <CardHeader>
                 <CardTitle className="text-base font-medium">{title}</CardTitle>
                 {description && <CardDescription>{description}</CardDescription>}
