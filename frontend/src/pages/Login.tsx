@@ -24,17 +24,31 @@ export default function Login() {
   const { login, sendLoginOtp, verifyLoginOtp, isLoading, checkPendingInvites } = useAuth();
   const navigate = useNavigate();
 
+  const redirectUrl = searchParams.get("redirect");
+  const redirectSuffix = redirectUrl ? `?redirect=${encodeURIComponent(redirectUrl)}` : "";
+
   const handleAuthSuccess = async () => {
-    // Check for invites
+    console.log("Login Success - Redirect Check:", { redirectUrl });
+
+    // Check for invites first
     try {
       const pending = await checkPendingInvites();
       if (pending && pending.length > 0) {
-        navigate("/pending-invites");
+        navigate(`/pending-invites${redirectSuffix}`);
         return;
       }
     } catch (e) {
       console.error(e);
     }
+
+    // If there's an external redirect, go there
+    if (redirectUrl) {
+      const url = new URL(redirectUrl);
+      url.searchParams.set("auth_success", "true");
+      window.location.href = url.toString();
+      return;
+    }
+
     navigate("/apps");
   };
 
@@ -74,7 +88,7 @@ export default function Login() {
     try {
       setOtpState("verifying");
       await verifyLoginOtp(email, otp);
-      navigate("/apps");
+      await handleAuthSuccess();
     } catch (err) {
       setError(err.message || "Invalid OTP");
       setOtpState("sent");
@@ -297,7 +311,7 @@ export default function Login() {
 
         <p className="text-center text-sm text-muted-foreground">
           Don't have an account?{" "}
-          <Link to="/signup" className="text-primary hover:underline">
+          <Link to={`/signup${redirectSuffix}`} className="text-primary hover:underline">
             Sign up
           </Link>
         </p>

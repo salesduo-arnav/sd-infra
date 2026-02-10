@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,8 @@ export default function CreateOrganisation() {
   const [error, setError] = useState("");
   const { refreshUser, switchOrganization } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectUrl = searchParams.get("redirect");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +39,14 @@ export default function CreateOrganisation() {
       await refreshUser();
       if (data.organization && data.organization.id) {
         switchOrganization(data.organization.id);
+      }
+
+      // Redirect to external app if redirect param exists
+      if (redirectUrl) {
+        const url = new URL(redirectUrl);
+        url.searchParams.set("auth_success", "true");
+        window.location.href = url.toString();
+        return;
       }
       navigate("/apps");
     } catch (err) {

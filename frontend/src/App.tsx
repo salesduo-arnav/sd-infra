@@ -15,6 +15,7 @@ import Profile from "./pages/Profile";
 import Organisation from "./pages/Organisation";
 import CreateOrganisation from "./pages/CreateOrganisation";
 import Integrations from "./pages/Integrations";
+import IntegrationOnboarding from "./pages/IntegrationOnboarding";
 import NotFound from "./pages/NotFound";
 import ListingGenerator from "./pages/tools/ListingGenerator";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -37,12 +38,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (isLoading) return <div>Loading...</div>;
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={`/login${location.search}`} replace />;
   }
 
   // If user has no organization and is not on the creation page, redirect them
   if ((!user?.memberships || user.memberships.length === 0) && location.pathname !== "/create-organisation" && location.pathname !== "/pending-invites") {
-    return <Navigate to="/create-organisation" replace />;
+    return <Navigate to={`/create-organisation${location.search}`} replace />;
   }
 
   return <>{children}</>;
@@ -61,7 +62,18 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
+  const location = useLocation();
+
   if (isAuthenticated) {
+    // If there's an external redirect param, honour it instead of going to /apps
+    const params = new URLSearchParams(location.search);
+    const redirectUrl = params.get("redirect");
+    if (redirectUrl) {
+      const url = new URL(redirectUrl);
+      url.searchParams.set("auth_success", "true");
+      window.location.href = url.toString();
+      return null;
+    }
     return <Navigate to="/apps" replace />;
   }
   return <>{children}</>;
@@ -134,6 +146,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Integrations />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/integration-onboarding"
+        element={
+          <ProtectedRoute>
+            <IntegrationOnboarding />
           </ProtectedRoute>
         }
       />

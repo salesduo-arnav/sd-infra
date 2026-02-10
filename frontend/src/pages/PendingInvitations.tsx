@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { useAuth, Invitation } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, Trash2, Undo2 } from "lucide-react";
 
@@ -17,6 +17,8 @@ export default function PendingInvitations() {
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState("");
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const redirectUrl = searchParams.get("redirect");
 
     useEffect(() => {
         const fetchInvites = async () => {
@@ -24,7 +26,13 @@ export default function PendingInvitations() {
                 const data = await checkPendingInvites();
                 setInvites(data);
                 if (data.length === 0) {
-                    navigate('/apps');
+                    if (redirectUrl) {
+                        const url = new URL(redirectUrl);
+                        url.searchParams.set("auth_success", "true");
+                        window.location.href = url.toString();
+                    } else {
+                        navigate('/apps');
+                    }
                 }
             } catch (err) {
                 console.error(err);
@@ -68,6 +76,13 @@ export default function PendingInvitations() {
                 await Promise.all(invitesToDecline.map(invite => declineInvite(invite.token)));
             }
 
+            // Redirect to external app if redirect param exists
+            if (redirectUrl) {
+                const url = new URL(redirectUrl);
+                url.searchParams.set("auth_success", "true");
+                window.location.href = url.toString();
+                return;
+            }
             navigate('/apps');
         } catch (error) {
             console.error(error);
