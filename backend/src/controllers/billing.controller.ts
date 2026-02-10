@@ -125,15 +125,79 @@ class BillingController {
              return;
         }
 
+        // 1. Fetch Local Subscriptions (Source of Truth for Status/Plan)
         const subscriptions = await Subscription.findAll({
             where: { organization_id: organization.id },
             include: [
                 { model: Plan, as: 'plan' },
                 { model: Bundle, as: 'bundle' }
-            ]
+            ],
+            order: [['created_at', 'DESC']]
         });
 
-        res.status(200).json({ subscriptions });
+        // 2. Fetch Stripe Data for Payment Methods (if connected)
+        let stripePaymentMethodsMap: Record<string, any> = {};
+        let defaultPaymentMethod: any = null;
+
+        if (organization.stripe_customer_id) {
+            try {
+                const [customer, stripeSubs] = await Promise.all([
+                    stripeService.getCustomer(organization.stripe_customer_id),
+                    stripeService.getCustomerSubscriptions(organization.stripe_customer_id)
+                ]);
+
+                // Get Default Customer PM
+                if ((customer as any).invoice_settings?.default_payment_method) {
+                    const pmId = (customer as any).invoice_settings.default_payment_method;
+                    if (typeof pmId === 'string') {
+                        const pm = await stripeService.getClient().paymentMethods.retrieve(pmId);
+                        defaultPaymentMethod = pm;
+                    } else {
+                        defaultPaymentMethod = pmId;
+                    }
+                }
+
+                // Map Subscription ID -> Payment Method
+                stripeSubs.data.forEach((sub) => {
+                    if (sub.default_payment_method) {
+                        stripePaymentMethodsMap[sub.id] = sub.default_payment_method;
+                    }
+                });
+
+            } catch (err) {
+                console.error("Failed to fetch Stripe details for enrichment", err);
+                // Continue without payment details if Stripe fails
+            }
+        }
+
+        // 3. Merge Data
+        const enrichedSubscriptions = subscriptions.map((sub) => {
+            const subJson = sub.toJSON();
+            let paymentMethod = null;
+
+            if (sub.stripe_subscription_id) {
+                // Check for subscription-specific PM first
+                const specificPm = stripePaymentMethodsMap[sub.stripe_subscription_id];
+                if (specificPm) {
+                    paymentMethod = specificPm;
+                } else {
+                    // Fallback to customer default
+                    paymentMethod = defaultPaymentMethod;
+                }
+            }
+
+            return {
+                ...subJson,
+                paymentMethodDetails: paymentMethod ? {
+                    brand: paymentMethod.card?.brand,
+                    last4: paymentMethod.card?.last4,
+                    exp_month: paymentMethod.card?.exp_month,
+                    exp_year: paymentMethod.card?.exp_year
+                } : null
+            };
+        });
+
+        res.status(200).json({ subscriptions: enrichedSubscriptions });
     } catch (error) {
         next(error);
     }
@@ -295,6 +359,83 @@ class BillingController {
       console.error('Error handling webhook event:', err);
       next(err);
     }
+  }
+
+  // Sync Subscription Status manually
+  async syncSubscription(req: Request, res: Response, next: NextFunction) {
+      try {
+          const organization = req.organization;
+          if (!organization || !organization.stripe_customer_id) {
+             res.status(400).json({ message: 'Organization is not linked to Stripe' });
+             return;
+          }
+
+          console.log(`[BillingController] Manual Sync for Org ${organization.id}`);
+
+          // Fetch all subscriptions from Stripe
+          const stripeSubs = await stripeService.getCustomerSubscriptions(organization.stripe_customer_id);
+          
+          // Map helper
+           const toDateNullable = (ts: any): Date | null => {
+              return ts ? new Date(ts * 1000) : null;
+           }
+
+           // Helper to map status
+           const mapStripeStatus = (status: string): SubStatus => {
+              const map: { [key: string]: SubStatus } = {
+                  'active': SubStatus.ACTIVE,
+                  'past_due': SubStatus.PAST_DUE,
+                  'canceled': SubStatus.CANCELED,
+                  'trialing': SubStatus.TRIALING,
+                  'incomplete': SubStatus.INCOMPLETE,
+                  'incomplete_expired': SubStatus.INCOMPLETE_EXPIRED,
+                  'unpaid': SubStatus.UNPAID,
+                  'paused': SubStatus.PAUSED
+              };
+              return map[status] || SubStatus.INCOMPLETE;
+           }
+
+          let updatedCount = 0;
+
+          // Loop through stripe subscriptions and update local ones
+          for (const stripeSub of stripeSubs.data as any[]) {
+               const localSub = await Subscription.findOne({
+                   where: { 
+                       stripe_subscription_id: stripeSub.id,
+                       organization_id: organization.id
+                   }
+               });
+
+               if (localSub) {
+                   const status = mapStripeStatus(stripeSub.status);
+                   const isPaymentFailed = status === SubStatus.PAST_DUE || status === SubStatus.UNPAID;
+
+                   // Date Fallback Logic (Same as Webhook)
+                   let currentPeriodStart = stripeSub.current_period_start;
+                   let currentPeriodEnd = stripeSub.current_period_end;
+                   
+                   if (!currentPeriodStart && stripeSub.items?.data?.[0]?.current_period_start) {
+                        currentPeriodStart = stripeSub.items.data[0].current_period_start;
+                        currentPeriodEnd = stripeSub.items.data[0].current_period_end;
+                   }
+
+                   await localSub.update({
+                       status: status,
+                       current_period_start: toDateNullable(currentPeriodStart),
+                       current_period_end: toDateNullable(currentPeriodEnd),
+                       cancel_at_period_end: stripeSub.cancel_at_period_end,
+                       // Clear failure date if active or canceled (resolved)
+                       last_payment_failure_at: isPaymentFailed ? localSub.last_payment_failure_at : null
+                   });
+                   updatedCount++;
+               }
+          }
+
+          res.status(200).json({ message: 'Sync complete', updated: updatedCount });
+
+      } catch (error) {
+          next(error);
+      }
   }
 
   // --- Webhook Handlers ---
