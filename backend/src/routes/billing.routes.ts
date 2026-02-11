@@ -26,7 +26,7 @@ router.get('/payment-methods', billingController.getPaymentMethods.bind(billingC
 // Subscription Management
 router.post('/subscription/:id/cancel', billingController.cancelSubscription.bind(billingController));
 router.post('/subscription/:id/resume', billingController.resumeSubscription.bind(billingController));
-
+router.put('/subscription/:id', billingController.updateSubscription.bind(billingController));
 // Sync Subscription
 router.post('/sync', billingController.syncSubscription.bind(billingController));
 

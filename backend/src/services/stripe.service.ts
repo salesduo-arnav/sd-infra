@@ -58,6 +58,56 @@ export class StripeService {
     });
   }
 
+  async updateSubscription(subscriptionId: string, priceId: string) {
+      const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
+      const itemId = subscription.items.data[0].id;
+
+      return this.stripe.subscriptions.update(subscriptionId, {
+          proration_behavior: 'always_invoice',
+          items: [{
+              id: itemId,
+              price: priceId,
+          }],
+      });
+  }
+
+  async scheduleDowngrade(subscriptionId: string, newPriceId: string) {
+      const subscription = await this.stripe.subscriptions.retrieve(subscriptionId) as any;
+      
+      let scheduleId = subscription.schedule;
+
+      // If no schedule exists, create one from the subscription
+      if (!scheduleId || typeof scheduleId !== 'string') {
+          const newSchedule = await this.stripe.subscriptionSchedules.create({
+              from_subscription: subscriptionId,
+          });
+          scheduleId = newSchedule.id;
+      }
+
+      // Retrieve the schedule to get the auto-populated current phase
+      const schedule = await this.stripe.subscriptionSchedules.retrieve(scheduleId) as any;
+      const currentPhase = schedule.phases[schedule.phases.length - 1];
+
+      // Build phases: keep the current phase as-is, add the downgrade phase after it
+      return this.stripe.subscriptionSchedules.update(scheduleId, {
+          end_behavior: 'release',
+          phases: [
+              {
+                  items: currentPhase.items.map((item: any) => ({
+                      price: typeof item.price === 'string' ? item.price : item.price.id || item.price,
+                      quantity: item.quantity,
+                  })),
+                  start_date: currentPhase.start_date,
+                  end_date: currentPhase.end_date,
+              },
+              {
+                  items: [{ price: newPriceId, quantity: 1 }],
+                  start_date: currentPhase.end_date,
+              }
+          ],
+      });
+  }
+
   async getCustomerSubscriptions(customerId: string) {
       return this.stripe.subscriptions.list({
           customer: customerId,
