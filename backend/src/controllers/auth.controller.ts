@@ -47,9 +47,10 @@ const createSession = async (res: Response, user: User) => {
     // Set Cookie
     res.cookie('session_id', sessionId, {
         httpOnly: true, // Prevents XSS
-        secure: process.env.NODE_ENV === 'production' ? true : false, // HTTPS only in prod
+        secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
         sameSite: 'lax', // CSRF protection
-        maxAge: sessionTTL * 1000 // Match Redis TTL
+        maxAge: sessionTTL * 1000, // Match Redis TTL
+        domain: process.env.NODE_ENV === 'production' ? process.env.COOKIE_DOMAIN : undefined
     });
 };
 

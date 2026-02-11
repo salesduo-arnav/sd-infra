@@ -15,10 +15,20 @@ export default function CreateOrganisation() {
   const [newInvite, setNewInvite] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const { refreshUser, switchOrganization } = useAuth();
+  const { refreshUser, switchOrganization, activeOrganization } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectUrl = searchParams.get("redirect");
+
+  // State guard: If user already has an org, redirect them.
+  // This prevents back-button re-entry into org creation.
+  useState(() => {
+    if (activeOrganization) {
+      // preserve query params
+      const target = redirectUrl ? `/integration-onboarding?${searchParams.toString()}` : "/apps";
+      navigate(target, { replace: true });
+    }
+  });
 
   const addInvite = () => {
     if (newInvite && !invites.includes(newInvite) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newInvite)) {
@@ -59,10 +69,12 @@ export default function CreateOrganisation() {
       if (redirectUrl) {
         const url = new URL(redirectUrl);
         url.searchParams.set("auth_success", "true");
-        window.location.href = url.toString();
+        window.location.replace(url.toString()); // external redirect
         return;
       }
-      navigate("/apps");
+
+      // Navigate to apps or integration onboarding with replace to start fresh
+      navigate("/apps", { replace: true });
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);

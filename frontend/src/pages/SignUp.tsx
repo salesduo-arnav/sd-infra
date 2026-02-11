@@ -24,7 +24,13 @@ export default function SignUp() {
   const inviteEmail = searchParams.get("email");
   const inviteToken = searchParams.get("token");
   const redirectUrl = searchParams.get("redirect");
-  const redirectSuffix = redirectUrl ? `?redirect=${encodeURIComponent(redirectUrl)}` : "";
+  const appParam = searchParams.get("app");
+
+  const params = new URLSearchParams();
+  if (redirectUrl) params.set("redirect", redirectUrl);
+  if (appParam) params.set("app", appParam);
+
+  const redirectSuffix = params.toString() ? `?${params.toString()}` : "";
 
   // Personal info
   const [fullName, setFullName] = useState("");

@@ -25,7 +25,13 @@ export default function Login() {
   const navigate = useNavigate();
 
   const redirectUrl = searchParams.get("redirect");
-  const redirectSuffix = redirectUrl ? `?redirect=${encodeURIComponent(redirectUrl)}` : "";
+  const appParam = searchParams.get("app");
+
+  const params = new URLSearchParams();
+  if (redirectUrl) params.set("redirect", redirectUrl);
+  if (appParam) params.set("app", appParam);
+
+  const redirectSuffix = params.toString() ? `?${params.toString()}` : "";
 
   const handleAuthSuccess = async () => {
     console.log("Login Success - Redirect Check:", { redirectUrl });
