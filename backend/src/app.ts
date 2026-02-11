@@ -6,6 +6,7 @@ import authRoutes from './routes/auth.routes';
 import organizationRoutes from './routes/organization.routes';
 import invitationRoutes from './routes/invitation.routes';
 import adminRoutes from './routes/admin.routes';
+import toolRoutes from './routes/tool.routes';
 import billingRoutes from './routes/billing.routes';
 import webhookRoutes from './routes/webhook.routes';
 import publicPlanRoutes from './routes/public.plan.routes';
@@ -32,6 +33,7 @@ app.use('/auth', authRoutes);
 app.use('/organizations', organizationRoutes);
 app.use('/invitations', invitationRoutes);
 app.use('/admin', adminRoutes);
+app.use('/tools', toolRoutes);
 app.use('/billing', billingRoutes);
 app.use('/public', publicPlanRoutes);
 

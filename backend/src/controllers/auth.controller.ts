@@ -14,6 +14,7 @@ import { isSuperuserEmail } from '../config/superuser';
 import dotenv from 'dotenv';
 import path from 'path';
 import { handleError } from '../utils/error';
+import { AuditService } from '../services/audit.service';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -104,6 +105,16 @@ export const register = async (req: Request, res: Response) => {
             // Mark invitation as accepted
             invitation.status = InvitationStatus.ACCEPTED;
             await invitation.save();
+
+            // Audit log for invitation acceptance
+            await AuditService.log({
+                actorId: user.id,
+                action: 'ACCEPT_INVITATION',
+                entityType: 'Invitation',
+                entityId: invitation.id,
+                details: { organization_id: invitation.organization_id, method: 'registration' },
+                req
+            });
         }
 
         // Refetch user with membership to ensure frontend gets correct state
@@ -122,6 +133,16 @@ export const register = async (req: Request, res: Response) => {
         });
 
         await createSession(res, user);
+
+        // Audit log
+        await AuditService.log({
+            actorId: user.id,
+            action: 'USER_REGISTER',
+            entityType: 'User',
+            entityId: user.id,
+            details: { email: user.email, had_invitation: !!invitation },
+            req
+        });
 
         res.status(201).json({
             message: 'Registered successfully',
@@ -207,6 +228,16 @@ export const login = async (req: Request, res: Response) => {
 
         await createSession(res, user);
 
+        // Audit log
+        await AuditService.log({
+            actorId: user.id,
+            action: 'USER_LOGIN',
+            entityType: 'User',
+            entityId: user.id,
+            details: { method: 'password' },
+            req
+        });
+
         res.json({
             message: 'Logged in successfully',
             user: userWithOrg
@@ -218,9 +249,22 @@ export const login = async (req: Request, res: Response) => {
 
 export const logout = async (req: Request, res: Response) => {
     const sessionId = req.cookies.session_id;
+    const userId = req.user?.id;
 
     if (sessionId) {
         await redisClient.del(`session:${sessionId}`);
+    }
+
+    // Audit log
+    if (userId) {
+        await AuditService.log({
+            actorId: userId,
+            action: 'USER_LOGOUT',
+            entityType: 'User',
+            entityId: userId,
+            details: {},
+            req
+        });
     }
 
     res.clearCookie('session_id');
@@ -336,6 +380,16 @@ export const resetPassword = async (req: Request, res: Response) => {
         // Delete token from Redis so it can't be reused
         await redisClient.del(`reset_token:${token}`);
 
+        // Audit log
+        await AuditService.log({
+            actorId: user.id,
+            action: 'USER_PASSWORD_RESET',
+            entityType: 'User',
+            entityId: user.id,
+            details: {},
+            req
+        });
+
         res.json({ message: 'Password has been reset successfully. You can now login.' });
     } catch (error) {
         handleError(res, error, 'Reset Password Error');
@@ -394,6 +448,7 @@ export const googleAuth = async (req: Request, res: Response) => {
 
         // 4. Check if user exists
         let user = await User.findOne({ where: { email } });
+        const isNewUser = !user;
 
         // 5. If not, create new user
         if (!user) {
@@ -434,6 +489,16 @@ export const googleAuth = async (req: Request, res: Response) => {
             // Mark invitation as accepted
             invitation.status = InvitationStatus.ACCEPTED;
             await invitation.save();
+
+            // Audit log for invitation acceptance
+            await AuditService.log({
+                actorId: user.id,
+                action: 'ACCEPT_INVITATION',
+                entityType: 'Invitation',
+                entityId: invitation.id,
+                details: { organization_id: invitation.organization_id, method: 'google_auth' },
+                req
+            });
         }
 
         // 7. Refetch user with membership to ensure frontend gets correct state
@@ -453,6 +518,16 @@ export const googleAuth = async (req: Request, res: Response) => {
 
         // 8. Create Session
         await createSession(res, user);
+
+        // Audit log
+        await AuditService.log({
+            actorId: user.id,
+            action: 'USER_GOOGLE_AUTH',
+            entityType: 'User',
+            entityId: user.id,
+            details: { is_new_user: isNewUser, had_invitation: !!invitation },
+            req
+        });
 
         res.json({
             message: 'Logged in with Google successfully',
@@ -561,6 +636,16 @@ export const verifyLoginOtp = async (req: Request, res: Response) => {
 
         // Create session
         await createSession(res, user);
+
+        // Audit log
+        await AuditService.log({
+            actorId: user.id,
+            action: 'USER_LOGIN_OTP_VERIFIED',
+            entityType: 'User',
+            entityId: user.id,
+            details: { method: 'otp' },
+            req
+        });
 
         res.json({
             message: 'Logged in successfully',
@@ -710,6 +795,16 @@ export const verifySignupOtp = async (req: Request, res: Response) => {
 
             invitation.status = InvitationStatus.ACCEPTED;
             await invitation.save();
+
+            // Audit log for invitation acceptance
+            await AuditService.log({
+                actorId: user.id,
+                action: 'ACCEPT_INVITATION',
+                entityType: 'Invitation',
+                entityId: invitation.id,
+                details: { organization_id: invitation.organization_id, method: 'signup_otp' },
+                req
+            });
         }
 
         // Fetch user with membership
@@ -729,6 +824,16 @@ export const verifySignupOtp = async (req: Request, res: Response) => {
 
         // Create session
         await createSession(res, user);
+
+        // Audit log
+        await AuditService.log({
+            actorId: user.id,
+            action: 'USER_SIGNUP_OTP_VERIFIED',
+            entityType: 'User',
+            entityId: user.id,
+            details: { email: user.email, had_invitation: !!invitation },
+            req
+        });
 
         res.status(201).json({
             message: 'Account created successfully',

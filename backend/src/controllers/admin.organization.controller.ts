@@ -6,6 +6,7 @@ import { Role } from '../models/role';
 import sequelize from '../config/db';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
+import { AuditService } from '../services/audit.service';
 
 export const getOrganizations = async (req: Request, res: Response) => {
     try {
@@ -68,11 +69,30 @@ export const updateOrganization = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Organization not found' });
         }
 
+        const oldValues = {
+            name: organization.name,
+            slug: organization.slug,
+            website: organization.website,
+            status: organization.status
+        };
+
         await organization.update({
             name: name !== undefined ? name : organization.name,
             slug: slug !== undefined ? slug : organization.slug,
             website: website !== undefined ? website : organization.website,
             status: status !== undefined ? status as OrgStatus : organization.status
+        });
+
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'UPDATE_ORGANIZATION',
+            entityType: 'Organization',
+            entityId: organization.id,
+            details: {
+                old_values: oldValues,
+                new_values: { name, slug, website, status }
+            },
+            req
         });
 
         res.status(200).json({ message: 'Organization updated successfully', organization });
@@ -97,6 +117,18 @@ export const deleteOrganization = async (req: Request, res: Response) => {
             await organization.destroy({ transaction: t });
         });
 
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'DELETE_ORGANIZATION',
+            entityType: 'Organization',
+            entityId: id,
+            details: {
+                deleted_org_name: organization.name,
+                deleted_org_slug: organization.slug
+            },
+            req
+        });
+
         res.status(200).json({ message: 'Organization deleted successfully' });
     } catch (error) {
         handleError(res, error, 'Delete Organization Error');
@@ -106,12 +138,6 @@ export const deleteOrganization = async (req: Request, res: Response) => {
 export const getOrganizationDetails = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        // Using "membersPage" etc explicitly because it's a nested pagination which getPaginationOptions might not handle perfectly if it just looks at page/limit. 
-        // But getPaginationOptions looks at req.query.page. 
-        // Here we have specific query params for members. 
-        // Let's keep manual parsing for nested membersPagination to avoid conflict if main resource was paginated (though here it's a detail view).
-        // Standardizing it slightly.
-        
         const membersPage = parseInt(req.query.membersPage as string) || 1;
         const membersLimit = parseInt(req.query.membersLimit as string) || 10;
         const membersOffset = (membersPage - 1) * membersLimit;

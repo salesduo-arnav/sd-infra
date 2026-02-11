@@ -12,6 +12,7 @@ import { BundlePlan } from './bundle_plan';
 import { Subscription } from './subscription';
 import { OrganizationEntitlement } from './organization_entitlement';
 import { OneTimePurchase } from './one_time_purchase';
+import { ToolUsage } from './tool_usage';
 import { PriceInterval, TierType, SubStatus, FeatureType, FeatureResetPeriod } from './enums';
 
 // =====================
@@ -152,6 +153,17 @@ OneTimePurchase.belongsTo(Bundle, { foreignKey: 'bundle_id', as: 'bundle' });
 BundleGroup.hasMany(Bundle, { foreignKey: 'bundle_group_id', as: 'bundles', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
 Bundle.belongsTo(BundleGroup, { foreignKey: 'bundle_group_id', as: 'group' });
 
+
+// Tool Usage Associations
+Tool.hasMany(ToolUsage, { foreignKey: 'tool_id', as: 'usages', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+ToolUsage.belongsTo(Tool, { foreignKey: 'tool_id', as: 'tool' });
+
+User.hasMany(ToolUsage, { foreignKey: 'user_id', as: 'tool_usages', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+ToolUsage.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
+Organization.hasMany(ToolUsage, { foreignKey: 'organization_id', as: 'tool_usages', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+ToolUsage.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
+
 // Export all models
 export {
   User,
@@ -171,6 +183,7 @@ export {
   Subscription,
   OrganizationEntitlement,
   OneTimePurchase,
+  ToolUsage,
   PriceInterval,
   TierType,
   SubStatus,

@@ -5,6 +5,7 @@ import { Op } from 'sequelize';
 import sequelize from '../config/db';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
+import { AuditService } from '../services/audit.service';
 
 // ==========================
 // Feature Config Controllers
@@ -23,7 +24,7 @@ export const getFeatures = async (req: Request, res: Response) => {
         }
 
         if (search) {
-             whereClause[Op.or] = [
+            whereClause[Op.or] = [
                 { name: { [Op.iLike]: `%${search}%` } },
                 { slug: { [Op.iLike]: `%${search}%` } }
             ];
@@ -48,7 +49,7 @@ export const getFeatureById = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const feature = await Feature.findByPk(id, {
-             include: [{ model: Tool, as: 'tool', attributes: ['name', 'slug'] }]
+            include: [{ model: Tool, as: 'tool', attributes: ['name', 'slug'] }]
         });
 
         if (!feature) {
@@ -83,6 +84,15 @@ export const createFeature = async (req: Request, res: Response) => {
             }, { transaction: t });
         });
 
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'CREATE_FEATURE',
+            entityType: 'Feature',
+            entityId: feature.id,
+            details: { name, slug, tool_id },
+            req
+        });
+
         res.status(201).json(feature);
     } catch (error) {
         handleError(res, error, 'Create Feature Error');
@@ -115,6 +125,15 @@ export const updateFeature = async (req: Request, res: Response) => {
             }, { transaction: t });
         });
 
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'UPDATE_FEATURE',
+            entityType: 'Feature',
+            entityId: id,
+            details: { updates: { name, slug, description } },
+            req
+        });
+
         res.status(200).json(updatedFeature);
     } catch (error) {
         handleError(res, error, 'Update Feature Error');
@@ -124,7 +143,7 @@ export const updateFeature = async (req: Request, res: Response) => {
 export const deleteFeature = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        
+
         await sequelize.transaction(async (t) => {
             const feature = await Feature.findByPk(id, { transaction: t });
 
@@ -134,7 +153,16 @@ export const deleteFeature = async (req: Request, res: Response) => {
 
             await feature.destroy({ transaction: t });
         });
-        
+
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'DELETE_FEATURE',
+            entityType: 'Feature',
+            entityId: id,
+            details: {},
+            req
+        });
+
         res.status(200).json({ message: 'Feature deleted successfully' });
     } catch (error) {
         handleError(res, error, 'Delete Feature Error');

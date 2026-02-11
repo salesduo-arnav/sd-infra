@@ -8,6 +8,7 @@ import { mailService } from '../services/mail.service';
 import { Organization } from '../models/organization';
 import sequelize from '../config/db';
 import { handleError } from '../utils/error';
+import { AuditService } from '../services/audit.service';
 
 export const inviteMember = async (req: Request, res: Response) => {
     try {
@@ -95,6 +96,15 @@ export const inviteMember = async (req: Request, res: Response) => {
             // In production, we might want to return a warning or retry.
         }
 
+        await AuditService.log({
+            actorId: userId,
+            action: 'INVITE_MEMBER',
+            entityType: 'Invitation',
+            entityId: invitation.id,
+            details: { email, role_id, organization_id: orgId },
+            req
+        });
+
         res.status(201).json({ message: 'Invitation sent', invitation });
 
     } catch (error) {
@@ -146,7 +156,18 @@ export const revokeInvitation = async (req: Request, res: Response) => {
 
         if (!invitation) return res.status(404).json({ message: 'Invitation not found' });
 
+        const invitationId = invitation.id;
+        const invitedEmail = invitation.email;
         await invitation.destroy();
+
+        await AuditService.log({
+            actorId: userId,
+            action: 'REVOKE_INVITATION',
+            entityType: 'Invitation',
+            entityId: invitationId,
+            details: { email: invitedEmail },
+            req
+        });
 
         res.json({ message: 'Invitation revoked' });
 
@@ -232,6 +253,15 @@ export const acceptInvitation = async (req: Request, res: Response) => {
             await invitation.save({ transaction: t });
         });
 
+        await AuditService.log({
+            actorId: userId,
+            action: 'ACCEPT_INVITATION',
+            entityType: 'Invitation',
+            entityId: invitation.id,
+            details: { organization_id: invitation.organization_id },
+            req
+        });
+
         res.json({ message: 'Invitation accepted' });
 
     } catch (error) {
@@ -280,7 +310,18 @@ export const declineInvitation = async (req: Request, res: Response) => {
             return res.status(403).json({ message: 'This invitation does not belong to you' });
         }
 
+        const invitationId = invitation.id;
+        const orgId = invitation.organization_id;
         await invitation.destroy();
+
+        await AuditService.log({
+            actorId: user.id,
+            action: 'DECLINE_INVITATION',
+            entityType: 'Invitation',
+            entityId: invitationId,
+            details: { organization_id: orgId },
+            req
+        });
 
         res.json({ message: 'Invitation declined' });
 
