@@ -9,6 +9,7 @@ import { Organization } from '../models/organization';
 import sequelize from '../config/db';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
+import { invitationService } from '../services/invitation.service';
 
 export const inviteMember = async (req: Request, res: Response) => {
     try {
@@ -27,74 +28,7 @@ export const inviteMember = async (req: Request, res: Response) => {
 
         const orgId = membership.organization_id;
 
-        // Check if already invited
-        const existingInvite = await Invitation.findOne({
-            where: { organization_id: orgId, email, status: InvitationStatus.PENDING }
-        });
-
-        if (existingInvite) {
-            return res.status(400).json({ message: 'User already invited' });
-        }
-
-        // Check if already a member
-        const existingMember = await OrganizationMember.findOne({
-            where: { organization_id: orgId },
-            include: [{ model: User, as: 'user', where: { email } }]
-        });
-
-        if (existingMember) {
-            return res.status(400).json({ message: 'User is already a member' });
-        }
-
-        const token = crypto.randomBytes(32).toString('hex');
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
-
-        const invitation = await Invitation.create({
-            organization_id: orgId,
-            email,
-            role_id,
-            token,
-            invited_by: userId,
-            status: InvitationStatus.PENDING,
-            expires_at: expiresAt
-        });
-
-        // Send Email (Mocked or Real)
-        try {
-            // Construct invite link (adjust frontend URL)
-            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-            const inviteLink = `${frontendUrl}/accept-invite?token=${token}`;
-
-            await mailService.sendMail({
-                to: email,
-                subject: "You've Been Invited to Join an Organization - SalesDuo",
-                html: `
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #ff9900;">Organization Invitation</h2>
-                    <p>You've been invited to join an organization on <strong>SalesDuo</strong>.</p>
-
-                    <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
-                        <a 
-                        href="${inviteLink}"
-                        style="display: inline-block; padding: 12px 24px; background-color: #ff9900; color: #fff; text-decoration: none; font-weight: bold; border-radius: 4px;"
-                        >
-                        Accept Invitation
-                        </a>
-                    </div>
-
-                    <p>If you weren't expecting this invite, you can ignore this email.</p>
-
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="color: #666; font-size: 12px;">This is an automated message from SalesDuo.</p>
-                    </div>
-                `,
-            });
-        } catch (mailError) {
-            console.error('Mail Error:', mailError);
-            // Don't fail the request, just log it. 
-            // In production, we might want to return a warning or retry.
-        }
+        const invitation = await invitationService.sendInvitation(orgId, email, role_id, userId);
 
         await AuditService.log({
             actorId: userId,
@@ -108,6 +42,9 @@ export const inviteMember = async (req: Request, res: Response) => {
         res.status(201).json({ message: 'Invitation sent', invitation });
 
     } catch (error) {
+        if (error instanceof Error && (error.message === 'User already invited' || error.message === 'User is already a member')) {
+            return res.status(400).json({ message: error.message });
+        }
         handleError(res, error, 'Invite Error');
     }
 };

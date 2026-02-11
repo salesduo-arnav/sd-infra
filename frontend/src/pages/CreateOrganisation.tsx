@@ -4,18 +4,32 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Building2, Sparkles, Users, Shield, ArrowRight } from "lucide-react";
 import { API_URL } from "@/lib/api";
 
 export default function CreateOrganisation() {
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
+  const [invites, setInvites] = useState<string[]>([]);
+  const [newInvite, setNewInvite] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const { refreshUser, switchOrganization } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectUrl = searchParams.get("redirect");
+
+  const addInvite = () => {
+    if (newInvite && !invites.includes(newInvite) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newInvite)) {
+      setInvites([...invites, newInvite]);
+      setNewInvite("");
+    }
+  };
+
+  const removeInvite = (email: string) => {
+    setInvites(invites.filter((i) => i !== email));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +41,7 @@ export default function CreateOrganisation() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ name, website }),
+        body: JSON.stringify({ name, website, invites }),
       });
 
       if (!res.ok) {
@@ -170,6 +184,52 @@ export default function CreateOrganisation() {
               />
               <p className="text-xs text-muted-foreground">
                 Add your company website to personalize your workspace
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Invite Team Members <span className="text-muted-foreground font-normal">(Optional)</span></Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="colleague@example.com"
+                  value={newInvite}
+                  onChange={(e) => setNewInvite(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addInvite();
+                    }
+                  }}
+                />
+                <Button type="button" variant="outline" onClick={addInvite}>
+                  Add
+                </Button>
+              </div>
+
+              {invites.length > 0 && (
+                <div className="mt-2 border rounded-md">
+                  <ScrollArea className="h-[120px] w-full rounded-md p-2">
+                    <div className="space-y-2">
+                      {invites.map((email) => (
+                        <div key={email} className="flex items-center justify-between px-2 py-1 bg-muted/60 rounded-md">
+                          <span className="font-semibold text-gray-800 text-sm">{email}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => removeInvite(email)}
+                          >
+                            &times;
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                They will receive an email invitation to join your organization
               </p>
             </div>
 

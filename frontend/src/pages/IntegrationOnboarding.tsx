@@ -53,7 +53,7 @@ type IntegrationStatus = "pending" | "connecting" | "connected";
 /* ------------------------------------------------------------------ */
 
 const TOOL_INTEGRATIONS: Record<string, IntegrationDef[]> = {
-    "listing-generator": [
+    "creative-studio": [
         {
             id: "sp-api",
             name: "Amazon Selling Partner API",
@@ -108,38 +108,7 @@ const TOOL_INTEGRATIONS: Record<string, IntegrationDef[]> = {
                 },
             ],
         },
-    ],
-
-    /* Fallback for sp-api only (backwards compat) */
-    "sp-api": [
-        {
-            id: "sp-api",
-            name: "Amazon Selling Partner API",
-            shortName: "SP-API",
-            description: "Sync orders, inventory, and product data from Seller Central.",
-            icon: <ShoppingCart className="h-5 w-5" />,
-            required: true,
-            fields: [
-                {
-                    key: "sellerId",
-                    label: "Seller ID",
-                    placeholder: "e.g. A1B2C3D4E5F6G7",
-                    hint: "Seller Central → Settings → Account Info",
-                },
-                {
-                    key: "clientId",
-                    label: "LWA Client ID",
-                    placeholder: "amzn1.application-oa2-client.xxxx",
-                },
-                {
-                    key: "clientSecret",
-                    label: "Client Secret",
-                    placeholder: "Enter your client secret",
-                    secret: true,
-                },
-            ],
-        },
-    ],
+    ]
 };
 
 /* ------------------------------------------------------------------ */
@@ -148,10 +117,10 @@ const TOOL_INTEGRATIONS: Record<string, IntegrationDef[]> = {
 
 export default function IntegrationOnboarding() {
     const [searchParams] = useSearchParams();
-    const integrationId = searchParams.get("integration") || "listing-generator";
+    const integrationId = searchParams.get("integration") || "creative-studio";
     const redirectUrl = searchParams.get("redirect");
 
-    const integrations = TOOL_INTEGRATIONS[integrationId] ?? TOOL_INTEGRATIONS["sp-api"]!;
+    const integrations = TOOL_INTEGRATIONS[integrationId] ?? TOOL_INTEGRATIONS["creative-studio"]!;
     const requiredCount = integrations.filter(i => i.required).length;
 
     // Track status for each integration
@@ -368,8 +337,8 @@ export default function IntegrationOnboarding() {
                                     <div key={integ.id} className="flex items-center gap-2 flex-1">
                                         <div
                                             className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-semibold transition-colors shrink-0 ${statuses[integ.id] === "connected"
-                                                    ? "bg-green-500 text-white"
-                                                    : "bg-muted text-muted-foreground"
+                                                ? "bg-green-500 text-white"
+                                                : "bg-muted text-muted-foreground"
                                                 }`}
                                         >
                                             {statuses[integ.id] === "connected" ? (
@@ -381,8 +350,8 @@ export default function IntegrationOnboarding() {
                                         {idx < integrations.length - 1 && (
                                             <div
                                                 className={`h-0.5 flex-1 rounded-full transition-colors ${statuses[integ.id] === "connected"
-                                                        ? "bg-green-500"
-                                                        : "bg-border"
+                                                    ? "bg-green-500"
+                                                    : "bg-border"
                                                     }`}
                                             />
                                         )}
@@ -400,8 +369,8 @@ export default function IntegrationOnboarding() {
                                         <Card
                                             key={integ.id}
                                             className={`transition-all duration-200 ${isConnected
-                                                    ? "border-green-200 bg-green-50/50"
-                                                    : "hover:border-primary/30 hover:shadow-md cursor-pointer"
+                                                ? "border-green-200 bg-green-50/50"
+                                                : "hover:border-primary/30 hover:shadow-md cursor-pointer"
                                                 }`}
                                             onClick={
                                                 !isConnected
@@ -412,8 +381,8 @@ export default function IntegrationOnboarding() {
                                             <CardContent className="flex items-center gap-4 py-4 px-5">
                                                 <div
                                                     className={`flex items-center justify-center w-12 h-12 rounded-xl shrink-0 transition-colors ${isConnected
-                                                            ? "bg-green-100 text-green-600"
-                                                            : "bg-primary/10 text-primary"
+                                                        ? "bg-green-100 text-green-600"
+                                                        : "bg-primary/10 text-primary"
                                                         }`}
                                                 >
                                                     {isConnected ? (
