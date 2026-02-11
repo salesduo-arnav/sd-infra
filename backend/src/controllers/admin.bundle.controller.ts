@@ -246,7 +246,17 @@ export const createBundle = async (req: Request, res: Response) => {
         }
 
         // 1. Create Stripe Product & Prices
-        const stripeProduct = await stripeService.createProduct(name, description);
+        let productName = name;
+        if (bundle_group_id) {
+            const group = await BundleGroup.findByPk(bundle_group_id);
+            if (group) {
+                productName = `${group.name} (${tier_label || name})`;
+            }
+        } else if (tier_label) {
+             productName = `${name} (${tier_label})`;
+        }
+
+        const stripeProduct = await stripeService.createProduct(productName, description);
         
         let stripePriceMonthly;
         let stripePriceYearly;
@@ -326,6 +336,31 @@ export const updateBundle = async (req: Request, res: Response) => {
                 bundle_group_id: bundle_group_id !== undefined ? bundle_group_id : bundle.bundle_group_id,
                 tier_label: tier_label !== undefined ? tier_label : bundle.tier_label
             };
+
+            // Sync Stripe Product Name/Description
+            if (
+                name !== undefined || 
+                tier_label !== undefined || 
+                bundle_group_id !== undefined || 
+                description !== undefined
+            ) {
+                const productId = bundle.stripe_product_id;
+                if (productId) {
+                    let productName = updates.name;
+                    const groupId = updates.bundle_group_id;
+                    
+                    if (groupId) {
+                        const group = await BundleGroup.findByPk(groupId, { transaction: t });
+                         if (group) {
+                            productName = `${group.name} (${updates.tier_label || updates.name})`;
+                        }
+                    } else if (updates.tier_label) {
+                         productName = `${updates.name} (${updates.tier_label})`;
+                    }
+
+                    await stripeService.updateProduct(productId, productName, updates.description);
+                }
+            }
 
             // Check if price-affecting fields are changed
              if (

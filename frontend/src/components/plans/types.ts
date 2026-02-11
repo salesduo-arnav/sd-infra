@@ -4,6 +4,7 @@ export interface FeatureItem {
   name: string;
   limit?: string;
   isEnabled: boolean;
+  toolName?: string;
 }
 
 export interface BundleTier {
