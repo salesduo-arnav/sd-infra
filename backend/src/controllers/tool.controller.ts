@@ -3,6 +3,18 @@ import { Request, Response } from 'express';
 import { Tool, ToolUsage } from '../models';
 import { handleError } from '../utils/error';
 
+export const getTools = async (req: Request, res: Response) => {
+    try {
+        const tools = await Tool.findAll({
+            where: { is_active: true },
+            order: [['name', 'ASC']]
+        });
+        res.status(200).json(tools);
+    } catch (error) {
+        handleError(res, error, 'Get Tools Error');
+    }
+};
+
 export const trackToolUsage = async (req: Request, res: Response) => {
     try {
         const { id } = req.params; // tool_id
