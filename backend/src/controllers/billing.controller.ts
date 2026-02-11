@@ -2,7 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import { stripeService } from '../services/stripe.service';
 import { Organization } from '../models/organization';
 import { Plan } from '../models/plan';
+import { Tool } from '../models/tool';
 import { Bundle } from '../models/bundle';
+import { BundleGroup } from '../models/bundle_group';
 import { Subscription } from '../models/subscription';
 import { SubStatus } from '../models/enums';
 import { User } from '../models/user';
@@ -129,8 +131,16 @@ class BillingController {
         const subscriptions = await Subscription.findAll({
             where: { organization_id: organization.id },
             include: [
-                { model: Plan, as: 'plan' },
-                { model: Bundle, as: 'bundle' }
+                { 
+                    model: Plan, 
+                    as: 'plan',
+                    include: [{ model: Tool, as: 'tool' }]
+                },
+                { 
+                    model: Bundle, 
+                    as: 'bundle',
+                    include: [{ model: BundleGroup, as: 'group' }] 
+                }
             ],
             order: [['created_at', 'DESC']]
         });

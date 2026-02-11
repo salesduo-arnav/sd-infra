@@ -78,7 +78,8 @@ export default function Plans() {
                             bp.plan?.limits?.map((limit: any) => ({
                                 name: limit.feature?.name || "Unknown Feature",
                                 limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
-                                isEnabled: limit.is_enabled
+                                isEnabled: limit.is_enabled,
+                                toolName: bp.plan?.tool?.name || "Unknown Tool"
                             })) || []
                         ) || []
                     })),
@@ -117,7 +118,8 @@ export default function Plans() {
                     features: plan.limits?.map((limit: any) => ({
                         name: limit.feature?.name || "Unknown Feature",
                         limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
-                        isEnabled: limit.is_enabled
+                        isEnabled: limit.is_enabled,
+                        toolName: tool.name
                     })) || []
                 });
             });

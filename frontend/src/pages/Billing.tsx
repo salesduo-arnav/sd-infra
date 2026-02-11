@@ -138,8 +138,9 @@ export default function Billing() {
         header: "Plan / Bundle",
         cell: ({ row }) => {
             const sub = row.original;
-            const name = sub.plan?.name || sub.bundle?.name || "Unknown Plan";
-            const tier = sub.plan?.tier || sub.bundle?.tier_label || (sub.plan?.price > 0 ? 'Paid' : 'Free');
+            // Bundle Group Name takes precedence for bundles, Tool Name for plans
+            const name = sub.bundle?.group?.name || sub.plan?.tool?.name || sub.plan?.name || sub.bundle?.name || "Unknown Plan";
+            const tier = sub.bundle?.tier_label || sub.plan?.tier || (sub.plan?.price > 0 ? 'Paid' : 'Free');
             return (
                 <div>
                     <div className="font-medium">{name}</div>
@@ -378,7 +379,7 @@ export default function Billing() {
         {subscriptions.find(sub => sub.status === 'past_due') && (() => {
             const sub = subscriptions.find(s => s.status === 'past_due');
             const failureDate = sub.last_payment_failure_at ? new Date(sub.last_payment_failure_at) : new Date(); 
-            const threeDaysInMillis = 3 * 24 * 60 * 60 * 1000;
+            const threeDaysInMillis = 7 * 24 * 60 * 60 * 1000;
             const isGracePeriod = (new Date().getTime() - failureDate.getTime()) < threeDaysInMillis;
 
             if (isGracePeriod) {

@@ -95,6 +95,13 @@ export class StripeService {
     });
   }
 
+  async updateProduct(productId: string, name: string, description?: string) {
+    return this.stripe.products.update(productId, {
+      name,
+      description,
+    });
+  }
+
   async createPrice(productId: string, amount: number, currency: string, interval: 'month' | 'year') {
     return this.stripe.prices.create({
       product: productId,

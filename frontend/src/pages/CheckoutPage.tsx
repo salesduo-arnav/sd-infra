@@ -143,23 +143,39 @@ export default function CheckoutPage() {
                                                 </div>
                                             )}
                                             {item.features && item.features.length > 0 && (
-                                                <ul className="grid grid-cols-1 gap-1.5 mt-2">
-                                                    {item.features.map((feature: any, i: number) => (
-                                                        <li key={i} className="flex items-start gap-2 text-muted-foreground/90">
-                                                            {feature.isEnabled ? (
-                                                                <Check className="h-3.5 w-3.5 mt-0.5 text-green-600 shrink-0" />
-                                                            ) : (
-                                                                <span className="text-red-500 h-3.5 w-3.5 mt-0.5 shrink-0">✕</span>
+                                                <div className="mt-2 space-y-3">
+                                                    {Object.entries(
+                                                        item.features.reduce((acc: any, feature: any) => {
+                                                            const tool = feature.toolName || 'General Features';
+                                                            if (!acc[tool]) acc[tool] = [];
+                                                            acc[tool].push(feature);
+                                                            return acc;
+                                                        }, {})
+                                                    ).map(([toolName, features]: [string, any], groupIdx: number) => (
+                                                        <div key={groupIdx} className="space-y-1.5">
+                                                            {toolName !== 'General Features' && (
+                                                                <h4 className="text-xs font-semibold text-primary/80 uppercase tracking-wider pl-1">{toolName}</h4>
                                                             )}
-                                                            <div className="flex-1">
-                                                                <span className="text-xs leading-tight block">{feature.name}</span>
-                                                                {feature.limit && (
-                                                                    <span className="text-[10px] text-muted-foreground font-medium">Limit: {feature.limit}</span>
-                                                                )}
-                                                            </div>
-                                                        </li>
+                                                            <ul className="grid grid-cols-1 gap-1.5">
+                                                                {features.map((feature: any, i: number) => (
+                                                                    <li key={i} className="flex items-start gap-2 text-muted-foreground/90 pl-1">
+                                                                        {feature.isEnabled ? (
+                                                                            <Check className="h-3.5 w-3.5 mt-0.5 text-green-600 shrink-0" />
+                                                                        ) : (
+                                                                            <span className="text-red-500 h-3.5 w-3.5 mt-0.5 shrink-0">✕</span>
+                                                                        )}
+                                                                        <div className="flex-1">
+                                                                            <span className="text-xs leading-tight block">{feature.name}</span>
+                                                                            {feature.limit && (
+                                                                                <span className="text-[10px] text-muted-foreground font-medium">Limit: {feature.limit}</span>
+                                                                            )}
+                                                                        </div>
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
                                                     ))}
-                                                </ul>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
