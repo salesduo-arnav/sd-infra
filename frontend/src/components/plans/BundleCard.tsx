@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { Check, Star } from "lucide-react";
+import { Check, Star, Loader2 } from "lucide-react";
 import { Bundle, CartItem } from "./types";
+import { useState } from "react";
 
 interface BundleCardProps {
   bundle: Bundle;
@@ -14,10 +15,33 @@ interface BundleCardProps {
   isInCart: (id: string, tierName: string) => boolean;
   hasAnyTierInCart: (id: string) => boolean;
   compact?: boolean;
+  currentSubscription?: any;
+  onUpdateSubscription?: (subId: string, item: any) => Promise<void>;
 }
 
-export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isInCart, hasAnyTierInCart, compact }: BundleCardProps) {
+export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isInCart, hasAnyTierInCart, compact, currentSubscription, onUpdateSubscription }: BundleCardProps) {
   const hasTierSelected = hasAnyTierInCart(bundle.id);
+  const [loadingTierId, setLoadingTierId] = useState<string | null>(null);
+
+  const handleSwitch = async (e: React.MouseEvent, tier: any) => {
+      e.stopPropagation();
+      if (!currentSubscription || !onUpdateSubscription) return;
+
+      setLoadingTierId(tier.id);
+      try {
+        const interval = tier.period.replace('/', '') === 'year' ? 'yearly' : 'monthly';
+        await onUpdateSubscription(currentSubscription.id, {
+            id: tier.id,
+            type: 'bundle',
+            interval: interval
+        });
+      } catch (error) {
+          console.error(error);
+      } finally {
+          setLoadingTierId(null);
+      }
+  };
+
   return (
     <Card
       data-card
@@ -27,7 +51,7 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
           ? "border-primary ring-2 ring-primary/20 shadow-lg scale-[1.02]"
           : "hover:border-primary/50 hover:shadow-md",
         bundle.popular && !isExpanded && "border-primary/30",
-        hasTierSelected && !isExpanded && "border-primary/50 bg-primary/5"
+        (hasTierSelected || currentSubscription) && !isExpanded && "border-primary/50 bg-primary/5"
       )}
       onClick={onToggle}
     >
@@ -48,6 +72,10 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
             {bundle.icon}
           </span>
           <span className={compact ? "text-base" : ""}>{bundle.name}</span>
+          {/* Current Plan Badge */}
+           {!isExpanded && currentSubscription && (
+              <Badge variant="outline" className="ml-auto border-purple-500 text-purple-500">Active</Badge>
+           )}
         </CardTitle>
         <CardDescription className={compact ? "text-xs" : ""}>{bundle.description}</CardDescription>
       </CardHeader>
@@ -86,10 +114,13 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
                     </p>
                     {bundle.tiers.map((tier) => {
                     const inCart = isInCart(bundle.id, tier.name);
+                    const isCurrent = currentSubscription?.bundle?.id === tier.id;
+                    const isUpcoming = currentSubscription?.upcoming_bundle?.id === tier.id;
+
                     return (
                         <div
                         key={tier.name}
-                        onClick={() =>
+                        onClick={currentSubscription ? undefined : () =>
                             onToggleCartItem({
                             id: bundle.id, // Group ID
                             planId: tier.id,
@@ -103,21 +134,43 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
                             })
                         }
                         className={cn(
-                            "group flex items-center justify-between gap-4 rounded-lg border p-3 transition-all duration-200 cursor-pointer",
+                            "group flex items-center justify-between gap-4 rounded-lg border p-3 transition-all duration-200",
+                             currentSubscription ? "cursor-default" : "cursor-pointer",
                             inCart
                             ? "border-primary bg-primary/10 shadow-sm"
-                            : "hover:bg-muted/50 hover:border-primary/50"
+                            : !currentSubscription && "hover:bg-muted/50 hover:border-primary/50",
+                             isCurrent && "border-purple-500 bg-purple-50/10"
                         )}
                         >
                         <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{tier.name}</p>
+                             <div className="flex items-center gap-2">
+                                <p className="font-medium truncate">{tier.name}</p>
+                                {isCurrent && <Badge className="h-5 text-[10px] px-1.5">Current</Badge>}
+                                {isUpcoming && <Badge variant="outline" className="h-5 text-[10px] px-1.5 border-orange-500 text-orange-500">Scheduled</Badge>}
+                            </div>
                             <p className="text-xs text-muted-foreground line-clamp-1">{tier.limits}</p>
                         </div>
-                        <div className="text-right whitespace-nowrap">
+                        <div className="text-right whitespace-nowrap flex items-center gap-3">
                             <p className="font-semibold text-foreground">
                                 ${tier.price}
                                 <span className="text-xs text-muted-foreground">{tier.period}</span>
                             </p>
+                            
+                            {currentSubscription && !isCurrent && !isUpcoming && (
+                                <Button 
+                                    size="sm" 
+                                    variant="secondary" 
+                                    className="h-7 px-2 text-xs"
+                                    onClick={(e) => handleSwitch(e, tier)}
+                                     disabled={loadingTierId === tier.id || !!currentSubscription.upcoming_bundle_id} 
+                                >
+                                    {loadingTierId === tier.id && <Loader2 className="mr-1 h-3 w-3 animate-spin"/>}
+                                    Switch
+                                </Button>
+                            )}
+                             {currentSubscription?.upcoming_bundle_id && !isCurrent && !isUpcoming && (
+                                    <></>
+                            )}
                         </div>
                         </div>
                     );

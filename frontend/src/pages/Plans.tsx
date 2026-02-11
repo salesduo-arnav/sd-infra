@@ -3,7 +3,7 @@ import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Star, Zap, Crown, Sparkles, FileText, ImageIcon, BarChart, TrendingUp, ShoppingCart, X, Trash2, ChevronRight } from "lucide-react";
+import { Package, Star, Zap, Crown, Sparkles, FileText, ImageIcon, BarChart, TrendingUp, ShoppingCart, X, Trash2, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import * as PublicService from "@/services/public.service";
@@ -13,6 +13,7 @@ import { AppCard } from "@/components/plans/AppCard";
 import { Bundle, App, CartItem } from "@/components/plans/types";
 import { PublicBundleGroup, PublicBundlePlan } from "@/services/public.service";
 import { useNavigate } from "react-router-dom";
+import * as BillingService from "@/services/billing.service";
 
 // Icons mapping helper
 const getIconForSlug = (slug: string) => {
@@ -35,6 +36,7 @@ export default function Plans() {
   const [expandedBundle, setExpandedBundle] = useState<string | null>(null);
   const [expandedApp, setExpandedApp] = useState<string | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [currentSubscriptions, setCurrentSubscriptions] = useState<any[]>([]);
 
   // State to control transitions - prevents initial load animation glitch
   const [enableTransition, setEnableTransition] = useState(false);
@@ -44,6 +46,29 @@ export default function Plans() {
   const [apps, setApps] = useState<App[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const fetchSubscriptions = async () => {
+      try {
+          const data = await BillingService.getSubscriptions();
+          setCurrentSubscriptions(data.subscriptions || []);
+      } catch (error) {
+          console.error("Failed to fetch subscriptions", error);
+      }
+  };
+
+  const handleUpdateSubscription = async (subscriptionId: string, newItem: { id: string; type: 'plan' | 'bundle'; interval: 'monthly' | 'yearly' }) => {
+      try {
+          toast.loading("Updating subscription...");
+          await BillingService.updateSubscription(subscriptionId, [newItem]);
+          toast.dismiss();
+          toast.success("Subscription updated successfully!");
+          fetchSubscriptions(); // Refresh state
+      } catch (error) {
+          toast.dismiss();
+          toast.error("Failed to update subscription.");
+          console.error(error);
+      }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
         setIsLoading(true);
@@ -52,6 +77,8 @@ export default function Plans() {
                 PublicService.getPublicBundles(),
                 PublicService.getPublicPlans()
             ]);
+            
+            await fetchSubscriptions();
 
             // Transform Bundle Groups into Bundle UI Model
             const transformedBundles: Bundle[] = publicBundles.map((group: PublicBundleGroup) => {
@@ -272,18 +299,23 @@ export default function Plans() {
                   <h2 className="text-xl font-semibold">Available Bundles</h2>
                 </div>
                 <div className={cn("grid gap-6", isCartOpen ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3")}>
-                  {allBundles.map((bundle) => (
-                    <BundleCard
-                      key={bundle.id}
-                      bundle={bundle}
-                      isExpanded={expandedBundle === bundle.id}
-                      onToggle={() => handleBundleClick(bundle.id)}
-                      onToggleCartItem={toggleCartItem}
-                      isInCart={isInCart}
-                      hasAnyTierInCart={hasAnyTierInCart}
-                      compact
-                    />
-                  ))}
+                  {allBundles.map((bundle) => {
+                      const activeSub = currentSubscriptions.find(s => s.bundle?.bundle_group_id === bundle.id || s.upcoming_bundle?.bundle_group_id === bundle.id); // Check by group ID as bundle.id is group id in UI model
+                      return (
+                        <BundleCard
+                          key={bundle.id}
+                          bundle={bundle}
+                          isExpanded={expandedBundle === bundle.id}
+                          onToggle={() => handleBundleClick(bundle.id)}
+                          onToggleCartItem={toggleCartItem}
+                          isInCart={isInCart}
+                          hasAnyTierInCart={hasAnyTierInCart}
+                          currentSubscription={activeSub}
+                          onUpdateSubscription={handleUpdateSubscription}
+                          compact
+                        />
+                      );
+                  })}
                   {allBundles.length === 0 && (
                       <div className="col-span-full text-center text-muted-foreground py-8">
                           No bundles available at the moment.
@@ -302,17 +334,22 @@ export default function Plans() {
                 </p>
               </div>
               <div className={cn("grid gap-6", isCartOpen ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3")}>
-                {apps.map((app) => (
-                  <AppCard
-                    key={app.id}
-                    app={app}
-                    isExpanded={expandedApp === app.id}
-                    onToggle={() => handleAppClick(app.id)}
-                    onToggleCartItem={toggleCartItem}
-                    isInCart={isInCart}
-                    hasAnyTierInCart={hasAnyTierInCart}
-                  />
-                ))}
+                {apps.map((app) => {
+                    const activeSub = currentSubscriptions.find(s => s.plan?.tool_id === app.id || s.upcoming_plan?.tool_id === app.id);
+                    return (
+                      <AppCard
+                        key={app.id}
+                        app={app}
+                        isExpanded={expandedApp === app.id}
+                        onToggle={() => handleAppClick(app.id)}
+                        onToggleCartItem={toggleCartItem}
+                        isInCart={isInCart}
+                        hasAnyTierInCart={hasAnyTierInCart}
+                        currentSubscription={activeSub}
+                        onUpdateSubscription={handleUpdateSubscription}
+                      />
+                    );
+                })}
                  {apps.length === 0 && (
                       <div className="col-span-full text-center text-muted-foreground py-8">
                           No apps available at the moment.

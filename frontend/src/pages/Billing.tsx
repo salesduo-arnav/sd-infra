@@ -141,10 +141,21 @@ export default function Billing() {
             // Bundle Group Name takes precedence for bundles, Tool Name for plans
             const name = sub.bundle?.group?.name || sub.plan?.tool?.name || sub.plan?.name || sub.bundle?.name || "Unknown Plan";
             const tier = sub.bundle?.tier_label || sub.plan?.tier || (sub.plan?.price > 0 ? 'Paid' : 'Free');
+            
+            const upcomingName = sub.upcoming_bundle?.group?.name || sub.upcoming_plan?.tool?.name || sub.upcoming_plan?.name || sub.upcoming_bundle?.name;
+            const upcomingTier = sub.upcoming_bundle?.tier_label || sub.upcoming_plan?.tier;
+            const renewDate = sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString() : '';
+
             return (
                 <div>
                     <div className="font-medium">{name}</div>
                     <div className="text-xs text-muted-foreground capitalize">{tier} Tier</div>
+                    {(upcomingName || upcomingTier) && (
+                        <div className="mt-1 text-xs text-orange-600 flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            <span>Switches to {upcomingName || 'plan'} ({upcomingTier} Tier) on {renewDate}</span>
+                        </div>
+                    )}
                 </div>
             )
         }

@@ -140,7 +140,9 @@ class BillingController {
                     model: Bundle, 
                     as: 'bundle',
                     include: [{ model: BundleGroup, as: 'group' }] 
-                }
+                },
+                { model: Plan, as: 'upcoming_plan', include: [{ model: Tool, as: 'tool' }] },
+                { model: Bundle, as: 'upcoming_bundle', include: [{ model: BundleGroup, as: 'group' }] }
             ],
             order: [['created_at', 'DESC']]
         });
@@ -559,27 +561,28 @@ class BillingController {
              }
 
              if (resolved) {
-                 // Find existing subscription for this specific item (plan/bundle)
-                 // constraint: org + stripe_sub + plan/bundle
-                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                 const whereClause: any = { 
-                     stripe_subscription_id: stripeSub.id,
-                     organization_id: orgId
-                 };
-
-                 if (finalPlanId) whereClause.plan_id = finalPlanId;
-                 if (finalBundleId) whereClause.bundle_id = finalBundleId;
-
-                 const subscription = await Subscription.findOne({ where: whereClause });
+                 // Find existing subscription by stripe_subscription_id only
+                 // This ensures upgrades/downgrades update the existing record, not create duplicates
+                 const subscription = await Subscription.findOne({ 
+                     where: { 
+                         stripe_subscription_id: stripeSub.id,
+                         organization_id: orgId
+                     }
+                 });
                  
                  const subscriptionData = {
                     stripe_subscription_id: stripeSub.id,
+                    plan_id: finalPlanId,
+                    bundle_id: finalBundleId,
                     status: status,
                     current_period_start: toDateNullable(currentPeriodStart ?? item.current_period_start),
                     current_period_end: toDateNullable(currentPeriodEnd ?? item.current_period_end),
                     trial_start: toDateNullable(stripeSub.trial_start),
                     trial_end: toDateNullable(stripeSub.trial_end),
                     cancel_at_period_end: stripeSub.cancel_at_period_end,
+                    // Clear upcoming fields since the webhook reflects the actual current state
+                    upcoming_plan_id: null,
+                    upcoming_bundle_id: null,
                 };
 
                  if (subscription) {
@@ -590,8 +593,6 @@ class BillingController {
                      await Subscription.create({
                          organization_id: orgId,
                          ...subscriptionData,
-                         plan_id: finalPlanId,
-                         bundle_id: finalBundleId
                      });
                  }
              }
@@ -658,6 +659,107 @@ class BillingController {
             });
         }
     }
+  }
+
+  // Update Subscription (Upgrade/Downgrade)
+  async updateSubscription(req: Request, res: Response, next: NextFunction) {
+      try {
+          const { id } = req.params;
+          const { items } = req.body; // Expecting items array like checkout: [{ id: '...', type: 'plan'|'bundle', interval: '...' }]
+          const organization = req.organization;
+
+          if (!items || items.length === 0) {
+              res.status(400).json({ message: 'No items provided for update' });
+              return;
+          }
+
+          const targetItem = items[0]; // Assuming single item switch for now
+          
+          const subscription = await Subscription.findOne({ 
+              where: { 
+                  id: id,
+                  organization_id: organization?.id
+              },
+              include: [{ model: Plan, as: 'plan' }, { model: Bundle, as: 'bundle' }]
+          });
+
+          if (!subscription) {
+              res.status(404).json({ message: 'Subscription not found' });
+              return;
+          }
+
+          const stripeSubId = subscription.stripe_subscription_id;
+          if (!stripeSubId) {
+              res.status(400).json({ message: 'No Stripe subscription linked' });
+              return;
+          }
+
+          // 1. Resolve Target Price & ID
+          let targetPriceId: string | undefined;
+          let targetPriceAmount = 0;
+          let targetPlanId: string | null = null;
+          let targetBundleId: string | null = null;
+          
+          if (targetItem.type === 'plan') {
+              const plan = await Plan.findByPk(targetItem.id);
+              if (!plan) { res.status(404).json({ message: 'Target plan not found' }); return; }
+              targetPriceId = targetItem.interval === 'yearly' ? plan.stripe_price_id_yearly : plan.stripe_price_id_monthly;
+              targetPriceAmount = plan.price; // Simplified: considering base price for comparison
+              targetPlanId = plan.id;
+          } else if (targetItem.type === 'bundle') {
+              const bundle = await Bundle.findByPk(targetItem.id);
+              if (!bundle) { res.status(404).json({ message: 'Target bundle not found' }); return; }
+              targetPriceId = targetItem.interval === 'yearly' ? bundle.stripe_price_id_yearly : bundle.stripe_price_id_monthly;
+              targetPriceAmount = bundle.price;
+              targetBundleId = bundle.id;
+          }
+
+          if (!targetPriceId) {
+             res.status(400).json({ message: 'Target price not found' });
+             return;
+          }
+
+          // 2. Resolve Current Price Amount
+          let currentPriceAmount = 0;
+          if (subscription.plan) {
+              currentPriceAmount = subscription.plan.price;
+          } else if (subscription.bundle) {
+              currentPriceAmount = subscription.bundle.price;
+          }
+
+          // 3. Compare & Execute
+          if (targetPriceAmount < currentPriceAmount) {
+              // DOWNGRADE -> Schedule
+              console.log(`[BillingController] Downgrading subscription ${stripeSubId} to ${targetItem.type} ${targetItem.id}`);
+              await stripeService.scheduleDowngrade(stripeSubId, targetPriceId);
+              
+              // Updates local upcoming fields to reflect pending state
+              await subscription.update({
+                  upcoming_plan_id: targetPlanId,
+                  upcoming_bundle_id: targetBundleId
+              });
+              
+              res.status(200).json({ message: `Subscription scheduled to downgrade at the end of the billing cycle.` });
+
+          } else {
+              // UPGRADE (or same price switch) -> Immediate
+              console.log(`[BillingController] Upgrading subscription ${stripeSubId} to ${targetItem.type} ${targetItem.id}`);
+              await stripeService.updateSubscription(stripeSubId, targetPriceId);
+              
+              // Immediately update local DB with new plan/bundle
+              await subscription.update({
+                  plan_id: targetPlanId || subscription.plan_id,
+                  bundle_id: targetBundleId || subscription.bundle_id,
+                  upcoming_plan_id: null,
+                  upcoming_bundle_id: null
+              });
+
+              res.status(200).json({ message: 'Subscription updated successfully' });
+          }
+
+      } catch (error) {
+          next(error);
+      }
   }
 }
 

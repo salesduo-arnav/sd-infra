@@ -102,6 +102,14 @@ Subscription.belongsTo(Plan, { foreignKey: 'plan_id', as: 'plan' });
 Bundle.hasMany(Subscription, { foreignKey: 'bundle_id', as: 'subscriptions', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
 Subscription.belongsTo(Bundle, { foreignKey: 'bundle_id', as: 'bundle' });
 
+// Upcoming Plan <-> Subscription
+Plan.hasMany(Subscription, { foreignKey: 'upcoming_plan_id', as: 'upcoming_subscriptions', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
+Subscription.belongsTo(Plan, { foreignKey: 'upcoming_plan_id', as: 'upcoming_plan' });
+
+// Upcoming Bundle <-> Subscription
+Bundle.hasMany(Subscription, { foreignKey: 'upcoming_bundle_id', as: 'upcoming_subscriptions', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
+Subscription.belongsTo(Bundle, { foreignKey: 'upcoming_bundle_id', as: 'upcoming_bundle' });
+
 // Organization <-> Subscription
 Organization.hasMany(Subscription, { foreignKey: 'organization_id', as: 'subscriptions', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 Subscription.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });

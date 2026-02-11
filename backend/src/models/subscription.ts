@@ -14,6 +14,8 @@ export interface SubscriptionAttributes {
   organization_id: string;
   plan_id?: string | null;
   bundle_id?: string | null;
+  upcoming_plan_id?: string | null;
+  upcoming_bundle_id?: string | null;
   stripe_subscription_id?: string | null;
   status: SubStatus;
   trial_start?: Date | null;
@@ -49,6 +51,8 @@ export class Subscription extends Model<SubscriptionAttributes, SubscriptionCrea
   public organization_id!: string;
   public plan_id!: string | null | undefined;
   public bundle_id!: string | null | undefined;
+  public upcoming_plan_id!: string | null | undefined;
+  public upcoming_bundle_id!: string | null | undefined;
   public stripe_subscription_id!: string | null;
   public status!: SubStatus;
   public trial_start!: Date | null;
@@ -65,6 +69,8 @@ export class Subscription extends Model<SubscriptionAttributes, SubscriptionCrea
   public readonly organization?: Organization;
   public readonly plan?: Plan;
   public readonly bundle?: Bundle;
+  public readonly upcoming_plan?: Plan;
+  public readonly upcoming_bundle?: Bundle;
 }
 
 Subscription.init(
@@ -91,6 +97,22 @@ Subscription.init(
       },
     },
     bundle_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'bundles',
+        key: 'id',
+      },
+    },
+    upcoming_plan_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'plans',
+        key: 'id',
+      },
+    },
+    upcoming_bundle_id: {
       type: DataTypes.UUID,
       allowNull: true,
       references: {
