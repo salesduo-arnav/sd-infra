@@ -108,6 +108,18 @@ export class StripeService {
       });
   }
 
+  async cancelScheduledDowngrade(subscriptionId: string) {
+      const subscription = await this.stripe.subscriptions.retrieve(subscriptionId) as any;
+      const scheduleId = subscription.schedule;
+
+      if (!scheduleId || typeof scheduleId !== 'string') {
+          throw new Error('No subscription schedule found to cancel');
+      }
+
+      // Release the schedule — subscription continues with current plan
+      return this.stripe.subscriptionSchedules.release(scheduleId);
+  }
+
   async getCustomerSubscriptions(customerId: string) {
       return this.stripe.subscriptions.list({
           customer: customerId,

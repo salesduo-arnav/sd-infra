@@ -1,11 +1,9 @@
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { Check, Star, Loader2 } from "lucide-react";
+import { Check, Star } from "lucide-react";
 import { Bundle, CartItem } from "./types";
-import { useState } from "react";
 
 interface BundleCardProps {
   bundle: Bundle;
@@ -16,31 +14,12 @@ interface BundleCardProps {
   hasAnyTierInCart: (id: string) => boolean;
   compact?: boolean;
   currentSubscription?: any;
-  onUpdateSubscription?: (subId: string, item: any) => Promise<void>;
 }
 
-export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isInCart, hasAnyTierInCart, compact, currentSubscription, onUpdateSubscription }: BundleCardProps) {
+export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isInCart, hasAnyTierInCart, compact, currentSubscription }: BundleCardProps) {
   const hasTierSelected = hasAnyTierInCart(bundle.id);
-  const [loadingTierId, setLoadingTierId] = useState<string | null>(null);
 
-  const handleSwitch = async (e: React.MouseEvent, tier: any) => {
-      e.stopPropagation();
-      if (!currentSubscription || !onUpdateSubscription) return;
-
-      setLoadingTierId(tier.id);
-      try {
-        const interval = tier.period.replace('/', '') === 'year' ? 'yearly' : 'monthly';
-        await onUpdateSubscription(currentSubscription.id, {
-            id: tier.id,
-            type: 'bundle',
-            interval: interval
-        });
-      } catch (error) {
-          console.error(error);
-      } finally {
-          setLoadingTierId(null);
-      }
-  };
+  const currentPrice = currentSubscription?.bundle?.price ?? 0;
 
   return (
     <Card
@@ -116,11 +95,13 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
                     const inCart = isInCart(bundle.id, tier.name);
                     const isCurrent = currentSubscription?.bundle?.id === tier.id;
                     const isUpcoming = currentSubscription?.upcoming_bundle?.id === tier.id;
+                    const isUpgrade = currentSubscription && tier.price > currentPrice;
+                    const isDowngrade = currentSubscription && tier.price < currentPrice;
 
                     return (
                         <div
                         key={tier.name}
-                        onClick={currentSubscription ? undefined : () =>
+                        onClick={(isCurrent || isUpcoming) ? undefined : () =>
                             onToggleCartItem({
                             id: bundle.id, // Group ID
                             planId: tier.id,
@@ -130,15 +111,21 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
                             price: tier.price,
                             period: tier.period,
                             limits: tier.limits,
-                            features: tier.features
+                            features: tier.features,
+                            ...(currentSubscription ? {
+                                isUpgrade: !!isUpgrade,
+                                isDowngrade: !!isDowngrade,
+                                currentPrice,
+                                subscriptionId: currentSubscription.id,
+                            } : {})
                             })
                         }
                         className={cn(
                             "group flex items-center justify-between gap-4 rounded-lg border p-3 transition-all duration-200",
-                             currentSubscription ? "cursor-default" : "cursor-pointer",
+                             (isCurrent || isUpcoming) ? "cursor-default" : "cursor-pointer",
                             inCart
                             ? "border-primary bg-primary/10 shadow-sm"
-                            : !currentSubscription && "hover:bg-muted/50 hover:border-primary/50",
+                            : !(isCurrent || isUpcoming) && "hover:bg-muted/50 hover:border-primary/50",
                              isCurrent && "border-purple-500 bg-purple-50/10"
                         )}
                         >
@@ -155,21 +142,13 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
                                 ${tier.price}
                                 <span className="text-xs text-muted-foreground">{tier.period}</span>
                             </p>
-                            
-                            {currentSubscription && !isCurrent && !isUpcoming && (
-                                <Button 
-                                    size="sm" 
-                                    variant="secondary" 
-                                    className="h-7 px-2 text-xs"
-                                    onClick={(e) => handleSwitch(e, tier)}
-                                     disabled={loadingTierId === tier.id || !!currentSubscription.upcoming_bundle_id} 
-                                >
-                                    {loadingTierId === tier.id && <Loader2 className="mr-1 h-3 w-3 animate-spin"/>}
-                                    Switch
-                                </Button>
+
+                            {/* Upgrade/Downgrade label for non-current tiers */}
+                            {currentSubscription && !isCurrent && !isUpcoming && isUpgrade && (
+                                <Badge variant="outline" className="h-5 text-[10px] px-1.5 border-green-500 text-green-500">Upgrade</Badge>
                             )}
-                             {currentSubscription?.upcoming_bundle_id && !isCurrent && !isUpcoming && (
-                                    <></>
+                            {currentSubscription && !isCurrent && !isUpcoming && isDowngrade && (
+                                <Badge variant="outline" className="h-5 text-[10px] px-1.5 border-orange-500 text-orange-500">Downgrade</Badge>
                             )}
                         </div>
                         </div>

@@ -761,6 +761,50 @@ class BillingController {
           next(error);
       }
   }
+
+  // Cancel Scheduled Downgrade
+  async cancelDowngrade(req: Request, res: Response, next: NextFunction) {
+      try {
+          const { id } = req.params;
+          const organization = req.organization;
+
+          const subscription = await Subscription.findOne({
+              where: {
+                  id: id,
+                  organization_id: organization?.id
+              }
+          });
+
+          if (!subscription) {
+              res.status(404).json({ message: 'Subscription not found' });
+              return;
+          }
+
+          if (!subscription.upcoming_plan_id && !subscription.upcoming_bundle_id) {
+              res.status(400).json({ message: 'No pending downgrade to cancel' });
+              return;
+          }
+
+          const stripeSubId = subscription.stripe_subscription_id;
+          if (!stripeSubId) {
+              res.status(400).json({ message: 'No Stripe subscription linked' });
+              return;
+          }
+
+          // Release the Stripe subscription schedule
+          await stripeService.cancelScheduledDowngrade(stripeSubId);
+
+          // Clear upcoming fields in local DB
+          await subscription.update({
+              upcoming_plan_id: null,
+              upcoming_bundle_id: null
+          });
+
+          res.status(200).json({ message: 'Scheduled downgrade cancelled successfully' });
+      } catch (error) {
+          next(error);
+      }
+  }
 }
 
 export const billingController = new BillingController();
