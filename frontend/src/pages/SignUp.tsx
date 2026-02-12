@@ -44,7 +44,7 @@ export default function SignUp() {
   const [signupState, setSignupState] = useState<SignupState>("form");
   const [showOtpModal, setShowOtpModal] = useState(false);
 
-  const { sendSignupOtp, verifySignupOtp, isLoading, checkPendingInvites } = useAuth();
+  const { sendSignupOtp, verifySignupOtp, isLoading, checkPendingInvites, switchOrganization } = useAuth();
   const navigate = useNavigate();
 
   const handleAuthSuccess = async (user: User | void) => {
@@ -63,6 +63,10 @@ export default function SignUp() {
 
     // If there's an external redirect, go there
     if (redirectUrl) {
+      // Auto-set org if they have exactly 1
+      if (user?.memberships?.length === 1) {
+        switchOrganization(user.memberships[0].organization.id);
+      }
       const url = new URL(redirectUrl);
       url.searchParams.set("auth_success", "true");
       window.location.href = url.toString();

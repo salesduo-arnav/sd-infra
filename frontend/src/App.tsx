@@ -71,21 +71,26 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, activeOrganization } = useAuth();
   const location = useLocation();
 
   if (isAuthenticated) {
-    // If there's an external redirect param, honour it instead of going to /apps
     const params = new URLSearchParams(location.search);
     const redirectUrl = params.get("redirect");
 
-    // NOTE: We now intercept all "already logged in" users to choose org first
-    // We pass the redirectUrl along to the chooser
+    // Already have an active org? Skip choose-org entirely
+    if (activeOrganization) {
+      if (redirectUrl) {
+        const url = new URL(redirectUrl, window.location.origin);
+        url.searchParams.set("auth_success", "true");
+        window.location.href = url.toString();
+        return null;
+      }
+      return <Navigate to="/apps" replace />;
+    }
 
-    // Construct target URL for chooser
-    const target = `/choose-organisation${location.search}`;
-
-    return <Navigate to={target} replace />;
+    // No active org — go to org selection
+    return <Navigate to={`/choose-organisation${location.search}`} replace />;
   }
   return <>{children}</>;
 }

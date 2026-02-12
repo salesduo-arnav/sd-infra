@@ -21,7 +21,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loginMode, setLoginMode] = useState<LoginMode>("password");
   const [otpState, setOtpState] = useState<OtpState>("idle");
-  const { login, sendLoginOtp, verifyLoginOtp, isLoading, checkPendingInvites } = useAuth();
+  const { login, sendLoginOtp, verifyLoginOtp, isLoading, checkPendingInvites, user, switchOrganization } = useAuth();
   const navigate = useNavigate();
 
   const redirectUrl = searchParams.get("redirect");
@@ -34,8 +34,6 @@ export default function Login() {
   const redirectSuffix = params.toString() ? `?${params.toString()}` : "";
 
   const handleAuthSuccess = async () => {
-    console.log("Login Success - Redirect Check:", { redirectUrl });
-
     // Check for invites first
     try {
       const pending = await checkPendingInvites();
@@ -47,9 +45,20 @@ export default function Login() {
       console.error(e);
     }
 
-    if (redirectUrl) {
-      console.log("Preserving redirect for chooser:", redirectUrl);
+    // Auto-select if user has exactly 1 org — skip the chooser
+    if (user?.memberships?.length === 1) {
+      switchOrganization(user.memberships[0].organization.id);
+      if (redirectUrl) {
+        const url = new URL(redirectUrl, window.location.origin);
+        url.searchParams.set("auth_success", "true");
+        window.location.href = url.toString();
+        return;
+      }
+      navigate("/apps");
+      return;
     }
+
+    // Multiple orgs or none — go to chooser/creator
     navigate(`/choose-organisation${redirectSuffix}`);
   };
 
