@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import axios from 'axios';
 import { toast } from "sonner";
+import * as BillingService from "@/services/billing.service";
 import { ColumnDef, SortingState, PaginationState, ColumnFiltersState } from "@tanstack/react-table";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 
@@ -120,13 +121,26 @@ export default function Billing() {
         await fetchSubscription();
     } catch (error) {
         console.error("Failed to sync subscription", error);
-        // Only show error toast if manual, or valid error (optional: keep silent on auto-sync failure to not annoy user?)
-        // Let's keep it visible for now if it fails, or maybe just log it.
         if (manual) {
             toast.error("Failed to sync subscription status");
         }
     } finally {
         setSyncLoading(false);
+    }
+  };
+
+  const handleCancelDowngrade = async (subId: string) => {
+    if (!confirm("Are you sure you want to cancel the scheduled downgrade? Your current plan will continue.")) return;
+    setActionLoading(subId);
+    try {
+        await BillingService.cancelDowngrade(subId);
+        toast.success("Scheduled downgrade cancelled successfully");
+        fetchSubscription();
+    } catch (error) {
+        console.error("Failed to cancel downgrade", error);
+        toast.error("Failed to cancel scheduled downgrade");
+    } finally {
+        setActionLoading(null);
     }
   };
 
@@ -209,6 +223,7 @@ export default function Billing() {
         cell: ({ row }) => {
           const sub = row.original;
           const isCanceling = sub.cancel_at_period_end;
+          const hasPendingDowngrade = !!(sub.upcoming_plan_id || sub.upcoming_bundle_id);
           const isLoading = actionLoading === sub.id;
 
           return (
@@ -225,6 +240,11 @@ export default function Billing() {
                     Update Payment Method
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                {hasPendingDowngrade && (
+                    <DropdownMenuItem onClick={() => handleCancelDowngrade(sub.id)} className="text-orange-600 focus:text-orange-600">
+                        Cancel Scheduled Downgrade
+                    </DropdownMenuItem>
+                )}
                 {isCanceling ? (
                     <DropdownMenuItem onClick={() => handleResumeSubscription(sub.id, sub.stripe_subscription_id)}>
                         Resume Subscription

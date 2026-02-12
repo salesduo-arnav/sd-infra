@@ -3,7 +3,7 @@ import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Star, Zap, Crown, Sparkles, FileText, ImageIcon, BarChart, TrendingUp, ShoppingCart, X, Trash2, ChevronRight, Loader2 } from "lucide-react";
+import { Package, Star, Zap, Crown, Sparkles, FileText, ImageIcon, BarChart, TrendingUp, ShoppingCart, X, Trash2, ChevronRight, Loader2, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import * as PublicService from "@/services/public.service";
@@ -37,6 +37,7 @@ export default function Plans() {
   const [expandedApp, setExpandedApp] = useState<string | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [currentSubscriptions, setCurrentSubscriptions] = useState<any[]>([]);
+  const [changingSubId, setChangingSubId] = useState<string | null>(null);
 
   // State to control transitions - prevents initial load animation glitch
   const [enableTransition, setEnableTransition] = useState(false);
@@ -52,20 +53,6 @@ export default function Plans() {
           setCurrentSubscriptions(data.subscriptions || []);
       } catch (error) {
           console.error("Failed to fetch subscriptions", error);
-      }
-  };
-
-  const handleUpdateSubscription = async (subscriptionId: string, newItem: { id: string; type: 'plan' | 'bundle'; interval: 'monthly' | 'yearly' }) => {
-      try {
-          toast.loading("Updating subscription...");
-          await BillingService.updateSubscription(subscriptionId, [newItem]);
-          toast.dismiss();
-          toast.success("Subscription updated successfully!");
-          fetchSubscriptions(); // Refresh state
-      } catch (error) {
-          toast.dismiss();
-          toast.error("Failed to update subscription.");
-          console.error(error);
       }
   };
 
@@ -168,6 +155,10 @@ export default function Plans() {
 
   const allBundles = bundles;
 
+  // Check if cart has any upgrade/downgrade items
+  const hasSubscriptionChanges = cart.some(item => item.isUpgrade || item.isDowngrade);
+  const hasNewItems = cart.some(item => !item.isUpgrade && !item.isDowngrade);
+
   /**
    * Toggle a tier in the cart.
    * - If the same tier is already in cart, remove it (toggle off)
@@ -230,6 +221,41 @@ export default function Plans() {
     }
 
     navigate('/checkout', { state: { items: itemsToCheckout } });
+  };
+
+  /** Handle upgrade/downgrade via updateSubscription API */
+  const handleSubscriptionChange = async () => {
+    const changeItems = cart.filter(item => item.subscriptionId);
+    if (changeItems.length === 0) return;
+
+    setChangingSubId('processing');
+    try {
+        for (const item of changeItems) {
+            const interval = item.period.includes('year') ? 'yearly' : 'monthly';
+            await BillingService.updateSubscription(item.subscriptionId!, [{
+                id: item.planId,
+                type: (item.type === 'app' ? 'plan' : item.type) as 'plan' | 'bundle',
+                interval: interval as 'monthly' | 'yearly'
+            }]);
+        }
+        
+        const hasUpgrade = changeItems.some(i => i.isUpgrade);
+        const hasDowngrade = changeItems.some(i => i.isDowngrade);
+        
+        if (hasUpgrade) {
+            toast.success("Subscription upgraded successfully!");
+        } else if (hasDowngrade) {
+            toast.success("Downgrade scheduled for next billing cycle.");
+        }
+        
+        setCart([]);
+        await fetchSubscriptions();
+    } catch (error) {
+        console.error(error);
+        toast.error("Failed to update subscription.");
+    } finally {
+        setChangingSubId(null);
+    }
   };
 
   const handleBundleClick = (bundleId: string) => {
@@ -311,7 +337,6 @@ export default function Plans() {
                           isInCart={isInCart}
                           hasAnyTierInCart={hasAnyTierInCart}
                           currentSubscription={activeSub}
-                          onUpdateSubscription={handleUpdateSubscription}
                           compact
                         />
                       );
@@ -346,7 +371,6 @@ export default function Plans() {
                         isInCart={isInCart}
                         hasAnyTierInCart={hasAnyTierInCart}
                         currentSubscription={activeSub}
-                        onUpdateSubscription={handleUpdateSubscription}
                       />
                     );
                 })}
@@ -431,35 +455,58 @@ export default function Plans() {
                   {cart.map((item) => (
                     <div
                       key={`${item.id}-${item.tierName}`}
-                      className="group flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2.5 transition-all duration-200 hover:border-primary/20"
+                      className="group flex flex-col gap-2 rounded-lg border bg-card px-3 py-2.5 transition-all duration-200 hover:border-primary/20"
                     >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{item.name}</p>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <Badge
-                            variant="secondary"
-                            className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-0"
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{item.name}</p>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-0"
+                            >
+                              {item.tierName}
+                            </Badge>
+                            {item.isUpgrade && (
+                              <Badge className="text-[10px] px-1.5 py-0 h-4 bg-green-500/10 text-green-600 border-0">
+                                <ArrowUp className="h-2.5 w-2.5 mr-0.5" />
+                                Upgrade
+                              </Badge>
+                            )}
+                            {item.isDowngrade && (
+                              <Badge className="text-[10px] px-1.5 py-0 h-4 bg-orange-500/10 text-orange-600 border-0">
+                                <ArrowDown className="h-2.5 w-2.5 mr-0.5" />
+                                Downgrade
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-sm whitespace-nowrap">
+                            ${item.price.toFixed(2)}
+                            <span className="text-[10px] text-muted-foreground font-normal">{item.period}</span>
+                          </p>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => removeFromCart(item.id, item.tierName)}
                           >
-                            {item.tierName}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">•</span>
-                          <span className="text-xs text-muted-foreground capitalize">{item.type}</span>
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-sm whitespace-nowrap">
-                          ${item.price.toFixed(2)}
-                          <span className="text-[10px] text-muted-foreground font-normal">{item.period}</span>
+                      {/* Upgrade/Downgrade messaging */}
+                      {item.isUpgrade && (
+                        <p className="text-[11px] text-green-600 bg-green-50 dark:bg-green-950/30 rounded px-2 py-1">
+                          Pro-rated charge of ~${(item.price - (item.currentPrice ?? 0)).toFixed(2)} applies immediately
                         </p>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => removeFromCart(item.id, item.tierName)}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      )}
+                      {item.isDowngrade && (
+                        <p className="text-[11px] text-orange-600 bg-orange-50 dark:bg-orange-950/30 rounded px-2 py-1">
+                          You'll be charged ${item.price.toFixed(2)}{item.period} from next billing cycle
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -470,16 +517,35 @@ export default function Plans() {
           {/* Cart Footer */}
           {cart.length > 0 && (
             <div className="p-4 border-t bg-gradient-to-t from-muted/30 to-transparent space-y-4">
-              {/* <Separator /> */}
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Monthly Total</span>
+                <span className="text-sm text-muted-foreground">
+                  {hasSubscriptionChanges ? "New Price" : "Monthly Total"}
+                </span>
                 <span className="text-2xl font-bold tracking-tight">
                   ${cartTotal.toFixed(2)}
                 </span>
               </div>
-              <Button className="w-full" size="lg" onClick={handleCheckout}>
-                Proceed to Checkout
-              </Button>
+
+              {/* Subscription change button */}
+              {hasSubscriptionChanges && (
+                <Button 
+                  className="w-full" 
+                  size="lg" 
+                  onClick={handleSubscriptionChange}
+                  disabled={changingSubId === 'processing'}
+                >
+                  {changingSubId === 'processing' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {cart.some(i => i.isUpgrade) ? 'Confirm Upgrade' : 'Confirm Downgrade'}
+                </Button>
+              )}
+
+              {/* New subscription checkout button */}
+              {hasNewItems && (
+                <Button className="w-full" size="lg" onClick={handleCheckout}>
+                  Proceed to Checkout
+                </Button>
+              )}
+
               <Button
                 variant="outline"
                 className="w-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"

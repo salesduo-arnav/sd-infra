@@ -36,3 +36,8 @@ export const updateSubscription = async (subscriptionId: string, items: { id: st
     const response = await api.put(`/billing/subscription/${subscriptionId}`, { items });
     return response.data;
 };
+
+export const cancelDowngrade = async (subscriptionId: string) => {
+    const response = await api.post(`/billing/subscription/${subscriptionId}/cancel-downgrade`);
+    return response.data;
+};

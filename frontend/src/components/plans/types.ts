@@ -55,4 +55,9 @@ export interface CartItem {
   period: string;
   features?: FeatureItem[];
   limits?: string;
+  // Upgrade/Downgrade metadata
+  isUpgrade?: boolean;
+  isDowngrade?: boolean;
+  currentPrice?: number;
+  subscriptionId?: string;
 }
