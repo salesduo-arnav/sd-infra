@@ -127,12 +127,34 @@ export default function Plans() {
                 }
 
                 if (plan.is_trial_plan) {
-                    // It's a trial plan - don't show in tiers, but store ID for trial logic
-                    const app = appsMap.get(tool.id)!;
-                    app.trialPlanId = plan.id;
-                    app.trialPlanInterval = plan.interval;
-                    // Ensure trial days are consistent if available here
-                    if (tool.trial_days) app.trialDays = tool.trial_days;
+                    // It's a trial plan
+                    if (plan.price === 0) {
+                        // Free trial plan - don't show in tiers, but store ID for trial logic
+                        const app = appsMap.get(tool.id)!;
+                        app.trialPlanId = plan.id;
+                        app.trialPlanInterval = plan.interval;
+                        app.trialPlanDescription = plan.description; // Store description for button
+                        // Ensure trial days are consistent if available here
+                        if (tool.trial_days) app.trialDays = tool.trial_days;
+                    } else {
+                        // Paid trial plan - show in tiers with special badge
+                        const app = appsMap.get(tool.id)!;
+                        app.tiers.push({
+                            id: plan.id,
+                            name: plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1), // Capitalize
+                            price: plan.price,
+                            period: "/" + plan.interval,
+                            limits: plan.description || "See details",
+                            features: plan.limits?.map((limit: any) => ({
+                                name: limit.feature?.name || "Unknown Feature",
+                                limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
+                                isEnabled: limit.is_enabled,
+                                toolName: tool.name
+                            })) || [],
+                            isTrial: true,
+                            trialDays: tool.trial_days
+                        });
+                    }
                 } else {
                     const app = appsMap.get(tool.id)!;
                     app.tiers.push({
@@ -184,13 +206,36 @@ export default function Plans() {
   const allBundles = bundles;
 
   // Enrich apps with trial eligibility
-  const enrichedApps = apps.map(app => ({
-    ...app,
-    // trialPlanId is already set from public plans loop
-    trialDays: trialEligibility[app.id]?.trialDays || app.trialDays || 0,
-    trialEligible: trialEligibility[app.id]?.eligible || false,
-    trialCardRequired: app.trialCardRequired, // Already on app from public plans loop (via tool)
-  }));
+  const enrichedApps = apps.map(app => {
+    const eligibility = trialEligibility[app.id];
+    const isEligible = eligibility?.eligible || false;
+    
+    // Filter and modify tiers based on eligibility
+    const processedTiers = app.tiers
+        .filter(tier => {
+            // If eligible, keep everything.
+            if (isEligible) return true;
+            // If not eligible, remove free trial plans (price 0)
+            return tier.price > 0;
+        })
+        .map(tier => {
+             // If not eligible, convert paid trials to normal plans
+             if (!isEligible && tier.isTrial) {
+                 return { ...tier, isTrial: false, trialDays: 0 };
+             }
+             return tier;
+        });
+
+    return {
+        ...app,
+        tiers: processedTiers,
+        trialDays: isEligible ? (eligibility?.trialDays || app.trialDays || 0) : 0,
+        trialEligible: isEligible,
+        trialCardRequired: app.trialCardRequired, 
+        // Ensure trialPlanId is nulled if not eligible to prevent any trial logic
+        trialPlanId: isEligible ? app.trialPlanId : undefined 
+    };
+  });
 
   const handleStartTrial = async (toolId: string) => {
     const app = enrichedApps.find(a => a.id === toolId);
@@ -215,7 +260,8 @@ export default function Plans() {
             features: [], // detailed features not strictly needed for cart logic currently
             limits: 'Free Trial',
             isUpgrade: false,
-            isDowngrade: false
+            isDowngrade: false,
+            trialDays: app.trialDays
         };
         toggleCartItem(trialItem);
         setIsCartOpen(true);
@@ -286,6 +332,13 @@ export default function Plans() {
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
+
+    // Validate mixed trial periods
+    const trialVariations = new Set(cart.map(item => item.trialDays || 0));
+    if (trialVariations.size > 1) {
+        toast.error("Please checkout plans with different trial periods separately.");
+        return;
+    }
 
     const itemsToCheckout = cart.map(item => ({
         id: item.planId, // Use the specific Plan/Bundle Variant ID
@@ -411,7 +464,11 @@ export default function Plans() {
                 </div>
                 <div className={cn("grid gap-6", isCartOpen ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3")}>
                   {allBundles.map((bundle) => {
-                      const activeSub = currentSubscriptions.find(s => s.bundle?.bundle_group_id === bundle.id || s.upcoming_bundle?.bundle_group_id === bundle.id); // Check by group ID as bundle.id is group id in UI model
+                      // Only consider active, trialing, or past_due subscriptions as "active" for the UI
+                      const activeSub = currentSubscriptions.find(s => 
+                        ['active', 'trialing', 'past_due'].includes(s.status) &&
+                        (s.bundle?.bundle_group_id === bundle.id || s.upcoming_bundle?.bundle_group_id === bundle.id)
+                      );
                       return (
                         <BundleCard
                           key={bundle.id}
@@ -445,7 +502,11 @@ export default function Plans() {
               </div>
               <div className={cn("grid gap-6", isCartOpen ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3")}>
                 {enrichedApps.map((app) => {
-                    const activeSub = currentSubscriptions.find(s => s.plan?.tool_id === app.id || s.upcoming_plan?.tool_id === app.id);
+                    // Only consider active, trialing, or past_due subscriptions as "active" for the UI
+                    const activeSub = currentSubscriptions.find(s => 
+                        ['active', 'trialing', 'past_due'].includes(s.status) &&
+                        (s.plan?.tool_id === app.id || s.upcoming_plan?.tool_id === app.id)
+                    );
                     return (
                       <AppCard
                         key={app.id}
