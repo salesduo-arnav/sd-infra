@@ -81,18 +81,14 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
         </div>
 
         {/* Free Trial Banner */}
-        {!isComingSoon && app.trialDays && app.trialDays > 0 && !currentSubscription && (
+        {!isComingSoon && (app.trialDays || 0) > 0 && !currentSubscription && app.trialEligible && (
           <div className={cn("transition-opacity duration-300", isExpanded ? "opacity-0 h-0 overflow-hidden" : "opacity-100")}>
-            {app.trialEligible ? (
               <div className="flex items-center gap-2 p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
                 <Sparkles className="h-4 w-4 text-indigo-500 shrink-0" />
                 <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium flex-1">
                   {app.trialDays}-day free trial available
                 </span>
               </div>
-            ) : (
-              <Badge variant="outline" className="text-[10px] border-muted-foreground/30 text-muted-foreground">Trial Used</Badge>
-            )}
           </div>
         )}
 
@@ -131,7 +127,8 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
                                         isDowngrade: !!isDowngrade,
                                         currentPrice,
                                         subscriptionId: currentSubscription.id,
-                                    } : {})
+                                    } : {}),
+                                    trialDays: tier.trialDays
                                     })
                                 }
                                 className={cn(
@@ -146,6 +143,11 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
                                         <p className="font-medium truncate">{tier.name}</p>
+                                        {tier.isTrial && tier.trialDays && (
+                                            <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full dark:bg-indigo-900/30 dark:text-indigo-400 whitespace-nowrap">
+                                                {tier.trialDays} day free trial available
+                                            </span>
+                                        )}
                                         {isCurrent && <Badge className="h-5 text-[10px] px-1.5">Current</Badge>}
                                         {isUpcoming && <Badge variant="outline" className="h-5 text-[10px] px-1.5 border-orange-500 text-orange-500">Scheduled</Badge>}
                                     </div>
@@ -176,8 +178,8 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
             </Collapsible>
         )}
 
-        {/* Start Trial Button (inside expanded view) */}
-        {isExpanded && !isComingSoon && app.trialDays && app.trialDays > 0 && !currentSubscription && app.trialEligible && (
+        {/* Start Trial Button (inside expanded view) - Only for 0-price trial plans */}
+        {isExpanded && !isComingSoon && app.trialPlanId && !currentSubscription && app.trialEligible && (
           <div className="pt-2" onClick={(e) => e.stopPropagation()}>
             <Button
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
@@ -190,6 +192,11 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
             </Button>
             {app.trialCardRequired && (
               <p className="text-[10px] text-muted-foreground mt-1 text-center">Credit card required</p>
+            )}
+            {app.trialPlanDescription && (
+                <p className="text-[10px] text-muted-foreground mt-1 text-center italic px-1">
+                    {app.trialPlanDescription}
+                </p>
             )}
           </div>
         )}

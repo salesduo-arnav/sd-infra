@@ -33,6 +33,8 @@ export interface AppTier {
   period: string;
   limits: string;
   features?: FeatureItem[];
+  isTrial?: boolean;
+  trialDays?: number;
 }
 
 export interface App {
@@ -48,6 +50,7 @@ export interface App {
   trialCardRequired?: boolean;
   trialPlanId?: string;
   trialPlanInterval?: string;
+  trialPlanDescription?: string;
 }
 
 export interface CartItem {
@@ -65,4 +68,5 @@ export interface CartItem {
   isDowngrade?: boolean;
   currentPrice?: number;
   subscriptionId?: string;
+  trialDays?: number;
 }

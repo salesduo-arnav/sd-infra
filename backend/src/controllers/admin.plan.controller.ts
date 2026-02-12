@@ -118,12 +118,16 @@ export const createPlan = async (req: Request, res: Response) => {
         stripePriceYearly = await stripeService.createPrice(stripeProduct.id, yearlyAmount, currency, 'year');
 
         const plan = await sequelize.transaction(async (t) => {
-            // If marking as trial plan, unset any existing trial plan for this tool
+            // Validate: Only one trial plan per tool
             if (is_trial_plan) {
-                await Plan.update(
-                    { is_trial_plan: false },
-                    { where: { tool_id, is_trial_plan: true }, transaction: t }
-                );
+                const existingTrialPlan = await Plan.findOne({
+                    where: { tool_id, is_trial_plan: true },
+                    transaction: t
+                });
+
+                if (existingTrialPlan) {
+                    throw new Error(`The plan "${existingTrialPlan.name}" is already set as the trial plan for this tool.`);
+                }
             }
 
             return await Plan.create({
@@ -158,6 +162,10 @@ export const createPlan = async (req: Request, res: Response) => {
 
         res.status(201).json(plan);
     } catch (error) {
+        const err = error as Error;
+        if (err.message.includes('already set as the trial plan')) {
+             return res.status(400).json({ message: err.message });
+        }
         handleError(res, error, 'Create Plan Error');
     }
 };
@@ -200,12 +208,20 @@ export const updatePlan = async (req: Request, res: Response) => {
                  }
             }
 
-            // If marking as trial plan, unset any existing trial plan for the same tool
+            // Validate: Only one trial plan per tool
             if (updates.is_trial_plan === true) {
-                await Plan.update(
-                    { is_trial_plan: false },
-                    { where: { tool_id: plan.tool_id, is_trial_plan: true, id: { [Op.ne]: plan.id } }, transaction: t }
-                );
+                 const existingTrialPlan = await Plan.findOne({
+                    where: { 
+                        tool_id: plan.tool_id, 
+                        is_trial_plan: true, 
+                        id: { [Op.ne]: plan.id } 
+                    },
+                    transaction: t
+                });
+
+                if (existingTrialPlan) {
+                    throw new Error(`The plan "${existingTrialPlan.name}" is already set as the trial plan for this tool.`);
+                }
             }
 
             return await plan.update(updates, { transaction: t });
@@ -224,6 +240,10 @@ export const updatePlan = async (req: Request, res: Response) => {
 
         res.status(200).json(updatedPlan);
     } catch (error) {
+        const err = error as Error;
+        if (err.message.includes('already set as the trial plan')) {
+             return res.status(400).json({ message: err.message });
+        }
         handleError(res, error, 'Update Plan Error');
     }
 };

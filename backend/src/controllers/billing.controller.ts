@@ -9,6 +9,7 @@ import { Subscription } from '../models/subscription';
 import { SubStatus } from '../models/enums';
 import { User } from '../models/user';
 import sequelize from '../config/db';
+import { Op } from 'sequelize';
 
 class BillingController {
   async createCheckoutSession(req: Request, res: Response, next: NextFunction) {
@@ -50,6 +51,7 @@ class BillingController {
       const metadataItems: any[] = [];
 
       let trialPeriodDays = 0;
+      let hasPaidComponent = false;
 
       for (const item of items) {
           let priceId: string | undefined;
@@ -58,6 +60,8 @@ class BillingController {
             const plan = await Plan.findByPk(item.id, { include: [{ model: Tool, as: 'tool' }] });
             if (!plan) continue;
             priceId = item.interval === 'yearly' ? plan.stripe_price_id_yearly : plan.stripe_price_id_monthly;
+            if (plan.price > 0) hasPaidComponent = true;
+
             if (plan.tool?.trial_days && plan.tool.trial_days > 0 && trialPeriodDays === 0) {
                  trialPeriodDays = plan.tool.trial_days;
             }
@@ -65,6 +69,7 @@ class BillingController {
             const bundle = await Bundle.findByPk(item.id);
             if (!bundle) continue;
             priceId = item.interval === 'yearly' ? bundle.stripe_price_id_yearly : bundle.stripe_price_id_monthly;
+            if (bundle.price > 0) hasPaidComponent = true;
           }
 
           if (priceId) {
@@ -101,11 +106,15 @@ class BillingController {
 
       if (trialPeriodDays > 0) {
           sessionConfig.subscription_data.trial_period_days = trialPeriodDays;
-          // Auto-cancel trial if it's a card-required trial so users aren't charged automatically
-          sessionConfig.subscription_data.metadata = {
-              ...sessionConfig.subscription_data.metadata,
-              auto_cancel_trial: 'true'
-          };
+          
+          // Only auto-cancel if it's a free trial (no paid component)
+          // Paid plans with trial should continue to active status after trial
+          if (!hasPaidComponent) {
+            sessionConfig.subscription_data.metadata = {
+                ...sessionConfig.subscription_data.metadata,
+                auto_cancel_trial: 'true'
+            };
+          }
       }
 
       if (ui_mode === 'embedded') {
@@ -1004,18 +1013,28 @@ class BillingController {
         return;
       }
 
-      // Check if org already had any subscription for this tool
+      console.log(`[TrialCheck] Checking for Org: ${organization.id}, Tool: ${tool_id}`);
+      
+      // 1. Get all plan IDs for this tool (including deleted ones)
+      const allToolPlans = await Plan.findAll({
+          where: { tool_id: tool_id as string },
+          attributes: ['id'],
+          paranoid: false
+      });
+      
+      const planIds = allToolPlans.map(p => p.id);
+      console.log(`[TrialCheck] Found ${planIds.length} plans for tool:`, planIds);
+
+      // 2. Check if org has any subscription matching these plan IDs
       const existingSub = await Subscription.findOne({
         where: {
           organization_id: organization.id,
+          plan_id: { [Op.in]: planIds }
         },
-        include: [{
-          model: Plan,
-          as: 'plan',
-          where: { tool_id: tool_id as string },
-          required: true
-        }]
+        paranoid: false
       });
+
+      console.log(`[TrialCheck] Existing Sub found: ${existingSub ? existingSub.id : 'None'}`);
 
       if (existingSub) {
         res.status(200).json({ eligible: false, reason: 'Trial already used for this tool', trialDays: trialPlan.tool!.trial_days });
