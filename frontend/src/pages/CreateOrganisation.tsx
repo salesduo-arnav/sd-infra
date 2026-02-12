@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Building2, Sparkles, Users, Shield, ArrowRight } from "lucide-react";
+import { Building2, Sparkles, Users, Shield, ArrowRight, ArrowLeft } from "lucide-react";
 import { API_URL } from "@/lib/api";
 
 export default function CreateOrganisation() {
@@ -15,7 +15,7 @@ export default function CreateOrganisation() {
   const [newInvite, setNewInvite] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const { refreshUser, switchOrganization, activeOrganization } = useAuth();
+  const { user, refreshUser, switchOrganization, activeOrganization } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectUrl = searchParams.get("redirect");
@@ -60,20 +60,22 @@ export default function CreateOrganisation() {
       }
 
       const data = await res.json();
-      await refreshUser();
-      if (data.organization && data.organization.id) {
-        switchOrganization(data.organization.id);
+
+      if (data.organization?.id) {
+        localStorage.setItem("activeOrganizationId", data.organization.id);
       }
+
+      await refreshUser();
 
       // Redirect to external app if redirect param exists
       if (redirectUrl) {
-        const url = new URL(redirectUrl);
+        const url = new URL(redirectUrl, window.location.origin);
         url.searchParams.set("auth_success", "true");
-        window.location.replace(url.toString()); // external redirect
+        window.location.replace(url.toString());
         return;
       }
 
-      // Navigate to apps or integration onboarding with replace to start fresh
+      // Navigate directly to apps — org is already selected
       navigate("/apps", { replace: true });
     } catch (err) {
       if (err instanceof Error) {
@@ -157,7 +159,6 @@ export default function CreateOrganisation() {
       {/* Right side - Form */}
       <div className="flex w-full lg:w-1/2 flex-col justify-center px-8 py-12 lg:px-16">
         <div className="mx-auto w-full max-w-md">
-          {/* Mobile Header */}
           <div className="lg:hidden mb-8">
             <Link to="/" className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-[#ff9900] to-[#e88800]">
@@ -168,6 +169,12 @@ export default function CreateOrganisation() {
           </div>
 
           <div className="mb-8">
+            {user?.memberships && user.memberships.length > 0 && (
+              <Button variant="ghost" className="mb-4 pl-0 hover:bg-transparent hover:text-primary" onClick={() => navigate("/choose-organisation")}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Organization Selection
+              </Button>
+            )}
             <h2 className="text-2xl font-semibold tracking-tight">Create Organisation</h2>
             <p className="mt-2 text-muted-foreground">Set up your workspace to get started</p>
           </div>

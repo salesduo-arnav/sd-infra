@@ -47,15 +47,10 @@ export default function Login() {
       console.error(e);
     }
 
-    // If there's an external redirect, go there
     if (redirectUrl) {
-      const url = new URL(redirectUrl);
-      url.searchParams.set("auth_success", "true");
-      window.location.href = url.toString();
-      return;
+      console.log("Preserving redirect for chooser:", redirectUrl);
     }
-
-    navigate("/apps");
+    navigate(`/choose-organisation${redirectSuffix}`);
   };
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {

@@ -14,6 +14,7 @@ import Billing from "./pages/Billing";
 import Profile from "./pages/Profile";
 import Organisation from "./pages/Organisation";
 import CreateOrganisation from "./pages/CreateOrganisation";
+import ChooseOrganisation from "./pages/ChooseOrganisation";
 import Integrations from "./pages/Integrations";
 import IntegrationOnboarding from "./pages/IntegrationOnboarding";
 import NotFound from "./pages/NotFound";
@@ -32,7 +33,7 @@ import DesignSystem from "./pages/DesignSystem";
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user, isLoading } = useAuth();
+  const { isAuthenticated, user, isLoading, activeOrganization } = useAuth();
   const location = useLocation();
 
   if (isLoading) return <div>Loading...</div>;
@@ -44,6 +45,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // If user has no organization and is not on the creation page, redirect them
   if ((!user?.memberships || user.memberships.length === 0) && location.pathname !== "/create-organisation" && location.pathname !== "/pending-invites") {
     return <Navigate to={`/create-organisation${location.search}`} replace />;
+  }
+
+  // If user has organizations but none is active, redirect to selection (unless already there or creating/handling invites)
+  if (user?.memberships && user.memberships.length > 0 && !activeOrganization &&
+    location.pathname !== "/choose-organisation" &&
+    location.pathname !== "/create-organisation" &&
+    location.pathname !== "/pending-invites") {
+    const currentPath = location.pathname + location.search;
+    return <Navigate to={`/choose-organisation?redirect=${encodeURIComponent(currentPath)}`} replace />;
   }
 
   return <>{children}</>;
@@ -68,13 +78,14 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
     // If there's an external redirect param, honour it instead of going to /apps
     const params = new URLSearchParams(location.search);
     const redirectUrl = params.get("redirect");
-    if (redirectUrl) {
-      const url = new URL(redirectUrl);
-      url.searchParams.set("auth_success", "true");
-      window.location.href = url.toString();
-      return null;
-    }
-    return <Navigate to="/apps" replace />;
+
+    // NOTE: We now intercept all "already logged in" users to choose org first
+    // We pass the redirectUrl along to the chooser
+
+    // Construct target URL for chooser
+    const target = `/choose-organisation${location.search}`;
+
+    return <Navigate to={target} replace />;
   }
   return <>{children}</>;
 }
@@ -117,6 +128,14 @@ function AppRoutes() {
       />
 
       {/* Protected routes */}
+      <Route
+        path="/choose-organisation"
+        element={
+          <ProtectedRoute>
+            <ChooseOrganisation />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/apps"
         element={
