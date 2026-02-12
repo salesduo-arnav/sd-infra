@@ -12,12 +12,14 @@ export interface ToolAttributes {
   description?: string;
   tool_link?: string;
   is_active: boolean;
+  trial_card_required: boolean;
+  trial_days: number;
   deleted_at?: Date | null;
   created_at?: Date;
   updated_at?: Date;
 }
 
-export type ToolCreationAttributes = Optional<ToolAttributes, 'id' | 'description' | 'tool_link' | 'is_active' | 'created_at' | 'updated_at' | 'deleted_at'>;
+export type ToolCreationAttributes = Optional<ToolAttributes, 'id' | 'description' | 'tool_link' | 'is_active' | 'trial_card_required' | 'created_at' | 'updated_at' | 'deleted_at'>;
 
 export class Tool extends Model<ToolAttributes, ToolCreationAttributes> implements ToolAttributes {
   public id!: string;
@@ -26,6 +28,8 @@ export class Tool extends Model<ToolAttributes, ToolCreationAttributes> implemen
   public description!: string;
   public tool_link!: string;
   public is_active!: boolean;
+  public trial_card_required!: boolean;
+  public trial_days!: number;
   public readonly deleted_at!: Date | null;
 
   public readonly created_at!: Date;
@@ -60,6 +64,16 @@ Tool.init(
     is_active: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
+    },
+    trial_card_required: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: 'Whether a credit card is required to start a free trial',
+    },
+    trial_days: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: 'Default trial period in days for this tool',
     },
     deleted_at: {
       type: DataTypes.DATE,

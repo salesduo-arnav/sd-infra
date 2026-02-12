@@ -49,20 +49,22 @@ class BillingController {
       const lineItems = [];
       const metadataItems: any[] = [];
 
+      let trialPeriodDays = 0;
+
       for (const item of items) {
           let priceId: string | undefined;
-          let name: string = '';
 
           if (item.type === 'plan') {
-            const plan = await Plan.findByPk(item.id);
+            const plan = await Plan.findByPk(item.id, { include: [{ model: Tool, as: 'tool' }] });
             if (!plan) continue;
             priceId = item.interval === 'yearly' ? plan.stripe_price_id_yearly : plan.stripe_price_id_monthly;
-            name = plan.name;
+            if (plan.tool?.trial_days && plan.tool.trial_days > 0 && trialPeriodDays === 0) {
+                 trialPeriodDays = plan.tool.trial_days;
+            }
           } else if (item.type === 'bundle') {
             const bundle = await Bundle.findByPk(item.id);
             if (!bundle) continue;
             priceId = item.interval === 'yearly' ? bundle.stripe_price_id_yearly : bundle.stripe_price_id_monthly;
-            name = bundle.name;
           }
 
           if (priceId) {
@@ -96,6 +98,15 @@ class BillingController {
           }
         }
       };
+
+      if (trialPeriodDays > 0) {
+          sessionConfig.subscription_data.trial_period_days = trialPeriodDays;
+          // Auto-cancel trial if it's a card-required trial so users aren't charged automatically
+          sessionConfig.subscription_data.metadata = {
+              ...sessionConfig.subscription_data.metadata,
+              auto_cancel_trial: 'true'
+          };
+      }
 
       if (ui_mode === 'embedded') {
         sessionConfig.ui_mode = 'embedded';
@@ -353,6 +364,12 @@ class BillingController {
         case 'customer.subscription.updated':
         case 'customer.subscription.created':
           await this.handleSubscriptionUpdated(event.data.object);
+          // Check for auto-cancel metadata
+          const sub = event.data.object as any;
+          if (sub.metadata?.auto_cancel_trial === 'true' && !sub.cancel_at_period_end && sub.status === 'trialing') {
+              console.log(`[BillingController] Auto-cancelling trial subscription ${sub.id} at period end.`);
+              await stripeService.cancelSubscriptionAtPeriodEnd(sub.id);
+          }
           break;
         case 'customer.subscription.deleted':
           await this.handleSubscriptionDeleted(event.data.object);
@@ -805,6 +822,212 @@ class BillingController {
           next(error);
       }
   }
+
+  // ==========================
+  // Trial Management
+  // ==========================
+
+  async startTrial(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { tool_id } = req.body;
+      const organization = req.organization;
+
+      if (!organization) {
+        res.status(404).json({ message: 'Organization not found' });
+        return;
+      }
+
+      if (!tool_id) {
+        res.status(400).json({ message: 'tool_id is required' });
+        return;
+      }
+
+      // 1. Find the trial plan for this tool
+      const trialPlan = await Plan.findOne({
+        where: { tool_id, is_trial_plan: true, active: true },
+        include: [{ model: Tool, as: 'tool' }]
+      });
+
+      if (!trialPlan || !trialPlan.tool || trialPlan.tool.trial_days <= 0) {
+        res.status(400).json({ message: 'No free trial available for this tool' });
+        return;
+      }
+
+      const tool = trialPlan.tool;
+
+      // 2. Check eligibility — has org ever subscribed to any plan for this tool?
+      const existingSub = await Subscription.findOne({
+        where: {
+          organization_id: organization.id,
+        },
+        include: [{
+          model: Plan,
+          as: 'plan',
+          where: { tool_id },
+          required: true
+        }]
+      });
+
+      if (existingSub) {
+        res.status(400).json({ message: 'Your organization has already used or has an active subscription for this tool. Free trial is not available.' });
+        return;
+      }
+
+      // const tool = trialPlan.tool!; // Removed duplicate declaration
+      const trialDays = tool.trial_days;
+      const now = new Date();
+      const trialEnd = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
+
+      // 3. Card required? → Create Stripe trial subscription
+      if (tool?.trial_card_required) {
+        // Ensure customer exists
+        let customerId = organization.stripe_customer_id;
+        if (!customerId) {
+          const customer = await stripeService.createCustomer(
+            organization.billing_email || req.user?.email || '',
+            organization.name,
+            { orgId: organization.id }
+          );
+          customerId = customer.id;
+          await organization.update({ stripe_customer_id: customerId });
+        }
+
+        const priceId = trialPlan.stripe_price_id_monthly || trialPlan.stripe_price_id_yearly;
+        if (!priceId) {
+          res.status(500).json({ message: 'Trial plan has no Stripe price configured' });
+          return;
+        }
+
+        const stripeSub = await stripeService.createTrialSubscription(
+          customerId,
+          priceId,
+          trialDays,
+          { org_id: organization.id, plan_id: trialPlan.id, tool_id }
+        );
+
+        // Create local subscription record
+        const subscription = await Subscription.create({
+          organization_id: organization.id,
+          plan_id: trialPlan.id,
+          stripe_subscription_id: stripeSub.id,
+          status: SubStatus.TRIALING,
+          trial_start: now,
+          trial_end: trialEnd,
+          current_period_start: now,
+          current_period_end: trialEnd,
+          cancel_at_period_end: false,
+        });
+
+        res.status(201).json(subscription);
+      } else {
+        // 4. No card required → Local-only trial
+        const subscription = await Subscription.create({
+          organization_id: organization.id,
+          plan_id: trialPlan.id,
+          stripe_subscription_id: null,
+          status: SubStatus.TRIALING,
+          trial_start: now,
+          trial_end: trialEnd,
+          current_period_start: now,
+          current_period_end: trialEnd,
+          cancel_at_period_end: false,
+        });
+
+        res.status(201).json(subscription);
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async cancelTrial(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const organization = req.organization;
+
+      const subscription = await Subscription.findOne({
+        where: {
+          id,
+          organization_id: organization?.id,
+          status: SubStatus.TRIALING,
+        }
+      });
+
+      if (!subscription) {
+        res.status(404).json({ message: 'Active trial not found' });
+        return;
+      }
+
+      // Cancel on Stripe if exists
+      if (subscription.stripe_subscription_id) {
+        try {
+          await stripeService.cancelSubscriptionImmediately(subscription.stripe_subscription_id);
+        } catch (e) {
+          console.error('Failed to cancel Stripe trial subscription:', e);
+        }
+      }
+
+      await subscription.update({
+        status: SubStatus.CANCELED,
+        cancel_at_period_end: false,
+      });
+
+      res.status(200).json({ message: 'Trial cancelled successfully' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async checkTrialEligibility(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { tool_id } = req.query;
+      const organization = req.organization;
+
+      if (!organization) {
+        res.status(404).json({ message: 'Organization not found' });
+        return;
+      }
+
+      if (!tool_id) {
+        res.status(400).json({ message: 'tool_id query param is required' });
+        return;
+      }
+
+      // Check if tool has a trial plan
+      const trialPlan = await Plan.findOne({
+        where: { tool_id: tool_id as string, is_trial_plan: true, active: true },
+        include: [{ model: Tool, as: 'tool' }]
+      });
+
+      if (!trialPlan || !trialPlan.tool || trialPlan.tool.trial_days <= 0) {
+        res.status(200).json({ eligible: false, reason: 'No free trial available for this tool', trialDays: 0 });
+        return;
+      }
+
+      // Check if org already had any subscription for this tool
+      const existingSub = await Subscription.findOne({
+        where: {
+          organization_id: organization.id,
+        },
+        include: [{
+          model: Plan,
+          as: 'plan',
+          where: { tool_id: tool_id as string },
+          required: true
+        }]
+      });
+
+      if (existingSub) {
+        res.status(200).json({ eligible: false, reason: 'Trial already used for this tool', trialDays: trialPlan.tool!.trial_days });
+        return;
+      }
+
+      res.status(200).json({ eligible: true, trialDays: trialPlan.tool!.trial_days });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const billingController = new BillingController();
+

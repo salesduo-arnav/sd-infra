@@ -52,6 +52,16 @@ export class StripeService {
     });
   }
 
+  async cancelSubscriptionImmediately(subscriptionId: string) {
+    return this.stripe.subscriptions.cancel(subscriptionId);
+  }
+
+  async cancelSubscriptionAtPeriodEnd(subscriptionId: string) {
+    return this.stripe.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: true,
+    });
+  }
+
   async resumeSubscription(subscriptionId: string) {
     return this.stripe.subscriptions.update(subscriptionId, {
         cancel_at_period_end: false,
@@ -172,6 +182,18 @@ export class StripeService {
       recurring: {
         interval,
       },
+    });
+  }
+
+  // Trial Subscription
+  async createTrialSubscription(customerId: string, priceId: string, trialDays: number, metadata?: Record<string, string>) {
+    return this.stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: priceId }],
+      trial_period_days: trialDays,
+      payment_behavior: 'default_incomplete',
+      payment_settings: { save_default_payment_method: 'on_subscription' },
+      metadata: metadata || {},
     });
   }
 

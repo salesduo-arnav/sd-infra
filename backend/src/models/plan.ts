@@ -16,11 +16,11 @@ export interface PlanAttributes {
   price: number;
   currency: string;
   interval: PriceInterval;
-  trial_period_days: number;
   stripe_product_id?: string;
   stripe_price_id_monthly?: string;
   stripe_price_id_yearly?: string;
   active: boolean;
+  is_trial_plan: boolean;
   deleted_at?: Date | null;
   created_at?: Date;
   updated_at?: Date;
@@ -28,7 +28,7 @@ export interface PlanAttributes {
 
 export type PlanCreationAttributes = Optional<
   PlanAttributes,
-  'id' | 'description' | 'trial_period_days' | 'active' | 'created_at' | 'updated_at' | 'deleted_at'
+  'id' | 'description' | 'active' | 'is_trial_plan' | 'created_at' | 'updated_at' | 'deleted_at'
 >;
 
 export class Plan extends Model<PlanAttributes, PlanCreationAttributes> implements PlanAttributes {
@@ -40,12 +40,12 @@ export class Plan extends Model<PlanAttributes, PlanCreationAttributes> implemen
   public price!: number;
   public currency!: string;
   public interval!: PriceInterval;
-  public trial_period_days!: number;
   public stripe_product_id!: string;
   public stripe_price_id_monthly!: string;
   public stripe_price_id_yearly!: string;
 
   public active!: boolean;
+  public is_trial_plan!: boolean;
   public readonly deleted_at!: Date | null;
 
   public readonly created_at!: Date;
@@ -93,11 +93,6 @@ Plan.init(
       type: DataTypes.ENUM(...Object.values(PriceInterval)),
       allowNull: false,
     },
-    trial_period_days: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
-      comment: 'If > 0, auto-set trial_end on sub creation',
-    },
     stripe_product_id: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -113,6 +108,11 @@ Plan.init(
     active: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
+    },
+    is_trial_plan: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: 'Marks this plan as the trial plan for its tool',
     },
   },
   {

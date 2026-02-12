@@ -61,7 +61,8 @@ describe('Admin Feature Management Integration Tests', () => {
         testTool = await Tool.create({
             name: 'Parent Tool',
             slug: 'parent-tool',
-            is_active: true
+            is_active: true,
+            trial_days: 0
         });
     });
 
@@ -158,7 +159,7 @@ describe('Admin Feature Management Integration Tests', () => {
         });
 
         it('should filter by tool_id', async () => {
-             const anotherTool = await Tool.create({ name: 'T2', slug: 't2' });
+             const anotherTool = await Tool.create({ name: 'T2', slug: 't2', trial_days: 0 });
              await Feature.create({ name: 'T2 Feat', slug: 't2-feat', tool_id: anotherTool.id });
 
             const res = await request(app)

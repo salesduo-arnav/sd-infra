@@ -38,6 +38,8 @@ export default function Plans() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [currentSubscriptions, setCurrentSubscriptions] = useState<any[]>([]);
   const [changingSubId, setChangingSubId] = useState<string | null>(null);
+  const [trialEligibility, setTrialEligibility] = useState<Record<string, { eligible: boolean; trialDays: number }>>({}); 
+  const [startingTrialToolId, setStartingTrialToolId] = useState<string | null>(null);
 
   // State to control transitions - prevents initial load animation glitch
   const [enableTransition, setEnableTransition] = useState(false);
@@ -118,27 +120,53 @@ export default function Plans() {
                         icon: getIconForSlug(tool.slug),
                         tiers: [],
                         features: tool.features?.map(f => f.name) || [],
-                        status: tool.is_active ? "available" : "coming-soon"
+                        status: tool.is_active ? "available" : "coming-soon",
+                        trialDays: tool.trial_days || 0,
+                        trialCardRequired: tool.trial_card_required
                     });
                 }
 
-                const app = appsMap.get(tool.id)!;
-                app.tiers.push({
-                    id: plan.id,
-                    name: plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1), // Capitalize
-                    price: plan.price,
-                    period: "/" + plan.interval,
-                    limits: plan.description || "See details",
-                    features: plan.limits?.map((limit: any) => ({
-                        name: limit.feature?.name || "Unknown Feature",
-                        limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
-                        isEnabled: limit.is_enabled,
-                        toolName: tool.name
-                    })) || []
-                });
+                if (plan.is_trial_plan) {
+                    // It's a trial plan - don't show in tiers, but store ID for trial logic
+                    const app = appsMap.get(tool.id)!;
+                    app.trialPlanId = plan.id;
+                    app.trialPlanInterval = plan.interval;
+                    // Ensure trial days are consistent if available here
+                    if (tool.trial_days) app.trialDays = tool.trial_days;
+                } else {
+                    const app = appsMap.get(tool.id)!;
+                    app.tiers.push({
+                        id: plan.id,
+                        name: plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1), // Capitalize
+                        price: plan.price,
+                        period: "/" + plan.interval,
+                        limits: plan.description || "See details",
+                        features: plan.limits?.map((limit: any) => ({
+                            name: limit.feature?.name || "Unknown Feature",
+                            limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
+                            isEnabled: limit.is_enabled,
+                            toolName: tool.name
+                        })) || []
+                    });
+                }
             });
 
             setApps(Array.from(appsMap.values()));
+
+            // Fetch trial eligibility for each tool
+            const toolIds = Array.from(appsMap.keys());
+            const eligibilityResults: Record<string, { eligible: boolean; trialDays: number }> = {};
+            await Promise.all(
+              toolIds.map(async (toolId) => {
+                try {
+                  const result = await BillingService.checkTrialEligibility(toolId);
+                  eligibilityResults[toolId] = { eligible: result.eligible, trialDays: result.trialDays };
+                } catch {
+                  eligibilityResults[toolId] = { eligible: false, trialDays: 0 };
+                }
+              })
+            );
+            setTrialEligibility(eligibilityResults);
 
         } catch (error) {
             console.error("Failed to fetch plans data", error);
@@ -154,6 +182,63 @@ export default function Plans() {
   }, []);
 
   const allBundles = bundles;
+
+  // Enrich apps with trial eligibility
+  const enrichedApps = apps.map(app => ({
+    ...app,
+    // trialPlanId is already set from public plans loop
+    trialDays: trialEligibility[app.id]?.trialDays || app.trialDays || 0,
+    trialEligible: trialEligibility[app.id]?.eligible || false,
+    trialCardRequired: app.trialCardRequired, // Already on app from public plans loop (via tool)
+  }));
+
+  const handleStartTrial = async (toolId: string) => {
+    const app = enrichedApps.find(a => a.id === toolId);
+    if (!app) return;
+
+    // If card required, add to cart for checkout
+    if (app.trialCardRequired && app.trialPlanId) {
+        if (isInCart(app.id, 'Trial')) {
+            // Already in cart, just open it
+            setIsCartOpen(true);
+            return;
+        }
+
+        const trialItem: CartItem = {
+            id: app.id,
+            planId: app.trialPlanId,
+            type: 'app',
+            name: app.name,
+            tierName: 'Free Trial',
+            price: 0,
+            period: app.trialPlanInterval ? `/${app.trialPlanInterval}` : `${app.trialDays} days`,
+            features: [], // detailed features not strictly needed for cart logic currently
+            limits: 'Free Trial',
+            isUpgrade: false,
+            isDowngrade: false
+        };
+        toggleCartItem(trialItem);
+        setIsCartOpen(true);
+        return;
+    }
+
+    // Direct start for no-card trials
+    setStartingTrialToolId(toolId);
+    try {
+      await BillingService.startTrial(toolId);
+      toast.success('Free trial started successfully!');
+      await fetchSubscriptions();
+      // Refresh eligibility
+      setTrialEligibility(prev => ({
+        ...prev,
+        [toolId]: { ...prev[toolId], eligible: false }
+      }));
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to start trial');
+    } finally {
+      setStartingTrialToolId(null);
+    }
+  };
 
   // Check if cart has any upgrade/downgrade items
   const hasSubscriptionChanges = cart.some(item => item.isUpgrade || item.isDowngrade);
@@ -359,7 +444,7 @@ export default function Plans() {
                 </p>
               </div>
               <div className={cn("grid gap-6", isCartOpen ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3")}>
-                {apps.map((app) => {
+                {enrichedApps.map((app) => {
                     const activeSub = currentSubscriptions.find(s => s.plan?.tool_id === app.id || s.upcoming_plan?.tool_id === app.id);
                     return (
                       <AppCard
@@ -371,6 +456,8 @@ export default function Plans() {
                         isInCart={isInCart}
                         hasAnyTierInCart={hasAnyTierInCart}
                         currentSubscription={activeSub}
+                        onStartTrial={handleStartTrial}
+                        isStartingTrial={startingTrialToolId === app.id}
                       />
                     );
                 })}

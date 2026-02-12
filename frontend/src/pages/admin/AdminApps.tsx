@@ -75,6 +75,8 @@ export default function AdminApps() {
     description: "",
     tool_link: "",
     is_active: true,
+    trial_card_required: false,
+    trial_days: 0
   });
 
   // Feature State
@@ -131,10 +133,12 @@ export default function AdminApps() {
         description: app.description || "",
         tool_link: app.tool_link || "",
         is_active: app.is_active,
+        trial_card_required: app.trial_card_required || false,
+        trial_days: app.trial_days || 0
       });
     } else {
       setEditingApp(null);
-      setFormData({ name: "", slug: "", description: "", tool_link: "", is_active: true });
+      setFormData({ name: "", slug: "", description: "", tool_link: "", is_active: true, trial_card_required: false, trial_days: 0 });
     }
     setIsDialogOpen(true);
   }, []);
@@ -424,6 +428,18 @@ export default function AdminApps() {
                         placeholder="Enter app description"
                     />
                     </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="trial_days">Trial Days</Label>
+                        <Input
+                            id="trial_days"
+                            type="number"
+                            min="0"
+                            value={formData.trial_days}
+                            onChange={(e) => setFormData({ ...formData, trial_days: parseInt(e.target.value) || 0 })}
+                            placeholder="0"
+                        />
+                        <p className="text-xs text-muted-foreground">Number of days for free trial (0 to disable).</p>
+                    </div>
                     <div className="flex items-center space-x-2">
                     <Switch
                         id="is_active"
@@ -431,6 +447,14 @@ export default function AdminApps() {
                         onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
                     />
                     <Label htmlFor="is_active">Active</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                    <Switch
+                        id="trial_card_required"
+                        checked={formData.trial_card_required}
+                        onCheckedChange={(checked) => setFormData({ ...formData, trial_card_required: checked })}
+                    />
+                    <Label htmlFor="trial_card_required">Require Card for Free Trial</Label>
                     </div>
                 </div>
                 <DialogFooter>

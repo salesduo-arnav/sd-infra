@@ -84,8 +84,8 @@ export const createPlan = async (req: Request, res: Response) => {
             price,
             currency,
             interval,
-            trial_period_days,
-            active
+            active,
+            is_trial_plan
         } = req.body;
 
         // Basic validation
@@ -118,6 +118,14 @@ export const createPlan = async (req: Request, res: Response) => {
         stripePriceYearly = await stripeService.createPrice(stripeProduct.id, yearlyAmount, currency, 'year');
 
         const plan = await sequelize.transaction(async (t) => {
+            // If marking as trial plan, unset any existing trial plan for this tool
+            if (is_trial_plan) {
+                await Plan.update(
+                    { is_trial_plan: false },
+                    { where: { tool_id, is_trial_plan: true }, transaction: t }
+                );
+            }
+
             return await Plan.create({
                 name,
                 description,
@@ -126,8 +134,8 @@ export const createPlan = async (req: Request, res: Response) => {
                 price,
                 currency,
                 interval,
-                trial_period_days: trial_period_days ?? 0,
                 active: active ?? true,
+                is_trial_plan: is_trial_plan ?? false,
                 stripe_product_id: stripeProduct.id,
                 stripe_price_id_monthly: stripePriceMonthly.id,
                 stripe_price_id_yearly: stripePriceYearly.id
@@ -190,6 +198,14 @@ export const updatePlan = async (req: Request, res: Response) => {
                      updates.stripe_price_id_monthly = stripePriceMonthly.id;
                      updates.stripe_price_id_yearly = stripePriceYearly.id;
                  }
+            }
+
+            // If marking as trial plan, unset any existing trial plan for the same tool
+            if (updates.is_trial_plan === true) {
+                await Plan.update(
+                    { is_trial_plan: false },
+                    { where: { tool_id: plan.tool_id, is_trial_plan: true, id: { [Op.ne]: plan.id } }, transaction: t }
+                );
             }
 
             return await plan.update(updates, { transaction: t });

@@ -43,6 +43,11 @@ export interface App {
   tiers: AppTier[];
   features: string[]; // This might stay as string[] for the summary card
   status: "available" | "coming-soon";
+  trialDays?: number;
+  trialEligible?: boolean;
+  trialCardRequired?: boolean;
+  trialPlanId?: string;
+  trialPlanInterval?: string;
 }
 
 export interface CartItem {

@@ -260,7 +260,7 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
                 const { Plan } = await import('../models/plan');
                 const { Tool } = await import('../models/tool');
 
-                const tool = await Tool.create({ name: 'Sub Test Tool', slug: 'sub-test-tool', is_active: true });
+                const tool = await Tool.create({ name: 'Sub Test Tool', slug: 'sub-test-tool', is_active: true, trial_days: 0 });
                 const plan = await Plan.create({
                     name: 'Sub Test Plan',
                     tool_id: tool.id,
@@ -268,7 +268,6 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
                     tier: TierType.PREMIUM,
                     currency: 'usd',
                     interval: PriceInterval.MONTHLY,
-                    trial_period_days: 14,
                     active: true
                 });
 
@@ -301,7 +300,7 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
                 const { Feature } = await import('../models/feature');
                 const { OrganizationEntitlement } = await import('../models/organization_entitlement');
 
-                const tool = await Tool.create({ name: 'Test Tool', slug: 'test-tool', is_active: true });
+                const tool = await Tool.create({ name: 'Test Tool', slug: 'test-tool', is_active: true, trial_days: 0 });
                 const feature = await Feature.create({ name: 'Test Feature', slug: 'test-feature', tool_id: tool.id });
 
                 // 2. Create Entitlement
@@ -331,7 +330,7 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
                 const { Plan } = await import('../models/plan');
 
                 // 1. Create Tool, Feature, Plan
-                const tool = await Tool.create({ name: 'Cascade Tool', slug: 'cascade-tool', is_active: true });
+                const tool = await Tool.create({ name: 'Cascade Tool', slug: 'cascade-tool', is_active: true, trial_days: 0 });
                 const feature = await Feature.create({ name: 'Cascade Feat', slug: 'cascade-feat', tool_id: tool.id });
                 const plan = await Plan.create({
                     name: 'Cascade Plan',
@@ -340,7 +339,6 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
                     tier: TierType.BASIC,
                     currency: 'usd',
                     interval: PriceInterval.MONTHLY,
-                    trial_period_days: 0,
                     active: true
                 });
 
@@ -362,9 +360,9 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
                 const { PlanLimit } = await import('../models/plan_limit');
                 const { OrganizationEntitlement } = await import('../models/organization_entitlement');
 
-                const tool = await Tool.create({ name: 'Feat Cascade Tool', slug: 'feat-cascade-tool', is_active: true });
+                const tool = await Tool.create({ name: 'Feat Cascade Tool', slug: 'feat-cascade-tool', is_active: true, trial_days: 0 });
                 const feature = await Feature.create({ name: 'Feat Cascade Feat', slug: 'feat-cascade-feat', tool_id: tool.id });
-                const plan = await Plan.create({ name: 'Plan Limit Plan', tool_id: tool.id, price: 100, tier: TierType.BASIC, currency: 'usd', interval: PriceInterval.MONTHLY, active: true, trial_period_days: 0 });
+                const plan = await Plan.create({ name: 'Plan Limit Plan', tool_id: tool.id, price: 100, tier: TierType.BASIC, currency: 'usd', interval: PriceInterval.MONTHLY, active: true });
 
                 const planLimit = await PlanLimit.create({ plan_id: plan.id, feature_id: feature.id, default_limit: 50 });
                 const entitlement = await OrganizationEntitlement.create({ organization_id: orgId, feature_id: feature.id, tool_id: tool.id, limit_amount: 50 });
