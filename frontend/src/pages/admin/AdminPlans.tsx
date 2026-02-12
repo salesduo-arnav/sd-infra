@@ -98,7 +98,7 @@ export default function AdminPlans() {
     price: 0,
     currency: "USD",
     interval: "monthly" as Plan["interval"],
-    trial_period_days: 0,
+    is_trial_plan: false,
     active: true,
   });
 
@@ -238,7 +238,7 @@ export default function AdminPlans() {
         price: plan.price,
         currency: plan.currency,
         interval: plan.interval,
-        trial_period_days: plan.trial_period_days,
+        is_trial_plan: plan.is_trial_plan,
         active: plan.active,
       });
     } else {
@@ -249,9 +249,9 @@ export default function AdminPlans() {
           tool_id: "", 
           tier: "basic", 
           price: 9, 
-          currency: "USD", 
+          currency: "USD",
           interval: "monthly",
-          trial_period_days: 0,
+          is_trial_plan: false,
           active: true
         });
     }
@@ -954,12 +954,10 @@ export default function AdminPlans() {
                           </SelectContent>
                       </Select>
                   </div>
-                   <div className="space-y-2">
-                      <Label>Trial Days</Label>
-                      <Input type="number" value={planFormData.trial_period_days} onChange={e => setPlanFormData({...planFormData, trial_period_days: Number(e.target.value)})} />
-                  </div>
+
                    <div className="col-span-2 flex gap-6 pt-2">
                       <div className="flex items-center gap-2"><Switch checked={planFormData.active} onCheckedChange={c => setPlanFormData({...planFormData, active: c})} /><Label>Active</Label></div>
+                      <div className="flex items-center gap-2"><Switch checked={planFormData.is_trial_plan} onCheckedChange={c => setPlanFormData({...planFormData, is_trial_plan: c})} /><Label>Trial Plan</Label></div>
                    </div>
               </div>
               <DialogFooter>

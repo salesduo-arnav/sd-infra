@@ -5,6 +5,8 @@ export interface Subscription {
     status: string;
     current_period_end: string;
     cancel_at_period_end: boolean;
+    trial_start?: string | null;
+    trial_end?: string | null;
     plan?: {
         id: string;
         name: string;
@@ -40,4 +42,20 @@ export const updateSubscription = async (subscriptionId: string, items: { id: st
 export const cancelDowngrade = async (subscriptionId: string) => {
     const response = await api.post(`/billing/subscription/${subscriptionId}/cancel-downgrade`);
     return response.data;
+};
+
+// Trial Management
+export const startTrial = async (toolId: string) => {
+    const response = await api.post('/billing/trial/start', { tool_id: toolId });
+    return response.data;
+};
+
+export const cancelTrial = async (subscriptionId: string) => {
+    const response = await api.post(`/billing/trial/${subscriptionId}/cancel`);
+    return response.data;
+};
+
+export const checkTrialEligibility = async (toolId: string) => {
+    const response = await api.get(`/billing/trial/eligibility?tool_id=${toolId}`);
+    return response.data as { eligible: boolean; reason?: string; trialDays: number };
 };

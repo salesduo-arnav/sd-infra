@@ -64,6 +64,7 @@ export const getPublicPlans = async (req: Request, res: Response) => {
                     model: Tool,
                     as: 'tool',
                     where: { is_active: true },
+                    attributes: { include: ['trial_card_required', 'trial_days'] },
                     include: [{ model: Feature, as: 'features' }]
                 },
                 {

@@ -69,7 +69,7 @@ describe('Admin Deletion Protection Integration Tests', () => {
 
     describe('Plan Deletion Protection', () => {
         it('should perform deletion if no active subscriptions', async () => {
-             const tool = await Tool.create({ name: 'T1', slug: 't1'});
+             const tool = await Tool.create({ name: 'T1', slug: 't1', trial_days: 0});
              const plan = await Plan.create({
                  name: 'P1', tool_id: tool.id, tier: TierType.BASIC, price: 10, currency: 'USD', interval: PriceInterval.MONTHLY, active: true
              });
@@ -84,7 +84,7 @@ describe('Admin Deletion Protection Integration Tests', () => {
         });
 
         it('should REJECT deletion if active subscription exists', async () => {
-            const tool = await Tool.create({ name: 'T2', slug: 't2'});
+            const tool = await Tool.create({ name: 'T2', slug: 't2', trial_days: 0});
             const plan = await Plan.create({
                 name: 'P2', tool_id: tool.id, tier: TierType.BASIC, price: 10, currency: 'USD', interval: PriceInterval.MONTHLY, active: true
             });
@@ -206,7 +206,7 @@ describe('Admin Deletion Protection Integration Tests', () => {
 
     describe('Tool Deletion Protection', () => {
         it('should REJECT deletion if tool is part of a plan in an active BUNDLE subscription', async () => {
-            const tool = await Tool.create({ name: 'T_Bundled', slug: 't-bundled' });
+            const tool = await Tool.create({ name: 'T_Bundled', slug: 't-bundled', trial_days: 0 });
             const plan = await Plan.create({
                 name: 'P_In_Bundle', tool_id: tool.id, tier: TierType.BASIC, price: 10, currency: 'USD', interval: PriceInterval.MONTHLY, active: true
             });

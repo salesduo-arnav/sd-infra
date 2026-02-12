@@ -62,7 +62,7 @@ describe('Admin Stats Controller', () => {
             const org = await Organization.create({ name: 'Org1', slug: 'org1', status: OrgStatus.ACTIVE, created_at: now });
 
             // Create Tool for Plan (Required)
-            const tool = await Tool.create({ name: 'Plan Tool', slug: 'plan-tool', description: 'For Plans', is_active: true });
+            const tool = await Tool.create({ name: 'Plan Tool', slug: 'plan-tool', description: 'For Plans', is_active: true, trial_days: 0 });
 
             // Create Plans
             const monthlyPlan = await Plan.create({
@@ -161,7 +161,7 @@ describe('Admin Stats Controller', () => {
     describe('GET /admin/stats/tools', () => {
         it('should return tool usage chart data', async () => {
             // Seed tool usage
-            const tool = await Tool.create({ name: 'Test Tool', slug: 'test-tool-usage', description: 'desc', is_active: true });
+            const tool = await Tool.create({ name: 'Test Tool', slug: 'test-tool-usage', description: 'desc', is_active: true, trial_days: 0 });
 
             // Need an Org for usage
             const org = await Organization.findOne() || await Organization.create({ name: 'Usage Org', slug: 'usage-org', status: OrgStatus.ACTIVE });

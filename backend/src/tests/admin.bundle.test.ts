@@ -48,7 +48,8 @@ describe('Admin Bundle Management', () => {
             name: 'Test Tool',
             slug: 'test-tool',
             description: 'Test Tool Description',
-            tool_link: 'http://example.com'
+            tool_link: 'http://example.com',
+            trial_days: 0
         });
 
         testPlan = await Plan.create({

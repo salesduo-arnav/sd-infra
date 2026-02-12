@@ -31,5 +31,10 @@ router.put('/subscription/:id', billingController.updateSubscription.bind(billin
 // Sync Subscription
 router.post('/sync', billingController.syncSubscription.bind(billingController));
 
+// Trial Management
+router.post('/trial/start', billingController.startTrial.bind(billingController));
+router.post('/trial/:id/cancel', billingController.cancelTrial.bind(billingController));
+router.get('/trial/eligibility', billingController.checkTrialEligibility.bind(billingController));
+
 
 export default router;

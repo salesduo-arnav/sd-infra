@@ -48,7 +48,8 @@ describe('Admin Plan Management', () => {
             name: 'Plan Test Tool',
             slug: 'plan-test-tool',
             description: 'Tool for Plan Tests',
-            tool_link: 'http://example.com'
+            tool_link: 'http://example.com',
+            trial_days: 0
         });
 
         // Create Test Feature
@@ -88,7 +89,6 @@ describe('Admin Plan Management', () => {
                     price: 500,
                     currency: 'USD',
                     interval: PriceInterval.MONTHLY,
-                    trial_period_days: 14,
                     active: true,
                     description: 'Basic Plan Desc'
                 });

@@ -91,6 +91,21 @@ export default function Billing() {
     }
   };
 
+  const handleCancelTrial = async (subId: string) => {
+    if (!confirm("Are you sure you want to end your trial immediately? You will lose access to paid features.")) return;
+    setActionLoading(subId);
+    try {
+        await BillingService.cancelTrial(subId);
+        toast.success("Trial cancelled successfully");
+        fetchSubscription();
+    } catch (error) {
+        console.error("Failed to cancel trial", error);
+        toast.error("Failed to cancel trial");
+    } finally {
+        setActionLoading(null);
+    }
+  };
+
   const handleManageSubscription = async () => {
     setPortalLoading(true);
     try {
@@ -177,11 +192,14 @@ export default function Billing() {
     {
         accessorKey: "status",
         header: "Status",
-        cell: ({ row }) => (
-            <Badge variant={row.original.status === 'active' ? 'default' : 'secondary'} className="capitalize">
-                {row.original.status}
-            </Badge>
-        )
+        cell: ({ row }) => {
+            const status = row.original.status;
+            return (
+                <Badge variant={status === 'active' ? 'default' : status === 'trialing' ? 'outline' : 'secondary'} className="capitalize">
+                    {status === 'trialing' ? 'Trial Active' : status}
+                </Badge>
+            )
+        }
     },
     {
         accessorKey: "current_period_end",
@@ -190,10 +208,12 @@ export default function Billing() {
              const date = row.original.current_period_end ? new Date(row.original.current_period_end).toLocaleDateString() : 'N/A';
              const isCanceling = row.original.cancel_at_period_end;
              const isCanceled = row.original.status === 'canceled';
+             const isTrialing = row.original.status === 'trialing';
              
              let label = 'Renews on';
              if (isCanceled) label = 'Expired on';
              else if (isCanceling) label = 'Expires on';
+             else if (isTrialing) label = 'Trial Ends on';
 
              return (
                  <div className="flex flex-col">
@@ -252,6 +272,10 @@ export default function Billing() {
                 ) : sub.status === 'canceled' ? (
                     <DropdownMenuItem onClick={() => navigate('/plans')}>
                         Resubscribe
+                    </DropdownMenuItem>
+                ) : sub.status === 'trialing' ? (
+                    <DropdownMenuItem onClick={() => handleCancelTrial(sub.id)} className="text-destructive focus:text-destructive">
+                        End Trial Immediately
                     </DropdownMenuItem>
                 ) : (
                     <DropdownMenuItem onClick={() => handleCancelSubscription(sub.id, sub.stripe_subscription_id)} className="text-destructive focus:text-destructive">
@@ -464,6 +488,7 @@ export default function Billing() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="trialing">Trialing</SelectItem>
                             <SelectItem value="past_due">Past Due</SelectItem>
                             <SelectItem value="canceled">Canceled</SelectItem>
                             <SelectItem value="all">All</SelectItem>
