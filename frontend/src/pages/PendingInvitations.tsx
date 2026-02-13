@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
-import { AuthLayout } from "@/components/auth/AuthLayout";
 import { useAuth, Invitation } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, Trash2, Undo2 } from "lucide-react";
-
-
+import { Check, Trash2, Undo2, Mail } from "lucide-react";
+import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
 
 export default function PendingInvitations() {
     const { checkPendingInvites, acceptInvite, declineInvite } = useAuth();
@@ -91,11 +89,26 @@ export default function PendingInvitations() {
         }
     };
 
+    const leftContent = (
+        <div className="relative z-10 w-full">
+            <h1 className="text-4xl font-bold text-white mb-4 drop-shadow-sm">
+                Join Your Team
+            </h1>
+            <p className="text-lg text-white/90">
+                Collaborate with your organization members and access shared resources.
+            </p>
+        </div>
+    );
+
     if (loading) {
         return (
-            <AuthLayout title="Checking Invitations" subtitle="Please wait...">
+            <SplitScreenLayout leftContent={leftContent}>
+                <div className="mb-8">
+                    <h2 className="text-2xl font-semibold tracking-tight">Checking Invitations</h2>
+                    <p className="mt-2 text-muted-foreground">Please wait...</p>
+                </div>
                 <div className="flex justify-center p-8">Loading...</div>
-            </AuthLayout>
+            </SplitScreenLayout>
         );
     }
 
@@ -104,7 +117,12 @@ export default function PendingInvitations() {
     }
 
     return (
-        <AuthLayout title="Pending Invitations" subtitle="You have been invited to join these organizations.">
+        <SplitScreenLayout leftContent={leftContent}>
+            <div className="mb-8">
+                <h2 className="text-2xl font-semibold tracking-tight">Pending Invitations</h2>
+                <p className="mt-2 text-muted-foreground">You have been invited to join these organizations.</p>
+            </div>
+
             <div className="space-y-4">
                 {error && <p className="text-sm text-red-500">{error}</p>}
 
@@ -174,6 +192,6 @@ export default function PendingInvitations() {
                     </Button>
                 </div>
             </div>
-        </AuthLayout>
+        </SplitScreenLayout>
     );
 }

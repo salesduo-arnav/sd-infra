@@ -32,6 +32,7 @@ import {
     connectIntegrationAccount,
 } from "@/services/integration.service";
 import { getToolBySlug } from "@/services/tool.service";
+import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
 
 /* ------------------------------------------------------------------ */
 /*  Data                                                               */
@@ -294,282 +295,261 @@ export default function IntegrationOnboarding() {
     /*  Render                                                             */
     /* ------------------------------------------------------------------ */
 
-    return (
-        <div className="min-h-screen flex text-foreground bg-background">
-            {/* Left Panel — Brand gradient */}
-            <div className="hidden lg:flex lg:w-[50%] bg-gradient-to-br from-[#ff9900] via-[#e88800] to-[#cc7700] flex-col justify-between p-12 relative overflow-hidden">
-                {/* Decorative elements */}
-                <div className="absolute inset-0 overflow-hidden">
-                    <div className="absolute -top-24 -right-24 w-96 h-96 bg-white/10 rounded-full blur-sm" />
-                    <div className="absolute top-1/2 -left-12 w-64 h-64 bg-white/5 rounded-full" />
-                    <div className="absolute bottom-24 right-1/4 w-32 h-32 bg-white/10 rounded-full blur-sm" />
-                    <div
-                        className="absolute inset-0 opacity-5"
-                        style={{
-                            backgroundImage:
-                                "repeating-linear-gradient(45deg, white 0, white 1px, transparent 0, transparent 50%)",
-                            backgroundSize: "20px 20px",
-                        }}
-                    />
-                </div>
+    const leftContent = (
+        <div className="relative z-10 space-y-6">
+            <Badge className="bg-white/20 text-white border-white/30 hover:bg-white/25 mb-4">
+                <Key className="h-3 w-3 mr-1" />
+                Secure Setup
+            </Badge>
+            <h1 className="text-4xl font-bold text-white mb-3 drop-shadow-sm leading-tight">
+                Connect Your<br />Marketplace Account
+            </h1>
+            <p className="text-lg text-white/90 leading-relaxed">
+                Link your Seller Central or Vendor Central account to unlock powerful analytics and automation tools.
+            </p>
 
-                {/* Logo */}
-                <Link to="/" className="flex items-center gap-2 h-20 w-20 relative z-10">
-                    <img src="/salesduologo.svg" alt="SalesDuo" className="drop-shadow-lg" />
-                </Link>
-
-                {/* Content */}
-                <div className="relative z-10 space-y-6">
-                    <Badge className="bg-white/20 text-white border-white/30 hover:bg-white/25 mb-4">
-                        <Key className="h-3 w-3 mr-1" />
-                        Secure Setup
-                    </Badge>
-                    <h1 className="text-4xl font-bold text-white mb-3 drop-shadow-sm leading-tight">
-                        Connect Your<br />Marketplace Account
-                    </h1>
-                    <p className="text-lg text-white/90 leading-relaxed">
-                        Link your Seller Central or Vendor Central account to unlock powerful analytics and automation tools.
-                    </p>
-
-                    <div className="pt-4 flex flex-col gap-3">
-                        <div className="flex items-center gap-3 text-white/80">
-                            <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
-                                <Globe className="h-4 w-4" />
-                            </div>
-                            <span>Select your primary marketplace</span>
-                        </div>
-                        {isSpApiRequired && (
-                            <div className="flex items-center gap-3 text-white/80">
-                                <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
-                                    <ShoppingCart className="h-4 w-4" />
-                                </div>
-                                <span>Connect SP-API (Seller or Vendor)</span>
-                            </div>
-                        )}
-                        {isAdsApiRequired && (
-                            <div className="flex items-center gap-3 text-white/80">
-                                <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
-                                    <BarChart3 className="h-4 w-4" />
-                                </div>
-                                <span>Enable Advertising API</span>
-                            </div>
-                        )}
+            <div className="pt-4 flex flex-col gap-3">
+                <div className="flex items-center gap-3 text-white/80">
+                    <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
+                        <Globe className="h-4 w-4" />
                     </div>
+                    <span>Select your primary marketplace</span>
                 </div>
-
-                {/* Trust footer */}
-                <div className="relative z-10">
-                    <div className="flex items-center gap-6 pt-6 border-t border-white/15 text-white/60 text-xs">
-                        <div className="flex items-center gap-1.5">
-                            <Shield className="h-3.5 w-3.5" />
-                            <span>Bank-grade Security</span>
+                {isSpApiRequired && (
+                    <div className="flex items-center gap-3 text-white/80">
+                        <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
+                            <ShoppingCart className="h-4 w-4" />
                         </div>
-                        <div className="flex items-center gap-1.5">
-                            <Lock className="h-3.5 w-3.5" />
-                            <span>ISO 27001 Certified</span>
-                        </div>
+                        <span>Connect SP-API (Seller or Vendor)</span>
                     </div>
-                </div>
+                )}
+                {isAdsApiRequired && (
+                    <div className="flex items-center gap-3 text-white/80">
+                        <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
+                            <BarChart3 className="h-4 w-4" />
+                        </div>
+                        <span>Enable Advertising API</span>
+                    </div>
+                )}
             </div>
 
-            {/* Right Panel */}
-            <div className="flex w-full lg:w-[50%] flex-col px-6 py-12 sm:px-12 lg:px-24 bg-background overflow-y-auto">
-                <div className="mx-auto w-full max-w-2xl flex-1 flex flex-col justify-center">
-                    {/* Mobile Logo */}
-                    <div className="lg:hidden mb-10">
-                        <Link to="/" className="flex items-center gap-2">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-[#ff9900] to-[#e88800]">
-                                <Package className="h-5 w-5 text-white" />
-                            </div>
-                            <span className="text-xl font-semibold">SalesDuo</span>
-                        </Link>
+            {/* Trust footer */}
+            <div className="relative z-10 pt-4">
+                <div className="flex items-center gap-6 pt-6 border-t border-white/15 text-white/60 text-xs">
+                    <div className="flex items-center gap-1.5">
+                        <Shield className="h-3.5 w-3.5" />
+                        <span>Bank-grade Security</span>
                     </div>
-
-                    <div className="mb-8">
-                        <h2 className="text-2xl font-semibold tracking-tight">Integration Setup</h2>
-                        <p className="text-muted-foreground mt-1">Configure your Amazon integration settings.</p>
-                        {appId && <Badge variant="outline" className="mt-2">Connecting to: {appId}</Badge>}
+                    <div className="flex items-center gap-1.5">
+                        <Lock className="h-3.5 w-3.5" />
+                        <span>ISO 27001 Certified</span>
                     </div>
-
-                    {isLoadingRequirements ? (
-                        <div className="flex flex-col items-center justify-center py-16">
-                            <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-                            <p className="text-sm text-muted-foreground">Loading integration requirements...</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-8">
-
-                            {/* 1. Account Name */}
-                            <div className="space-y-3">
-                                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                    1. Account Name
-                                </label>
-                                <Input
-                                    placeholder='e.g. "US Main Account"'
-                                    value={accountName}
-                                    onChange={(e) => setAccountName(e.target.value)}
-                                    className="h-11"
-                                />
-                            </div>
-
-                            {/* 2. Marketplace Selection */}
-                            <div className="space-y-3">
-                                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                    2. Select Region
-                                </label>
-                                <Select value={marketplace} onValueChange={setMarketplace}>
-                                    <SelectTrigger className="w-full h-11">
-                                        <SelectValue placeholder="Choose a region..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {MARKETPLACES.map((m) => (
-                                            <SelectItem key={m.id} value={m.id}>
-                                                <span className="mr-2 text-lg">{m.flag}</span>
-                                                {m.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            {/* 3. Connect Services */}
-                            <div className="space-y-3">
-                                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                    3. Connect Services
-                                </label>
-
-                                <div className="grid gap-4">
-                                    {/* SP-API Card */}
-                                    {isSpApiRequired && (
-                                        <Card className={`transition-all ${isSellerConnected && isVendorConnected ? 'border-green-200 bg-green-50/30' : ''}`}>
-                                            <CardContent className="p-5">
-                                                <div className="flex items-start gap-4">
-                                                    <div className={`p-2 rounded-lg shrink-0 ${isSellerConnected || isVendorConnected ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
-                                                        <ShoppingCart className="h-6 w-6" />
-                                                    </div>
-                                                    <div className="flex-1 space-y-4">
-                                                        <div>
-                                                            <div className="flex items-center justify-between">
-                                                                <h3 className="font-medium">Amazon Selling Partner API</h3>
-                                                                {isSpApiMet ? (
-                                                                    <Badge className="bg-green-600 hover:bg-green-700 text-[10px]">Connected</Badge>
-                                                                ) : (isSellerCentralRequired && !satisfiedMap['sp_api_sc'] && isVendorCentralRequired && !satisfiedMap['sp_api_vc']) ? (
-                                                                    <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Both Required</Badge>
-                                                                ) : (isSellerCentralRequired && !satisfiedMap['sp_api_sc']) ? (
-                                                                    <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Required</Badge>
-                                                                ) : (isVendorCentralRequired && !satisfiedMap['sp_api_vc']) ? (
-                                                                    <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Required</Badge>
-                                                                ) : (
-                                                                    <Badge variant="secondary" className="text-[10px]">Connect at least one</Badge>
-                                                                )}
-                                                            </div>
-                                                            <p className="text-sm text-muted-foreground mt-1">
-                                                                Syncs orders, inventory, and catalog data.
-                                                            </p>
-                                                        </div>
-
-                                                        <div className="space-y-3">
-                                                            {showSellerRow && (
-                                                                <div className="flex items-center justify-between p-2.5 rounded-lg border bg-card">
-                                                                    <div className="flex items-center gap-2.5">
-                                                                        <Store className="h-4 w-4 text-muted-foreground" />
-                                                                        <span className="text-sm font-medium">Seller Central</span>
-                                                                    </div>
-                                                                    {renderConnectionButton(
-                                                                        "seller",
-                                                                        "Connect",
-                                                                        <ExternalLink className="h-3.5 w-3.5" />,
-                                                                        isSellerConnected
-                                                                    )}
-                                                                </div>
-                                                            )}
-
-                                                            {showVendorRow && (
-                                                                <div className="flex items-center justify-between p-2.5 rounded-lg border bg-card">
-                                                                    <div className="flex items-center gap-2.5">
-                                                                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                                                                        <div className="flex items-center gap-2">
-                                                                            <span className="text-sm font-medium">Vendor Central</span>
-                                                                        </div>
-                                                                    </div>
-                                                                    {renderConnectionButton(
-                                                                        "vendor",
-                                                                        "Connect",
-                                                                        <ExternalLink className="h-3.5 w-3.5" />,
-                                                                        isVendorConnected
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    )}
-
-                                    {/* Advertising API Card */}
-                                    {isAdsApiRequired && (
-                                        <Card className={`transition-all ${isAdsConnected ? 'border-green-200 bg-green-50/30' : ''}`}>
-                                            <CardContent className="p-5">
-                                                <div className="flex items-start gap-4">
-                                                    <div className={`p-2 rounded-lg shrink-0 ${isAdsConnected ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
-                                                        <BarChart3 className="h-6 w-6" />
-                                                    </div>
-                                                    <div className="flex-1 space-y-4">
-                                                        <div>
-                                                            <div className="flex items-center justify-between">
-                                                                <h3 className="font-medium">Amazon Advertising API</h3>
-                                                                <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Required</Badge>
-                                                            </div>
-                                                            <p className="text-sm text-muted-foreground mt-1">
-                                                                Access PPC campaigns and advertising performance metrics.
-                                                            </p>
-                                                        </div>
-
-                                                        <div>
-                                                            {renderConnectionButton(
-                                                                "ads",
-                                                                "Connect Advertising",
-                                                                <ExternalLink className="h-3.5 w-3.5" />,
-                                                                isAdsConnected
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Continue Button */}
-                            <div className="pt-4">
-                                <Button
-                                    className="w-full h-11"
-                                    size="lg"
-                                    onClick={handleContinue}
-                                    disabled={!isComplete || isSaving}
-                                >
-                                    {isSaving ? (
-                                        <>
-                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                            Saving...
-                                        </>
-                                    ) : (
-                                        "Continue to Dashboard"
-                                    )}
-                                </Button>
-                                {!isComplete && (
-                                    <p className="text-center text-xs text-muted-foreground mt-3">
-                                        Please select a marketplace and connect all required services to continue.
-                                    </p>
-                                )}
-                            </div>
-
-                        </div>
-                    )}
                 </div>
             </div>
         </div>
+    );
+
+    return (
+        <SplitScreenLayout
+            leftContent={leftContent}
+            showBrandOnMobile={false}
+            contentMaxWidth="max-w-2xl"
+        >
+            <div className="space-y-6">
+                {/* Mobile Logo */}
+                <div className="lg:hidden mb-10">
+                    <Link to="/" className="flex items-center gap-2">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-[#ff9900] to-[#e88800]">
+                            <Package className="h-5 w-5 text-white" />
+                        </div>
+                        <span className="text-xl font-semibold">SalesDuo</span>
+                    </Link>
+                </div>
+
+                <div className="mb-8">
+                    <h2 className="text-2xl font-semibold tracking-tight">Integration Setup</h2>
+                    <p className="text-muted-foreground mt-1">Configure your Amazon integration settings.</p>
+                    {appId && <Badge variant="outline" className="mt-2">Connecting to: {appId}</Badge>}
+                </div>
+
+                {isLoadingRequirements ? (
+                    <div className="flex flex-col items-center justify-center py-16">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+                        <p className="text-sm text-muted-foreground">Loading integration requirements...</p>
+                    </div>
+                ) : (
+                    <div className="space-y-8">
+
+                        {/* 1. Account Name */}
+                        <div className="space-y-3">
+                            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                1. Account Name
+                            </label>
+                            <Input
+                                placeholder='e.g. "US Main Account"'
+                                value={accountName}
+                                onChange={(e) => setAccountName(e.target.value)}
+                                className="h-11"
+                            />
+                        </div>
+
+                        {/* 2. Marketplace Selection */}
+                        <div className="space-y-3">
+                            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                2. Select Region
+                            </label>
+                            <Select value={marketplace} onValueChange={setMarketplace}>
+                                <SelectTrigger className="w-full h-11">
+                                    <SelectValue placeholder="Choose a region..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {MARKETPLACES.map((m) => (
+                                        <SelectItem key={m.id} value={m.id}>
+                                            <span className="mr-2 text-lg">{m.flag}</span>
+                                            {m.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* 3. Connect Services */}
+                        <div className="space-y-3">
+                            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                3. Connect Services
+                            </label>
+
+                            <div className="grid gap-4">
+                                {/* SP-API Card */}
+                                {isSpApiRequired && (
+                                    <Card className={`transition-all ${isSpApiMet ? 'border-green-200 bg-green-50/30' : ''}`}>
+                                        <CardContent className="p-5">
+                                            <div className="flex items-start gap-4">
+                                                <div className={`p-2 rounded-lg shrink-0 ${isSpApiMet ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                                    <ShoppingCart className="h-6 w-6" />
+                                                </div>
+                                                <div className="flex-1 space-y-4">
+                                                    <div>
+                                                        <div className="flex items-center justify-between">
+                                                            <h3 className="font-medium">Amazon Selling Partner API</h3>
+                                                            {isSpApiMet ? (
+                                                                <Badge className="bg-green-600 hover:bg-green-700 text-[10px]">Connected</Badge>
+                                                            ) : (isSellerCentralRequired && !satisfiedMap['sp_api_sc'] && isVendorCentralRequired && !satisfiedMap['sp_api_vc']) ? (
+                                                                <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Both Required</Badge>
+                                                            ) : (isSellerCentralRequired && !satisfiedMap['sp_api_sc']) ? (
+                                                                <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Required</Badge>
+                                                            ) : (isVendorCentralRequired && !satisfiedMap['sp_api_vc']) ? (
+                                                                <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Required</Badge>
+                                                            ) : (
+                                                                <Badge variant="secondary" className="text-[10px]">Connect at least one</Badge>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-sm text-muted-foreground mt-1">
+                                                            Syncs orders, inventory, and catalog data.
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="space-y-3">
+                                                        {showSellerRow && (
+                                                            <div className="flex items-center justify-between p-2.5 rounded-lg border bg-card">
+                                                                <div className="flex items-center gap-2.5">
+                                                                    <Store className="h-4 w-4 text-muted-foreground" />
+                                                                    <span className="text-sm font-medium">Seller Central</span>
+                                                                </div>
+                                                                {renderConnectionButton(
+                                                                    "seller",
+                                                                    "Connect",
+                                                                    <ExternalLink className="h-3.5 w-3.5" />,
+                                                                    isSellerConnected
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {showVendorRow && (
+                                                            <div className="flex items-center justify-between p-2.5 rounded-lg border bg-card">
+                                                                <div className="flex items-center gap-2.5">
+                                                                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-sm font-medium">Vendor Central</span>
+                                                                    </div>
+                                                                </div>
+                                                                {renderConnectionButton(
+                                                                    "vendor",
+                                                                    "Connect",
+                                                                    <ExternalLink className="h-3.5 w-3.5" />,
+                                                                    isVendorConnected
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                )}
+
+                                {/* Advertising API Card */}
+                                {isAdsApiRequired && (
+                                    <Card className={`transition-all ${isAdsConnected ? 'border-green-200 bg-green-50/30' : ''}`}>
+                                        <CardContent className="p-5">
+                                            <div className="flex items-start gap-4">
+                                                <div className={`p-2 rounded-lg shrink-0 ${isAdsConnected ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                                    <BarChart3 className="h-6 w-6" />
+                                                </div>
+                                                <div className="flex-1 space-y-4">
+                                                    <div>
+                                                        <div className="flex items-center justify-between">
+                                                            <h3 className="font-medium">Amazon Advertising API</h3>
+                                                            <Badge variant="secondary" className={`text-[10px] ${isAdsConnected ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}>{isAdsConnected ? 'Connected' : 'Required'}</Badge>
+                                                        </div>
+                                                        <p className="text-sm text-muted-foreground mt-1">
+                                                            Access PPC campaigns and advertising performance metrics.
+                                                        </p>
+                                                    </div>
+
+                                                    <div>
+                                                        {renderConnectionButton(
+                                                            "ads",
+                                                            "Connect Advertising",
+                                                            <ExternalLink className="h-3.5 w-3.5" />,
+                                                            isAdsConnected
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Continue Button */}
+                        <div className="pt-4">
+                            <Button
+                                className="w-full h-11"
+                                size="lg"
+                                onClick={handleContinue}
+                                disabled={!isComplete || isSaving}
+                            >
+                                {isSaving ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        Saving...
+                                    </>
+                                ) : (
+                                    "Continue to Dashboard"
+                                )}
+                            </Button>
+                            {!isComplete && (
+                                <p className="text-center text-xs text-muted-foreground mt-3">
+                                    Please select a marketplace and connect all required services to continue.
+                                </p>
+                            )}
+                        </div>
+
+                    </div>
+                )}
+            </div>
+        </SplitScreenLayout>
     );
 }
