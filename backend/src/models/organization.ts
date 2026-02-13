@@ -259,5 +259,32 @@ OrganizationMember.init(
         },
       },
     ],
+    hooks: {
+      afterDestroy: async (member, options) => {
+        const { Invitation } = await import('./invitation');
+        const { User } = await import('./user');
+
+        let userEmail: string | undefined;
+
+        if (member.user && member.user.email) {
+          userEmail = member.user.email;
+        } else {
+          const user = await User.findByPk(member.user_id, { transaction: options.transaction });
+          if (user) {
+            userEmail = user.email;
+          }
+        }
+
+        if (userEmail) {
+          await Invitation.destroy({
+            where: {
+              organization_id: member.organization_id,
+              email: userEmail
+            },
+            transaction: options.transaction,
+          });
+        }
+      },
+    }
   }
 );
