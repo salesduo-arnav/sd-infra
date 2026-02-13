@@ -28,6 +28,7 @@ export interface Tool {
   description: string;
   tool_link?: string;
   is_active: boolean;
+  required_integrations?: string[];
   features?: Feature[];
   created_at: string;
 }
