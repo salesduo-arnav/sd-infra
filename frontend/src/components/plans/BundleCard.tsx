@@ -4,6 +4,7 @@ import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { Check, Star } from "lucide-react";
 import { Bundle, CartItem } from "./types";
+import { TierItem } from "./TierItem";
 
 interface BundleCardProps {
   bundle: Bundle;
@@ -95,63 +96,43 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
                     const inCart = isInCart(bundle.id, tier.name);
                     const isCurrent = currentSubscription?.bundle?.id === tier.id;
                     const isUpcoming = currentSubscription?.upcoming_bundle?.id === tier.id;
-                    const isUpgrade = currentSubscription && tier.price > currentPrice;
-                    const isDowngrade = currentSubscription && tier.price < currentPrice;
+                    const isUpgrade = currentSubscription && tier.price > currentPrice && !isCurrent && !isUpcoming;
+                    const isDowngrade = currentSubscription && tier.price < currentPrice && !isCurrent && !isUpcoming;
 
                     return (
-                        <div
-                        key={tier.name}
-                        onClick={(isCurrent || isUpcoming) ? undefined : () =>
-                            onToggleCartItem({
-                            id: bundle.id, // Group ID
-                            planId: tier.id,
-                            type: "bundle",
-                            name: bundle.name, // Group Name
-                            tierName: tier.name,
-                            price: tier.price,
-                            period: tier.period,
-                            limits: tier.limits,
-                            features: tier.features,
-                            ...(currentSubscription ? {
-                                isUpgrade: !!isUpgrade,
-                                isDowngrade: !!isDowngrade,
-                                currentPrice,
-                                subscriptionId: currentSubscription.id,
-                            } : {})
-                            })
-                        }
-                        className={cn(
-                            "group flex items-center justify-between gap-4 rounded-lg border p-3 transition-all duration-200",
-                             (isCurrent || isUpcoming) ? "cursor-default" : "cursor-pointer",
-                            inCart
-                            ? "border-primary bg-primary/10 shadow-sm"
-                            : !(isCurrent || isUpcoming) && "hover:bg-muted/50 hover:border-primary/50",
-                             isCurrent && "border-purple-500 bg-purple-50/10"
-                        )}
-                        >
-                        <div className="flex-1 min-w-0">
-                             <div className="flex items-center gap-2">
-                                <p className="font-medium truncate">{tier.name}</p>
-                                {isCurrent && <Badge className="h-5 text-[10px] px-1.5">Current</Badge>}
-                                {isUpcoming && <Badge variant="outline" className="h-5 text-[10px] px-1.5 border-orange-500 text-orange-500">Scheduled</Badge>}
-                            </div>
-                            <p className="text-xs text-muted-foreground line-clamp-1">{tier.limits}</p>
-                        </div>
-                        <div className="text-right whitespace-nowrap flex items-center gap-3">
-                            <p className="font-semibold text-foreground">
-                                ${tier.price}
-                                <span className="text-xs text-muted-foreground">{tier.period}</span>
-                            </p>
-
-                            {/* Upgrade/Downgrade label for non-current tiers */}
-                            {currentSubscription && !isCurrent && !isUpcoming && isUpgrade && (
-                                <Badge variant="outline" className="h-5 text-[10px] px-1.5 border-green-500 text-green-500">Upgrade</Badge>
-                            )}
-                            {currentSubscription && !isCurrent && !isUpcoming && isDowngrade && (
-                                <Badge variant="outline" className="h-5 text-[10px] px-1.5 border-orange-500 text-orange-500">Downgrade</Badge>
-                            )}
-                        </div>
-                        </div>
+                        <TierItem
+                            key={tier.name}
+                            tier={tier}
+                            isInCart={inCart}
+                            isCurrent={isCurrent}
+                            isUpcoming={isUpcoming}
+                            isUpgrade={!!isUpgrade}
+                            isDowngrade={!!isDowngrade}
+                            onSelect={
+                                (isCurrent || isUpcoming)
+                                    ? undefined
+                                    : () =>
+                                        onToggleCartItem({
+                                        id: bundle.id,
+                                        planId: tier.id,
+                                        type: "bundle",
+                                        name: bundle.name,
+                                        tierName: tier.name,
+                                        price: tier.price,
+                                        period: tier.period,
+                                        limits: tier.limits,
+                                        features: tier.features,
+                                        ...(currentSubscription
+                                            ? {
+                                                isUpgrade: !!isUpgrade,
+                                                isDowngrade: !!isDowngrade,
+                                                currentPrice,
+                                                subscriptionId: currentSubscription.id,
+                                            }
+                                            : {}),
+                                        })
+                            }
+                        />
                     );
                     })}
                 </div>

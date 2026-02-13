@@ -11,23 +11,11 @@ import { toast } from "sonner";
 import { BundleCard } from "@/components/plans/BundleCard";
 import { AppCard } from "@/components/plans/AppCard";
 import { Bundle, App, CartItem } from "@/components/plans/types";
+import { CartSidebarItem } from "@/components/plans/CartSidebarItem";
 import { PublicBundleGroup, PublicBundlePlan } from "@/services/public.service";
 import { useNavigate } from "react-router-dom";
 import * as BillingService from "@/services/billing.service";
-
-// Icons mapping helper
-const getIconForSlug = (slug: string) => {
-    if (slug.includes('generator') || slug.includes('content')) return <FileText className="h-5 w-5" />;
-    if (slug.includes('image')) return <ImageIcon className="h-5 w-5" />;
-    if (slug.includes('analytics') || slug.includes('tracker')) return <BarChart className="h-5 w-5" />;
-    if (slug.includes('inventory')) return <Package className="h-5 w-5" />;
-    if (slug.includes('competitor')) return <TrendingUp className="h-5 w-5" />;
-    // Bundles
-    if (slug.includes('creator')) return <Sparkles className="h-5 w-5" />;
-    if (slug.includes('automation')) return <Zap className="h-5 w-5" />;
-    if (slug.includes('full')) return <Crown className="h-5 w-5" />;
-    return <Star className="h-5 w-5" />;
-};
+import { transformBundles, transformPlansToApps, enrichAppsWithEligibility } from "@/components/plans/utils";
 
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -73,113 +61,15 @@ export default function Plans() {
             await fetchSubscriptions();
 
             // Transform Bundle Groups into Bundle UI Model
-            const transformedBundles: Bundle[] = publicBundles.map((group: PublicBundleGroup) => {
-                const firstBundle = group.bundles && group.bundles.length > 0 ? group.bundles[0] : null;
-
-                const apps = firstBundle ? firstBundle.bundle_plans.map((bp: PublicBundlePlan) => ({
-                    name: bp.plan.tool?.name || "Unknown App",
-                    features: bp.plan.tool?.features?.map((f: { name: string }) => f.name) || []
-                })) : [];
-
-                return {
-                    id: group.id,
-                    name: group.name,
-                    description: group.description,
-                    apps: apps,
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    tiers: group.bundles.map((b: any) => ({
-                        id: b.id,
-                        name: b.tier_label || b.name, // Use label vs name fallback
-                        price: b.price,
-                        period: "/" + b.interval,
-                        limits: b.description || "Full access",
-                        features: b.bundle_plans?.flatMap((bp: any) =>
-                            bp.plan?.limits?.map((limit: any) => ({
-                                name: limit.feature?.name || "Unknown Feature",
-                                limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
-                                isEnabled: limit.is_enabled,
-                                toolName: bp.plan?.tool?.name || "Unknown Tool"
-                            })) || []
-                        ) || []
-                    })),
-                    popular: false, 
-                    icon: getIconForSlug(group.slug)
-                };
-            });
+            const transformedBundles = transformBundles(publicBundles);
             setBundles(transformedBundles);
 
             // Transform Plans into Apps (grouped by Tool)
-            const appsMap = new Map<string, App>();
-
-            publicPlans.forEach(plan => {
-                const tool = plan.tool;
-                if (!tool) return;
-
-                if (!appsMap.has(tool.id)) {
-                    appsMap.set(tool.id, {
-                        id: tool.id,
-                        name: tool.name,
-                        description: tool.description,
-                        icon: getIconForSlug(tool.slug),
-                        tiers: [],
-                        features: tool.features?.map(f => f.name) || [],
-                        status: tool.is_active ? "available" : "coming-soon",
-                        trialDays: tool.trial_days || 0,
-                        trialCardRequired: tool.trial_card_required
-                    });
-                }
-
-                if (plan.is_trial_plan) {
-                    // It's a trial plan
-                    if (plan.price === 0) {
-                        // Free trial plan - don't show in tiers, but store ID for trial logic
-                        const app = appsMap.get(tool.id)!;
-                        app.trialPlanId = plan.id;
-                        app.trialPlanInterval = plan.interval;
-                        app.trialPlanDescription = plan.description; // Store description for button
-                        // Ensure trial days are consistent if available here
-                        if (tool.trial_days) app.trialDays = tool.trial_days;
-                    } else {
-                        // Paid trial plan - show in tiers with special badge
-                        const app = appsMap.get(tool.id)!;
-                        app.tiers.push({
-                            id: plan.id,
-                            name: plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1), // Capitalize
-                            price: plan.price,
-                            period: "/" + plan.interval,
-                            limits: plan.description || "See details",
-                            features: plan.limits?.map((limit: any) => ({
-                                name: limit.feature?.name || "Unknown Feature",
-                                limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
-                                isEnabled: limit.is_enabled,
-                                toolName: tool.name
-                            })) || [],
-                            isTrial: true,
-                            trialDays: tool.trial_days
-                        });
-                    }
-                } else {
-                    const app = appsMap.get(tool.id)!;
-                    app.tiers.push({
-                        id: plan.id,
-                        name: plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1), // Capitalize
-                        price: plan.price,
-                        period: "/" + plan.interval,
-                        limits: plan.description || "See details",
-                        features: plan.limits?.map((limit: any) => ({
-                            name: limit.feature?.name || "Unknown Feature",
-                            limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
-                            isEnabled: limit.is_enabled,
-                            toolName: tool.name
-                        })) || []
-                    });
-                }
-            });
-
-            setApps(Array.from(appsMap.values()));
+            const initialApps = transformPlansToApps(publicPlans);
+            setApps(initialApps);
 
             // Fetch trial eligibility for each tool
-            const toolIds = Array.from(appsMap.keys());
+            const toolIds = initialApps.map(app => app.id);
             const eligibilityResults: Record<string, { eligible: boolean; trialDays: number }> = {};
             await Promise.all(
               toolIds.map(async (toolId) => {
@@ -209,36 +99,7 @@ export default function Plans() {
   const allBundles = bundles;
 
   // Enrich apps with trial eligibility
-  const enrichedApps = apps.map(app => {
-    const eligibility = trialEligibility[app.id];
-    const isEligible = eligibility?.eligible || false;
-    
-    // Filter and modify tiers based on eligibility
-    const processedTiers = app.tiers
-        .filter(tier => {
-            // If eligible, keep everything.
-            if (isEligible) return true;
-            // If not eligible, remove free trial plans (price 0)
-            return tier.price > 0;
-        })
-        .map(tier => {
-             // If not eligible, convert paid trials to normal plans
-             if (!isEligible && tier.isTrial) {
-                 return { ...tier, isTrial: false, trialDays: 0 };
-             }
-             return tier;
-        });
-
-    return {
-        ...app,
-        tiers: processedTiers,
-        trialDays: isEligible ? (eligibility?.trialDays || app.trialDays || 0) : 0,
-        trialEligible: isEligible,
-        trialCardRequired: app.trialCardRequired, 
-        // Ensure trialPlanId is nulled if not eligible to prevent any trial logic
-        trialPlanId: isEligible ? app.trialPlanId : undefined 
-    };
-  });
+  const enrichedApps = enrichAppsWithEligibility(apps, trialEligibility);
 
   const handleStartTrial = async (toolId: string) => {
     const app = enrichedApps.find(a => a.id === toolId);
@@ -604,61 +465,11 @@ export default function Plans() {
               ) : (
                 <div className="space-y-2">
                   {cart.map((item) => (
-                    <div
+                    <CartSidebarItem
                       key={`${item.id}-${item.tierName}`}
-                      className="group flex flex-col gap-2 rounded-lg border bg-card px-3 py-2.5 transition-all duration-200 hover:border-primary/20"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{item.name}</p>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <Badge
-                              variant="secondary"
-                              className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-0"
-                            >
-                              {item.tierName}
-                            </Badge>
-                            {item.isUpgrade && (
-                              <Badge className="text-[10px] px-1.5 py-0 h-4 bg-green-500/10 text-green-600 border-0">
-                                <ArrowUp className="h-2.5 w-2.5 mr-0.5" />
-                                Upgrade
-                              </Badge>
-                            )}
-                            {item.isDowngrade && (
-                              <Badge className="text-[10px] px-1.5 py-0 h-4 bg-orange-500/10 text-orange-600 border-0">
-                                <ArrowDown className="h-2.5 w-2.5 mr-0.5" />
-                                Downgrade
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-sm whitespace-nowrap">
-                            ${item.price.toFixed(2)}
-                            <span className="text-[10px] text-muted-foreground font-normal">{item.period}</span>
-                          </p>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => removeFromCart(item.id, item.tierName)}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                      {/* Upgrade/Downgrade messaging */}
-                      {item.isUpgrade && (
-                        <p className="text-[11px] text-green-600 bg-green-50 dark:bg-green-950/30 rounded px-2 py-1">
-                          Pro-rated charge of ~${(item.price - (item.currentPrice ?? 0)).toFixed(2)} applies immediately
-                        </p>
-                      )}
-                      {item.isDowngrade && (
-                        <p className="text-[11px] text-orange-600 bg-orange-50 dark:bg-orange-950/30 rounded px-2 py-1">
-                          You'll be charged ${item.price.toFixed(2)}{item.period} from next billing cycle
-                        </p>
-                      )}
-                    </div>
+                      item={item}
+                      onRemove={removeFromCart}
+                    />
                   ))}
                 </div>
               )}
