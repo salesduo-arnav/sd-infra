@@ -69,8 +69,9 @@ export default function AdminApps() {
 
     // Available integration types
     const INTEGRATION_TYPE_OPTIONS = [
-        { value: "sp_api_sc", label: "Seller Central", icon: Store },
-        { value: "sp_api_vc", label: "Vendor Central", icon: Building2 },
+        { value: "sp_api", label: "SP-API (Either SC or VC)", icon: Store },
+        { value: "sp_api_sc", label: "Seller Central Only", icon: Store },
+        { value: "sp_api_vc", label: "Vendor Central Only", icon: Building2 },
         { value: "ads_api", label: "Advertising API", icon: BarChart3 },
     ];
 
