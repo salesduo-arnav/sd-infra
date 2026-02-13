@@ -433,7 +433,7 @@ export default function IntegrationOnboarding() {
                                                         <div className="flex items-center justify-between">
                                                             <h3 className="font-medium">Amazon Selling Partner API</h3>
                                                             {isSpApiMet ? (
-                                                                <Badge className="bg-green-600 hover:bg-green-700 text-[10px]">Connected</Badge>
+                                                                <Badge className="bg-green-100 text-green-600 text-[10px]">Connected</Badge>
                                                             ) : (isSellerCentralRequired && !satisfiedMap['sp_api_sc'] && isVendorCentralRequired && !satisfiedMap['sp_api_vc']) ? (
                                                                 <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Both Required</Badge>
                                                             ) : (isSellerCentralRequired && !satisfiedMap['sp_api_sc']) ? (

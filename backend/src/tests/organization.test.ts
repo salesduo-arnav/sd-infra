@@ -6,7 +6,7 @@ import User from '../models/user';
 import { Organization, OrganizationMember } from '../models/organization';
 import { Role } from '../models/role';
 
-import { Invitation } from '../models/invitation';
+import { Invitation, InvitationStatus } from '../models/invitation';
 
 describe('Organization API Integration Tests', () => {
     const testUser = {
@@ -282,7 +282,7 @@ describe('Organization API Integration Tests', () => {
                 role_id: (await Role.findOne({ where: { name: 'Member' } }))!.id,
                 token: 'some-random-token-for-test',
                 invited_by: (await User.findOne({ where: { email: testUser.email } }))!.id,
-                status: 'accepted' as any,
+                status: InvitationStatus.ACCEPTED,
                 expires_at: new Date(Date.now() + 86400000) // Tomorrow
             });
 

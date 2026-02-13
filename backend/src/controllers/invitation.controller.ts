@@ -2,9 +2,7 @@ import { Request, Response } from 'express';
 import { Invitation, InvitationStatus } from '../models/invitation';
 import { OrganizationMember } from '../models/organization';
 import { Role } from '../models/role';
-import User from '../models/user';
-import crypto from 'crypto';
-import { mailService } from '../services/mail.service';
+
 import { Organization } from '../models/organization';
 import sequelize from '../config/db';
 import { handleError } from '../utils/error';

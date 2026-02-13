@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import api from "@/lib/api";
 import { AxiosError } from "axios";
 
@@ -69,25 +69,24 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const resolveActiveOrg = (user: User | null) => {
+  if (user && user.memberships && user.memberships.length > 0) {
+    const savedOrgId = localStorage.getItem("activeOrganizationId");
+    if (savedOrgId) {
+      const savedOrg = user.memberships.find(m => m.organization.id === savedOrgId)?.organization;
+      if (savedOrg) {
+        return savedOrg;
+      }
+    }
+    return null;
+  }
+  return null;
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [activeOrganization, setActiveOrganization] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Helper to resolve active org from user and/or localStorage
-  const resolveActiveOrg = (user: User | null) => {
-    if (user && user.memberships && user.memberships.length > 0) {
-      const savedOrgId = localStorage.getItem("activeOrganizationId");
-      if (savedOrgId) {
-        const savedOrg = user.memberships.find(m => m.organization.id === savedOrgId)?.organization;
-        if (savedOrg) {
-          return savedOrg;
-        }
-      }
-      return null;
-    }
-    return null;
-  };
 
   const switchOrganization = (orgId: string) => {
     if (!user || !user.memberships) return;
@@ -98,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const res = await api.get('/auth/me');
       const currentUser = res.data;
@@ -114,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setActiveOrganization(null);
     }
-  };
+  }, []);
 
   // Check for session on mount
   useEffect(() => {
@@ -123,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     };
     initAuth();
-  }, []);
+  }, [refreshUser]);
 
   const isAdmin = user?.is_superuser || false;
 

@@ -1,6 +1,6 @@
 import { Invitation, InvitationStatus } from '../models/invitation';
 import { OrganizationMember } from '../models/organization';
-import { Role } from '../models/role';
+
 import User from '../models/user';
 import crypto from 'crypto';
 import { mailService } from '../services/mail.service';
