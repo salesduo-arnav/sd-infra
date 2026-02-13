@@ -68,7 +68,7 @@ export const getToolById = async (req: Request, res: Response) => {
 
 export const createTool = async (req: Request, res: Response) => {
     try {
-        const { name, slug, description, tool_link, is_active } = req.body;
+        const { name, slug, description, tool_link, is_active, required_integrations } = req.body;
 
         if (!name || !slug) {
             return res.status(400).json({ message: 'Name and slug are required' });
@@ -86,6 +86,7 @@ export const createTool = async (req: Request, res: Response) => {
                 description,
                 tool_link,
                 is_active: is_active !== undefined ? is_active : true,
+                required_integrations: required_integrations || [],
             }, { transaction: t });
         });
 
@@ -107,7 +108,7 @@ export const createTool = async (req: Request, res: Response) => {
 export const updateTool = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { name, slug, description, tool_link, is_active } = req.body;
+        const { name, slug, description, tool_link, is_active, required_integrations } = req.body;
 
         const updatedTool = await sequelize.transaction(async (t) => {
             const tool = await Tool.findByPk(id, { transaction: t });
@@ -129,6 +130,7 @@ export const updateTool = async (req: Request, res: Response) => {
                 description: description ?? tool.description,
                 tool_link: tool_link ?? tool.tool_link,
                 is_active: is_active ?? tool.is_active,
+                required_integrations: required_integrations ?? tool.required_integrations,
             }, { transaction: t });
         });
 

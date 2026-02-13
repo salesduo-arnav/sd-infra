@@ -76,7 +76,7 @@ export default function ChooseOrganisation() {
         <div className="min-h-screen flex flex-col lg:flex-row text-foreground bg-background">
 
             {/* Brand Panel (desktop only) */}
-            <div className="hidden lg:flex lg:w-[45%] xl:w-[42%] bg-gradient-to-br from-[#ff9900] via-[#e88800] to-[#cc7700] flex-col justify-between p-12 relative overflow-hidden">
+            <div className="hidden lg:flex lg:w-[50%] xl:w-[50%] bg-gradient-to-br from-[#ff9900] via-[#e88800] to-[#cc7700] flex-col justify-between p-12 relative overflow-hidden">
                 {/* Decorative Elements */}
                 <div className="absolute inset-0 overflow-hidden">
                     {/* Large circle */}

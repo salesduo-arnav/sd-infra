@@ -292,6 +292,12 @@ export const getMe = async (req: Request, res: Response) => {
             }]
         });
 
+        if (!userWithOrg) {
+            // User no longer exists in DB — clear stale session
+            res.clearCookie('session_id');
+            return res.status(401).json({ message: 'User not found' });
+        }
+
         res.json(userWithOrg);
     } catch (error) {
         handleError(res, error, 'GetMe Error');

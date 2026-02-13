@@ -13,6 +13,8 @@ import { Subscription } from './subscription';
 import { OrganizationEntitlement } from './organization_entitlement';
 import { OneTimePurchase } from './one_time_purchase';
 import { ToolUsage } from './tool_usage';
+import { IntegrationAccount, IntegrationType, IntegrationStatus } from './integration_account';
+import { GlobalIntegration, GlobalIntegrationStatus } from './global_integration';
 import { PriceInterval, TierType, SubStatus, FeatureType, FeatureResetPeriod } from './enums';
 
 // =====================
@@ -164,6 +166,18 @@ ToolUsage.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 Organization.hasMany(ToolUsage, { foreignKey: 'organization_id', as: 'tool_usages', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 ToolUsage.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
 
+// =====================
+// Integration Associations
+// =====================
+
+// Organization <-> IntegrationAccount
+Organization.hasMany(IntegrationAccount, { foreignKey: 'organization_id', as: 'integration_accounts', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+IntegrationAccount.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
+
+// Organization <-> GlobalIntegration
+Organization.hasMany(GlobalIntegration, { foreignKey: 'organization_id', as: 'global_integrations', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+GlobalIntegration.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
+
 // Export all models
 export {
   User,
@@ -184,6 +198,11 @@ export {
   OrganizationEntitlement,
   OneTimePurchase,
   ToolUsage,
+  IntegrationAccount,
+  IntegrationType,
+  IntegrationStatus,
+  GlobalIntegration,
+  GlobalIntegrationStatus,
   PriceInterval,
   TierType,
   SubStatus,
