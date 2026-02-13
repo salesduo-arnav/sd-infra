@@ -14,22 +14,14 @@ import { Op } from 'sequelize';
 class BillingController {
     async createCheckoutSession(req: Request, res: Response, next: NextFunction) {
         try {
-            // items: { id: string, type: 'plan' | 'bundle', interval: 'monthly' | 'yearly' }[]
             const { items, ui_mode = 'hosted' } = req.body;
             const organization = req.organization;
             const user = req.user;
 
-            if (!organization) {
-                res.status(404).json({ message: 'Organization not found' });
-                return;
-            }
+            if (!organization) { res.status(404).json({ message: 'Organization not found' }); return; }
+            if (!items?.length) { res.status(400).json({ message: 'No items provided' }); return; }
 
-            if (!items || !Array.isArray(items) || items.length === 0) {
-                res.status(400).json({ message: 'No items provided' });
-                return;
-            }
-
-            // Validate intervals (must be same for single subscription checkout)
+            // Validate intervals
             const firstInterval = items[0].interval;
             if (items.some((item: any) => item.interval !== firstInterval)) {
                 res.status(400).json({ message: 'All items must have the same billing interval' });
@@ -39,9 +31,7 @@ class BillingController {
             // 1. Get or Create Stripe Customer
             let customerId = organization.stripe_customer_id;
             if (!customerId) {
-                const customer = await stripeService.createCustomer(organization.billing_email || user?.email || '', organization.name, {
-                    orgId: organization.id
-                });
+                const customer = await stripeService.createCustomer(organization.billing_email || user?.email || '', organization.name, { orgId: organization.id });
                 customerId = customer.id;
                 await organization.update({ stripe_customer_id: customerId });
             }
@@ -49,7 +39,6 @@ class BillingController {
             // 2. Resolve Price IDs
             const lineItems = [];
             const metadataItems: any[] = [];
-
             let trialPeriodDays = 0;
             let hasPaidComponent = false;
 
@@ -59,41 +48,19 @@ class BillingController {
                 if (item.type === 'plan') {
                     const plan = await Plan.findByPk(item.id, { include: [{ model: Tool, as: 'tool' }] });
                     if (!plan) continue;
+                    
                     priceId = item.interval === 'yearly' ? plan.stripe_price_id_yearly : plan.stripe_price_id_monthly;
                     if (plan.price > 0) hasPaidComponent = true;
+                    
+                    // Trial Logic
                     if (plan.is_trial_plan && plan.tool?.trial_days && plan.tool.trial_days > 0 && trialPeriodDays === 0) {
                         trialPeriodDays = plan.tool.trial_days;
-
-                        // Strict Trial Check: Prevent user from getting multiple trials for the same tool across different orgs
+                        // Strict Trial Check
                         if (user) {
-                            // 1. Get all organizations this user belongs to
-                            const userMemberships = await OrganizationMember.findAll({
-                                where: { user_id: user.id }
-                            });
-                            const userOrgIds = userMemberships.map(m => m.organization_id);
-
-                            if (userOrgIds.length > 0) {
-                                // 2. Check if ANY of these orgs have ever had a subscription for this tool
-                                const existingSubscription = await Subscription.findOne({
-                                    where: {
-                                        organization_id: { [Op.in]: userOrgIds },
-                                        // We only care if they had a subscription to this specific tool (via Plan)
-                                        // If they had a bundle, we might want to be more lenient or strict, but for now focusing on Plan-based trials
-                                    },
-                                    include: [{
-                                        model: Plan,
-                                        as: 'plan',
-                                        where: { tool_id: plan.tool_id },
-                                        required: true
-                                    }]
-                                });
-
-                                if (existingSubscription) {
-                                    // If they have ANY record (active, canceled, past_due) for this tool, block the trial
-                                    // instead of blocking the whole checkout, we just strip the trial
-                                    console.log(`[Billing] User ${user.id} has already used trial/sub for tool ${plan.tool_id} in another org. Skipping trial.`);
-                                    trialPeriodDays = 0;
-                                }
+                            const eligible = await this.isTrialEligible(user.id, plan.tool_id, organization.id);
+                            if (!eligible) {
+                                console.log(`[Billing] User ${user.id} ineligible for trial on tool ${plan.tool_id}`);
+                                trialPeriodDays = 0;
                             }
                         }
                     }
@@ -105,20 +72,14 @@ class BillingController {
                 }
 
                 if (priceId) {
-                    lineItems.push({
-                        price: priceId,
-                        quantity: 1
-                    });
+                    lineItems.push({ price: priceId, quantity: 1 });
                     metadataItems.push({ id: item.id, type: item.type });
                 }
             }
 
-            if (lineItems.length === 0) {
-                res.status(400).json({ message: 'No valid price IDs found for selected items' });
-                return;
-            }
+            if (lineItems.length === 0) { res.status(400).json({ message: 'No valid price IDs found for selected items' }); return; }
 
-            // 3. Create Session based on UI Mode
+            // 3. Create Session
             const sessionConfig: any = {
                 customer: customerId,
                 mode: 'subscription',
@@ -129,23 +90,14 @@ class BillingController {
                     items: JSON.stringify(metadataItems),
                     interval: firstInterval
                 },
-                subscription_data: {
-                    metadata: {
-                        organizationId: organization.id
-                    }
-                }
+                subscription_data: { metadata: { organizationId: organization.id } }
             };
 
             if (trialPeriodDays > 0) {
                 sessionConfig.subscription_data.trial_period_days = trialPeriodDays;
-
-                // Only auto-cancel if it's a free trial (no paid component)
-                // Paid plans with trial should continue to active status after trial
+                // Only auto-cancel free trials
                 if (!hasPaidComponent) {
-                    sessionConfig.subscription_data.metadata = {
-                        ...sessionConfig.subscription_data.metadata,
-                        auto_cancel_trial: 'true'
-                    };
+                    sessionConfig.subscription_data.metadata = { ...sessionConfig.subscription_data.metadata, auto_cancel_trial: 'true' };
                 }
             }
 
@@ -435,98 +387,47 @@ class BillingController {
     async syncSubscription(req: Request, res: Response, next: NextFunction) {
         try {
             const organization = req.organization;
-            if (!organization || !organization.stripe_customer_id) {
+            if (!organization?.stripe_customer_id) {
                 res.status(400).json({ message: 'Organization is not linked to Stripe' });
                 return;
             }
 
-            console.log(`[BillingController] Manual Sync for Org ${organization.id}`);
-
-            // Fetch all subscriptions from Stripe
+            console.log(`[Billing] Manual Sync for Org ${organization.id}`);
             const stripeSubs = await stripeService.getCustomerSubscriptions(organization.stripe_customer_id);
-
-            // Map helper
-            const toDateNullable = (ts: any): Date | null => {
-                return ts ? new Date(ts * 1000) : null;
-            }
-
-            // Helper to map status
-            const mapStripeStatus = (status: string): SubStatus => {
-                const map: { [key: string]: SubStatus } = {
-                    'active': SubStatus.ACTIVE,
-                    'past_due': SubStatus.PAST_DUE,
-                    'canceled': SubStatus.CANCELED,
-                    'trialing': SubStatus.TRIALING,
-                    'incomplete': SubStatus.INCOMPLETE,
-                    'incomplete_expired': SubStatus.INCOMPLETE_EXPIRED,
-                    'unpaid': SubStatus.UNPAID,
-                    'paused': SubStatus.PAUSED
-                };
-                return map[status] || SubStatus.INCOMPLETE;
-            }
-
             let updatedCount = 0;
 
             // Loop through stripe subscriptions and update local ones
             for (const stripeSub of stripeSubs.data as any[]) {
                 const localSub = await Subscription.findOne({
-                    where: {
-                        stripe_subscription_id: stripeSub.id,
-                        organization_id: organization.id
-                    }
+                    where: { stripe_subscription_id: stripeSub.id, organization_id: organization.id }
                 });
 
                 if (localSub) {
-                    const status = mapStripeStatus(stripeSub.status);
+                    const status = this.mapStripeStatus(stripeSub.status);
                     const isPaymentFailed = status === SubStatus.PAST_DUE || status === SubStatus.UNPAID;
 
-                    // Date Fallback Logic (Same as Webhook)
-                    let currentPeriodStart = stripeSub.current_period_start;
-                    let currentPeriodEnd = stripeSub.current_period_end;
-
-                    if (!currentPeriodStart && stripeSub.items?.data?.[0]?.current_period_start) {
-                        currentPeriodStart = stripeSub.items.data[0].current_period_start;
-                        currentPeriodEnd = stripeSub.items.data[0].current_period_end;
-                    }
+                    const item = stripeSub.items?.data?.[0];
+                    const start = stripeSub.current_period_start || item?.current_period_start;
+                    const end = stripeSub.current_period_end || item?.current_period_end;
 
                     await localSub.update({
                         status: status,
-                        current_period_start: toDateNullable(currentPeriodStart),
-                        current_period_end: toDateNullable(currentPeriodEnd),
+                        current_period_start: this.toDateNullable(start),
+                        current_period_end: this.toDateNullable(end),
                         cancel_at_period_end: stripeSub.cancel_at_period_end,
-                        // Clear failure date if active or canceled (resolved)
                         last_payment_failure_at: isPaymentFailed ? localSub.last_payment_failure_at : null
                     });
 
-                    // Check Abuse (Sync logic)
-                    // We need fingerprint. If localSub has it, use it. If not, fetch it.
+                    // Sync Fingerprint if missing and active/trialing
                     let fingerprint = localSub.card_fingerprint;
                     if (!fingerprint && (status === SubStatus.TRIALING || status === SubStatus.ACTIVE)) {
-                        // Try to fetch from Stripe if possible (expensive but needed for sync correctness)
-                        try {
-                            let pmId: any = stripeSub.default_payment_method;
-                            if (!pmId && stripeSub.customer) { // Fallback to customer default
-                                const customerId = typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id;
-                                const customer = await stripeService.getCustomer(customerId);
-                                if ((customer as any).invoice_settings?.default_payment_method) {
-                                    pmId = (customer as any).invoice_settings.default_payment_method;
-                                }
-                            }
-                            if (typeof pmId === 'object' && pmId !== null) pmId = pmId.id;
-                            if (pmId) {
-                                const pm = await stripeService.getClient().paymentMethods.retrieve(pmId);
-                                fingerprint = pm.card?.fingerprint || null;
-                                if (fingerprint) {
-                                    await localSub.update({ card_fingerprint: fingerprint });
-                                }
-                            }
-                        } catch (e) { console.warn('Failed to fetch fingerprint during sync', e); }
+                        fingerprint = await this.getCardFingerprint(stripeSub);
+                        if (fingerprint) await localSub.update({ card_fingerprint: fingerprint });
                     }
 
                     if (fingerprint) {
                         await this.checkAndEnforceTrialAbuse(localSub, stripeSub, localSub.plan_id, fingerprint);
                     }
-
                     updatedCount++;
                 }
             }
@@ -559,187 +460,71 @@ class BillingController {
 
     private async handleSubscriptionUpdated(stripeSub: any) {
         const orgId = stripeSub.metadata?.organizationId;
+        if (!orgId) return;
 
-        const toDateNullable = (ts: any): Date | null => {
-            if (typeof ts === 'number') {
-                return new Date(ts * 1000);
+        console.log(`[Billing] Sub Update Org ${orgId}. Status: ${stripeSub.status}`);
+
+        const status = this.mapStripeStatus(stripeSub.status);
+        const item = stripeSub.items?.data?.[0];
+        const start = stripeSub.current_period_start || item?.current_period_start;
+        const end = stripeSub.current_period_end || item?.current_period_end;
+
+        // Resolve Plan/Bundle
+        let finalPlanId: string | null = null;
+        let finalBundleId: string | null = null;
+
+        for (const it of stripeSub.items?.data || []) {
+            const { planId, bundleId } = await this.resolvePlanOrBundle(it.price.id);
+            if (planId || bundleId) {
+                finalPlanId = planId;
+                finalBundleId = bundleId;
+                break;
             }
-            if (ts) {
-                console.warn(`[BillingController] Invalid timestamp received: ${ts} (${typeof ts})`);
-            }
-            return null;
         }
 
-        // Helper to map status
-        const mapStripeStatus = (status: string): SubStatus => {
-            const map: { [key: string]: SubStatus } = {
-                'active': SubStatus.ACTIVE,
-                'past_due': SubStatus.PAST_DUE,
-                'canceled': SubStatus.CANCELED,
-                'trialing': SubStatus.TRIALING,
-                'incomplete': SubStatus.INCOMPLETE,
-                'incomplete_expired': SubStatus.INCOMPLETE_EXPIRED,
-                'unpaid': SubStatus.UNPAID,
-                'paused': SubStatus.PAUSED
-            };
-            return map[status] || SubStatus.INCOMPLETE;
+        // Find existing sub by Stripe ID
+        let subscription = await Subscription.findOne({
+            where: { stripe_subscription_id: stripeSub.id, organization_id: orgId }
+        });
+
+        // Fingerprint & Abuse Check
+        let fingerprint: string | null = null;
+        if (status === SubStatus.TRIALING || status === SubStatus.ACTIVE) {
+            // Check if plan is trial plan
+            let isTrialPlan = false;
+            if (finalPlanId) {
+                const plan = await Plan.findByPk(finalPlanId);
+                if (plan?.is_trial_plan) isTrialPlan = true;
+            }
+
+            if (isTrialPlan) {
+                fingerprint = await this.getCardFingerprint(stripeSub);
+            }
         }
 
-        if (orgId) {
-            console.log(`[BillingController] Processing subscription update for Org ${orgId}. Status: ${stripeSub.status}`);
+        const subData = {
+            stripe_subscription_id: stripeSub.id,
+            plan_id: finalPlanId,
+            bundle_id: finalBundleId,
+            status,
+            current_period_start: this.toDateNullable(start),
+            current_period_end: this.toDateNullable(end),
+            trial_start: this.toDateNullable(stripeSub.trial_start),
+            trial_end: this.toDateNullable(stripeSub.trial_end),
+            cancel_at_period_end: stripeSub.cancel_at_period_end,
+            upcoming_plan_id: null,
+            upcoming_bundle_id: null,
+            card_fingerprint: fingerprint,
+        };
 
-            let currentPeriodStart = stripeSub.current_period_start;
-            let currentPeriodEnd = stripeSub.current_period_end;
+        if (subscription) {
+            await subscription.update(subData);
+        } else {
+            subscription = await Subscription.create({ organization_id: orgId, ...subData });
+        }
 
-            if (!currentPeriodStart && stripeSub.items?.data?.[0]?.current_period_start) {
-                currentPeriodStart = stripeSub.items.data[0].current_period_start;
-                currentPeriodEnd = stripeSub.items.data[0].current_period_end;
-                console.log(`[BillingController] Using period from first subscription item: ${currentPeriodStart} - ${currentPeriodEnd}`);
-            } else {
-                console.log(`[BillingController] Period (Root): ${currentPeriodStart} - ${currentPeriodEnd}`);
-            }
-
-            const status = mapStripeStatus(stripeSub.status);
-
-            // Resolve Plan or Bundle from Price ID
-            // Iterate through all items in the subscription
-            const items = stripeSub.items?.data || [];
-
-            for (const item of items) {
-                const priceId = item.price.id;
-                let finalPlanId: string | null = null;
-                let finalBundleId: string | null = null;
-                let resolved = false;
-
-                if (priceId) {
-                    console.log(`[BillingController] Resolving item with Price ID: ${priceId}`);
-                    // Find Plan
-                    const plan = await Plan.findOne({
-                        where: sequelize.or(
-                            { stripe_price_id_monthly: priceId },
-                            { stripe_price_id_yearly: priceId }
-                        )
-                    });
-                    if (plan) {
-                        console.log(`[BillingController] Found Plan: ${plan.name} (${plan.id})`);
-                        finalPlanId = plan.id;
-                        finalBundleId = null;
-                        resolved = true;
-                    }
-
-                    // Find Bundle (if not plan)
-                    if (!resolved) {
-                        const bundle = await Bundle.findOne({
-                            where: sequelize.or(
-                                { stripe_price_id_monthly: priceId },
-                                { stripe_price_id_yearly: priceId }
-                            )
-                        });
-                        if (bundle) {
-                            console.log(`[BillingController] Found Bundle: ${bundle.name} (${bundle.id})`);
-                            finalBundleId = bundle.id;
-                            finalPlanId = null;
-                            resolved = true;
-                        }
-                    }
-
-                    if (!resolved) {
-                        console.log(`[BillingController] Could not resolve Plan or Bundle for Price ID: ${priceId}`);
-                    }
-                }
-
-                if (resolved) {
-                    // Find existing subscription by stripe_subscription_id only
-                    // This ensures upgrades/downgrades update the existing record, not create duplicates
-                    let subscription = await Subscription.findOne({
-                        where: {
-                            stripe_subscription_id: stripeSub.id,
-                            organization_id: orgId
-                        }
-                    });
-
-                    // ============================================================
-                    // DUPLICATE CARD CHECK (Anti-Abuse) - PRE-FETCH
-                    // ============================================================
-                    let fingerprint: string | null = null;
-
-
-                    if (status === SubStatus.TRIALING || status === SubStatus.ACTIVE) {
-                        // Check if it's a trial plan
-                        let isTrialPlan = false;
-                        if (finalPlanId) {
-                            const plan = await Plan.findByPk(finalPlanId);
-                            if (plan && plan.is_trial_plan) {
-                                isTrialPlan = true;
-                            }
-                        }
-
-                        if (isTrialPlan) {
-                            try {
-
-                                let pmId: string | any = stripeSub.default_payment_method; // Use any to allow assignment
-
-                                // Fallback to customer default if not on subscription
-                                if (!pmId && stripeSub.customer) {
-                                    const customerId = typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id;
-                                    try {
-                                        const customer = await stripeService.getCustomer(customerId);
-                                        if ((customer as any).invoice_settings?.default_payment_method) {
-                                            pmId = (customer as any).invoice_settings.default_payment_method;
-                                        }
-                                    } catch (err) {
-                                        console.warn(`[AbuseDetection] Failed to fetch customer ${customerId} for PM fallback`);
-                                    }
-                                }
-
-                                if (typeof pmId === 'object' && pmId !== null) {
-                                    pmId = pmId.id;
-                                }
-
-                                if (pmId) {
-                                    const pm = await stripeService.getClient().paymentMethods.retrieve(pmId);
-                                    fingerprint = pm.card?.fingerprint || null;
-                                    console.log(`[AbuseDetection] Retrieved Fingerprint: ${fingerprint}`);
-                                }
-                            } catch (err) {
-                                console.error(`[AbuseDetection] Error fetching fingerprint:`, err);
-                            }
-                        }
-
-                        const subscriptionData = {
-                            stripe_subscription_id: stripeSub.id,
-                            plan_id: finalPlanId,
-                            bundle_id: finalBundleId,
-                            status: status,
-                            current_period_start: toDateNullable(currentPeriodStart ?? item.current_period_start),
-                            current_period_end: toDateNullable(currentPeriodEnd ?? item.current_period_end),
-                            trial_start: toDateNullable(stripeSub.trial_start),
-                            trial_end: toDateNullable(stripeSub.trial_end),
-                            cancel_at_period_end: stripeSub.cancel_at_period_end,
-                            // Clear upcoming fields since the webhook reflects the actual current state
-                            upcoming_plan_id: null,
-                            upcoming_bundle_id: null,
-                            card_fingerprint: fingerprint,
-                        };
-
-                        if (subscription) {
-                            console.log(`[BillingController] Updating existing subscription: ${subscription.id}`);
-                            await subscription.update(subscriptionData);
-                        } else {
-                            console.log(`[BillingController] Creating new subscription for Org ${orgId}`);
-                            subscription = await Subscription.create({
-                                organization_id: orgId,
-                                ...subscriptionData,
-                            });
-                        }
-
-                        // ============================================================
-                        // DUPLICATE CARD CHECK (Anti-Abuse) - VERIFY & CANCEL
-                        // ============================================================
-                        await this.checkAndEnforceTrialAbuse(subscription, stripeSub, finalPlanId || subscription?.plan_id, fingerprint);
-                    }
-                }
-            }
+        if (fingerprint && (status === SubStatus.TRIALING || status === SubStatus.ACTIVE)) {
+            await this.checkAndEnforceTrialAbuse(subscription, stripeSub, finalPlanId || subscription.plan_id, fingerprint);
         }
     }
 
@@ -1001,18 +786,10 @@ class BillingController {
         try {
             const { tool_id } = req.body;
             const organization = req.organization;
+            if (!organization) { res.status(404).json({ message: 'Organization not found' }); return; }
+            if (!tool_id) { res.status(400).json({ message: 'tool_id is required' }); return; }
 
-            if (!organization) {
-                res.status(404).json({ message: 'Organization not found' });
-                return;
-            }
-
-            if (!tool_id) {
-                res.status(400).json({ message: 'tool_id is required' });
-                return;
-            }
-
-            // 1. Find the trial plan for this tool
+            // 1. Find trial plan
             const trialPlan = await Plan.findOne({
                 where: { tool_id, is_trial_plan: true, active: true },
                 include: [{ model: Tool, as: 'tool' }]
@@ -1023,72 +800,34 @@ class BillingController {
                 return;
             }
 
-            const tool = trialPlan.tool;
-
-            // 2. Check eligibility — has org ever subscribed to any plan for this tool?
-            const existingSub = await Subscription.findOne({
-                where: {
-                    organization_id: organization.id,
-                },
-                include: [{
-                    model: Plan,
-                    as: 'plan',
-                    where: { tool_id },
-                    required: true
-                }]
-            });
-
-            if (existingSub) {
-                res.status(400).json({ message: 'Your organization has already used or has an active subscription for this tool. Free trial is not available.' });
+            // 2. Check eligibility (Strict)
+            const eligible = await this.isTrialEligible(req.user?.id, tool_id, organization.id);
+            if (!eligible) {
+                res.status(400).json({ message: 'Organization or User has already used trial/subscription for this tool.' });
                 return;
             }
 
-            // const tool = trialPlan.tool!; // Removed duplicate declaration
+            const tool = trialPlan.tool;
             const trialDays = tool.trial_days;
             const now = new Date();
             const trialEnd = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
 
-            // 3. Always create Stripe Subscription (even for cardless) to ensure webhooks & management
-            // Ensure customer exists
+            // 3. Create Stripe Customer if needed
             let customerId = organization.stripe_customer_id;
             if (!customerId) {
-                const customer = await stripeService.createCustomer(
-                    organization.billing_email || req.user?.email || '',
-                    organization.name,
-                    { orgId: organization.id }
-                );
+                const customer = await stripeService.createCustomer(organization.billing_email || req.user?.email || '', organization.name, { orgId: organization.id });
                 customerId = customer.id;
                 await organization.update({ stripe_customer_id: customerId });
             }
 
             const priceId = trialPlan.stripe_price_id_monthly || trialPlan.stripe_price_id_yearly;
-            if (!priceId) {
-                res.status(500).json({ message: 'Trial plan has no Stripe price configured' });
-                return;
-            }
+            if (!priceId) { res.status(500).json({ message: 'Trial plan has no price configured' }); return; }
 
-            // Create Stripe Subscription
-            // If card_required is false, Stripe allows creating sub without payment method if price is 0
+            const metadata: Record<string, string> = { org_id: organization.id, plan_id: trialPlan.id, tool_id };
+            if (trialPlan.price === 0) metadata.auto_cancel_trial = 'true';
 
-            const subscriptionMetadata: Record<string, string> = {
-                org_id: organization.id,
-                plan_id: trialPlan.id,
-                tool_id
-            };
+            const stripeSub = await stripeService.createTrialSubscription(customerId, priceId, trialDays, metadata);
 
-            // Only mark for auto-cancellation if it's a free trial plan (price 0)
-            if (trialPlan.price === 0) {
-                subscriptionMetadata.auto_cancel_trial = 'true';
-            }
-
-            const stripeSub = await stripeService.createTrialSubscription(
-                customerId,
-                priceId,
-                trialDays,
-                subscriptionMetadata
-            );
-
-            // Create local subscription record
             const subscription = await Subscription.create({
                 organization_id: organization.id,
                 plan_id: trialPlan.id,
@@ -1149,73 +888,109 @@ class BillingController {
         try {
             const { tool_id } = req.query;
             const organization = req.organization;
+            if (!organization) { res.status(404).json({ message: 'Organization not found' }); return; }
+            if (!tool_id) { res.status(400).json({ message: 'tool_id required' }); return; }
 
-            if (!organization) {
-                res.status(404).json({ message: 'Organization not found' });
-                return;
-            }
-
-            if (!tool_id) {
-                res.status(400).json({ message: 'tool_id query param is required' });
-                return;
-            }
-
-            // Check if tool has a trial plan
             const trialPlan = await Plan.findOne({
                 where: { tool_id: tool_id as string, is_trial_plan: true, active: true },
                 include: [{ model: Tool, as: 'tool' }]
             });
 
-            if (!trialPlan || !trialPlan.tool || trialPlan.tool.trial_days <= 0) {
-                res.status(200).json({ eligible: false, reason: 'No free trial available for this tool', trialDays: 0 });
+            if (!trialPlan?.tool || trialPlan.tool.trial_days <= 0) {
+                res.status(200).json({ eligible: false, reason: 'No free trial available', trialDays: 0 });
                 return;
             }
 
-            console.log(`[TrialCheck] Checking for Org: ${organization.id}, Tool: ${tool_id}`);
-
-            // 1. Get all plan IDs for this tool (including deleted ones)
-            const allToolPlans = await Plan.findAll({
-                where: { tool_id: tool_id as string },
-                attributes: ['id'],
-                paranoid: false
-            });
-
-            const planIds = allToolPlans.map(p => p.id);
-            console.log(`[TrialCheck] Found ${planIds.length} plans for tool:`, planIds);
-
-            // 2. Check if ANY of the user's organizations have any subscription matching these plan IDs
-            // First, get all organizations for the current user (if user context is available)
-            // Note: req.user should be populated by auth middleware
-            const user = req.user;
-            let orgIdsToCheck = [organization.id];
-
-            if (user) {
-                const userMemberships = await OrganizationMember.findAll({
-                    where: { user_id: user.id }
-                });
-                orgIdsToCheck = userMemberships.map(m => m.organization_id);
-            }
-
-            const existingSub = await Subscription.findOne({
-                where: {
-                    organization_id: { [Op.in]: orgIdsToCheck },
-                    plan_id: { [Op.in]: planIds }
-                },
-                paranoid: false
-            });
-
-            console.log(`[TrialCheck] Existing Sub found: ${existingSub ? existingSub.id : 'None'} (Checked Orgs: ${orgIdsToCheck.join(', ')})`);
-
-            if (existingSub) {
-                res.status(200).json({ eligible: false, reason: 'Trial already used for this tool', trialDays: trialPlan.tool!.trial_days });
+            const eligible = await this.isTrialEligible(req.user?.id, tool_id as string, organization.id);
+            
+            if (!eligible) {
+                res.status(200).json({ eligible: false, reason: 'Trial already used', trialDays: trialPlan.tool.trial_days });
                 return;
             }
 
-            res.status(200).json({ eligible: true, trialDays: trialPlan.tool!.trial_days });
+            res.status(200).json({ eligible: true, trialDays: trialPlan.tool.trial_days });
         } catch (error) {
             next(error);
         }
     }
+    // --- Helper Methods ---
+
+    // Map Stripe status to local SubStatus
+    private mapStripeStatus(status: string): SubStatus {
+        const map: { [key: string]: SubStatus } = {
+            'active': SubStatus.ACTIVE,
+            'past_due': SubStatus.PAST_DUE,
+            'canceled': SubStatus.CANCELED,
+            'trialing': SubStatus.TRIALING,
+            'incomplete': SubStatus.INCOMPLETE,
+            'incomplete_expired': SubStatus.INCOMPLETE_EXPIRED,
+            'unpaid': SubStatus.UNPAID,
+            'paused': SubStatus.PAUSED
+        };
+        return map[status] || SubStatus.INCOMPLETE;
+    }
+
+    // Convert Stripe timestamp to Date
+    private toDateNullable(ts: any): Date | null {
+        return ts ? new Date(ts * 1000) : null;
+    }
+
+    // Resolve Plan or Bundle from Stripe Price ID
+    private async resolvePlanOrBundle(priceId: string): Promise<{ planId: string | null, bundleId: string | null }> {
+        // Check Plan
+        const plan = await Plan.findOne({
+            where: sequelize.or({ stripe_price_id_monthly: priceId }, { stripe_price_id_yearly: priceId })
+        });
+        if (plan) return { planId: plan.id, bundleId: null };
+
+        // Check Bundle
+        const bundle = await Bundle.findOne({
+            where: sequelize.or({ stripe_price_id_monthly: priceId }, { stripe_price_id_yearly: priceId })
+        });
+        if (bundle) return { planId: null, bundleId: bundle.id };
+
+        return { planId: null, bundleId: null };
+    }
+
+    // Fetch Card Fingerprint from Stripe Subscription
+    private async getCardFingerprint(stripeSub: any): Promise<string | null> {
+        try {
+            let pmId: any = stripeSub.default_payment_method;
+            if (!pmId && stripeSub.customer) { 
+                const customerId = typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id;
+                const customer = await stripeService.getCustomer(customerId) as any;
+                pmId = customer.invoice_settings?.default_payment_method;
+            }
+            if (typeof pmId === 'object' && pmId !== null) pmId = pmId.id;
+            
+            if (pmId) {
+                const pm = await stripeService.getClient().paymentMethods.retrieve(pmId);
+                return pm.card?.fingerprint || null;
+            }
+        } catch (e) {
+             console.warn('[Billing] Failed to fetch fingerprint', e);
+        }
+        return null;
+    }
+
+    // Check if user is eligible for trial (based on past usage in any org)
+    private async isTrialEligible(userId: string | undefined, toolId: string, currentOrgId: string): Promise<boolean> {
+        const orgIdsToCheck = [currentOrgId];
+        
+        if (userId) {
+            const memberships = await OrganizationMember.findAll({ where: { user_id: userId } });
+            memberships.forEach(m => { if (!orgIdsToCheck.includes(m.organization_id)) orgIdsToCheck.push(m.organization_id); });
+        }
+
+        const existingSubscription = await Subscription.findOne({
+            where: { organization_id: { [Op.in]: orgIdsToCheck } },
+            include: [{ model: Plan, as: 'plan', where: { tool_id: toolId }, required: true }],
+            paranoid: false // Check even deleted subscriptions to prevent abuse
+        });
+
+        return !existingSubscription;
+    }
+
 }
 
 export const billingController = new BillingController();
