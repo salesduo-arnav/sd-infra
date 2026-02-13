@@ -15,6 +15,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
+import Logger from '../utils/logger';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -408,7 +409,7 @@ export const googleAuth = async (req: Request, res: Response) => {
         const { code, token } = req.body;
 
         if (!process.env.GOOGLE_CLIENT_SECRET) {
-            console.error('Missing GOOGLE_CLIENT_SECRET');
+            Logger.error('Missing GOOGLE_CLIENT_SECRET');
             return res.status(500).json({ message: 'Server configuration error' });
         }
 
