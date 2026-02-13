@@ -24,6 +24,8 @@ export interface SubscriptionAttributes {
   current_period_end?: Date | null;
   cancel_at_period_end: boolean;
   last_payment_failure_at?: Date | null;
+  card_fingerprint?: string | null;
+  cancellation_reason?: string | null;
   deleted_at?: Date | null;
   created_at?: Date;
   updated_at?: Date;
@@ -44,6 +46,8 @@ export type SubscriptionCreationAttributes = Optional<
   | 'updated_at'
   | 'deleted_at'
   | 'last_payment_failure_at'
+  | 'card_fingerprint'
+  | 'cancellation_reason'
 >;
 
 export class Subscription extends Model<SubscriptionAttributes, SubscriptionCreationAttributes> implements SubscriptionAttributes {
@@ -61,6 +65,8 @@ export class Subscription extends Model<SubscriptionAttributes, SubscriptionCrea
   public current_period_end!: Date | null;
   public cancel_at_period_end!: boolean;
   public last_payment_failure_at!: Date | null;
+  public card_fingerprint!: string | null;
+  public cancellation_reason!: string | null;
   public readonly deleted_at!: Date | null;
 
   public readonly created_at!: Date;
@@ -155,6 +161,14 @@ Subscription.init(
     },
     last_payment_failure_at: {
       type: DataTypes.DATE,
+      allowNull: true,
+    },
+    card_fingerprint: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    cancellation_reason: {
+      type: DataTypes.STRING,
       allowNull: true,
     },
   },
