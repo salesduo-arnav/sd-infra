@@ -1,6 +1,7 @@
 import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
 import path from 'path';
+import Logger from '../utils/logger';
 
 dotenv.config({ path: path.join(__dirname, '../../.env') }); // ensure .env is valid
 
@@ -17,9 +18,9 @@ const sequelize = new Sequelize({
 export const connectDB = async () => {
     try {
         await sequelize.authenticate();
-        console.log('Database connected successfully (Sequelize)');
+        Logger.info('Database connected successfully (Sequelize)');
     } catch (error) {
-        console.error('Unable to connect to the database:', error);
+        Logger.error('Unable to connect to the database:', error);
         process.exit(1);
     }
 };

@@ -1,6 +1,7 @@
 import { createClient } from 'redis';
 import dotenv from 'dotenv';
 import path from 'path';
+import Logger from '../utils/logger';
 
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
@@ -11,8 +12,8 @@ const redisClient = createClient({
     }
 });
 
-redisClient.on('error', (err) => console.error('Redis Client Error', err));
-redisClient.on('connect', () => console.log('Redis Client Connected'));
+redisClient.on('error', (err) => Logger.error('Redis Client Error', err));
+redisClient.on('connect', () => Logger.info('Redis Client Connected'));
 
 export const connectRedis = async () => {
     if (!redisClient.isOpen) {

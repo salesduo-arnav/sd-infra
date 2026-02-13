@@ -10,6 +10,7 @@ import toolRoutes from './routes/tool.routes';
 import publicPlanRoutes from './routes/public.plan.routes';
 import integrationRoutes from './routes/integration.routes';
 import { errorHandler } from './middlewares/error';
+import morganMiddleware from './middlewares/morgan.middleware';
 import './models'; // Initialize associations
 
 const app = express();
@@ -23,6 +24,7 @@ app.use(cors({
 }))
 app.use(express.json());
 app.use(cookieParser());
+app.use(morganMiddleware);
 
 // Routes
 app.use('/auth', authRoutes);
