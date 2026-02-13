@@ -29,7 +29,10 @@ const getIconForSlug = (slug: string) => {
     return <Star className="h-5 w-5" />;
 };
 
+import { useAuth } from "@/contexts/AuthContext";
+
 export default function Plans() {
+  const { activeOrganization } = useAuth();
   const navigate = useNavigate();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeTab, setActiveTab] = useState("bundles");
@@ -201,7 +204,7 @@ export default function Plans() {
     };
 
     fetchData();
-  }, []);
+  }, [activeOrganization]);
 
   const allBundles = bundles;
 

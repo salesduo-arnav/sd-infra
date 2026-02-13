@@ -36,7 +36,7 @@ export default function CreateOrganisation() {
       const data = await res.json();
       await refreshUser();
       if (data.organization && data.organization.id) {
-        switchOrganization(data.organization.id);
+        switchOrganization(data.organization.id, data.organization);
       }
       navigate("/apps");
     } catch (err) {

@@ -49,7 +49,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   activeOrganization: Organization | null;
-  switchOrganization: (orgId: string) => void;
+  switchOrganization: (orgId: string, org?: Organization) => void;
   login: (email: string, password: string, token?: string) => Promise<void>;
   loginWithGoogle: (code: string, token?: string) => Promise<User | void>;
   signup: (name: string, email: string, password: string, token?: string) => Promise<User | void>;
@@ -91,7 +91,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  const switchOrganization = (orgId: string) => {
+  const switchOrganization = (orgId: string, org?: Organization) => {
+    if (org) {
+        setActiveOrganization(org);
+        localStorage.setItem("activeOrganizationId", org.id);
+        return;
+    }
+
     if (!user || !user.memberships) return;
     const member = user.memberships.find(m => m.organization.id === orgId);
     if (member) {

@@ -11,6 +11,14 @@ const api = axios.create({
   },
 });
 
+api.interceptors.request.use((config) => {
+  const orgId = localStorage.getItem("activeOrganizationId");
+  if (orgId) {
+    config.headers['x-organization-id'] = orgId;
+  }
+  return config;
+});
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
