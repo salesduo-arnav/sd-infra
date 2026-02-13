@@ -8,6 +8,7 @@ import invitationRoutes from './routes/invitation.routes';
 import adminRoutes from './routes/admin.routes';
 import toolRoutes from './routes/tool.routes';
 import publicPlanRoutes from './routes/public.plan.routes';
+import integrationRoutes from './routes/integration.routes';
 import { errorHandler } from './middlewares/error';
 import './models'; // Initialize associations
 
@@ -30,6 +31,7 @@ app.use('/invitations', invitationRoutes);
 app.use('/admin', adminRoutes);
 app.use('/tools', toolRoutes);
 app.use('/public', publicPlanRoutes);
+app.use('/integrations', integrationRoutes);
 
 // Standard Health Check
 app.get('/health', (req, res) => res.status(200).send('OK'));

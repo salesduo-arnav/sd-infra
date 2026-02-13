@@ -23,6 +23,14 @@ export default function SignUp() {
   const [searchParams] = useSearchParams();
   const inviteEmail = searchParams.get("email");
   const inviteToken = searchParams.get("token");
+  const redirectUrl = searchParams.get("redirect");
+  const appParam = searchParams.get("app");
+
+  const params = new URLSearchParams();
+  if (redirectUrl) params.set("redirect", redirectUrl);
+  if (appParam) params.set("app", appParam);
+
+  const redirectSuffix = params.toString() ? `?${params.toString()}` : "";
 
   // Personal info
   const [fullName, setFullName] = useState("");
@@ -36,7 +44,7 @@ export default function SignUp() {
   const [signupState, setSignupState] = useState<SignupState>("form");
   const [showOtpModal, setShowOtpModal] = useState(false);
 
-  const { sendSignupOtp, verifySignupOtp, isLoading, checkPendingInvites } = useAuth();
+  const { sendSignupOtp, verifySignupOtp, isLoading, checkPendingInvites, switchOrganization } = useAuth();
   const navigate = useNavigate();
 
   const handleAuthSuccess = async (user: User | void) => {
@@ -44,24 +52,34 @@ export default function SignUp() {
     try {
       const pending = await checkPendingInvites();
       if (pending && pending.length > 0) {
-        navigate("/pending-invites");
+        navigate(`/pending-invites${redirectSuffix}`);
         return;
       }
     } catch (e) {
       console.error("Error checking invites", e);
     }
 
-
     if (!user) return;
 
-    // Default flow
-    // Check if user has organizations
+    // If there's an external redirect, go there
+    if (redirectUrl) {
+      // Auto-set org if they have exactly 1
+      if (user?.memberships?.length === 1) {
+        switchOrganization(user.memberships[0].organization.id);
+      }
+      const url = new URL(redirectUrl);
+      url.searchParams.set("auth_success", "true");
+      window.location.href = url.toString();
+      return;
+    }
+
+    // Default flow — check if user has organizations
     const hasOrg = (user.memberships && user.memberships.length > 0);
 
     if (hasOrg) {
       navigate("/apps");
     } else {
-      navigate("/create-organisation");
+      navigate(`/create-organisation${redirectSuffix}`);
     }
   };
 
@@ -279,7 +297,7 @@ export default function SignUp() {
 
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link to="/login" className="text-primary hover:underline">
+          <Link to={`/login${redirectSuffix}`} className="text-primary hover:underline">
             Sign in
           </Link>
         </p>

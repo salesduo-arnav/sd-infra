@@ -14,7 +14,9 @@ import Billing from "./pages/Billing";
 import Profile from "./pages/Profile";
 import Organisation from "./pages/Organisation";
 import CreateOrganisation from "./pages/CreateOrganisation";
+import ChooseOrganisation from "./pages/ChooseOrganisation";
 import Integrations from "./pages/Integrations";
+import IntegrationOnboarding from "./pages/IntegrationOnboarding";
 import NotFound from "./pages/NotFound";
 import ListingGenerator from "./pages/tools/ListingGenerator";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -31,18 +33,27 @@ import DesignSystem from "./pages/DesignSystem";
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user, isLoading } = useAuth();
+  const { isAuthenticated, user, isLoading, activeOrganization } = useAuth();
   const location = useLocation();
 
   if (isLoading) return <div>Loading...</div>;
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={`/login${location.search}`} replace />;
   }
 
   // If user has no organization and is not on the creation page, redirect them
   if ((!user?.memberships || user.memberships.length === 0) && location.pathname !== "/create-organisation" && location.pathname !== "/pending-invites") {
-    return <Navigate to="/create-organisation" replace />;
+    return <Navigate to={`/create-organisation${location.search}`} replace />;
+  }
+
+  // If user has organizations but none is active, redirect to selection (unless already there or creating/handling invites)
+  if (user?.memberships && user.memberships.length > 0 && !activeOrganization &&
+    location.pathname !== "/choose-organisation" &&
+    location.pathname !== "/create-organisation" &&
+    location.pathname !== "/pending-invites") {
+    const currentPath = location.pathname + location.search;
+    return <Navigate to={`/choose-organisation?redirect=${encodeURIComponent(currentPath)}`} replace />;
   }
 
   return <>{children}</>;
@@ -60,9 +71,26 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, activeOrganization } = useAuth();
+  const location = useLocation();
+
   if (isAuthenticated) {
-    return <Navigate to="/apps" replace />;
+    const params = new URLSearchParams(location.search);
+    const redirectUrl = params.get("redirect");
+
+    // Already have an active org? Skip choose-org entirely
+    if (activeOrganization) {
+      if (redirectUrl) {
+        const url = new URL(redirectUrl, window.location.origin);
+        url.searchParams.set("auth_success", "true");
+        window.location.href = url.toString();
+        return null;
+      }
+      return <Navigate to="/apps" replace />;
+    }
+
+    // No active org — go to org selection
+    return <Navigate to={`/choose-organisation${location.search}`} replace />;
   }
   return <>{children}</>;
 }
@@ -106,6 +134,14 @@ function AppRoutes() {
 
       {/* Protected routes */}
       <Route
+        path="/choose-organisation"
+        element={
+          <ProtectedRoute>
+            <ChooseOrganisation />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/apps"
         element={
           <ProtectedRoute>
@@ -134,6 +170,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Integrations />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/integration-onboarding"
+        element={
+          <ProtectedRoute>
+            <IntegrationOnboarding />
           </ProtectedRoute>
         }
       />

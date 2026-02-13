@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { AuthLayout } from "@/components/auth/AuthLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2, Building2, ArrowRight, Mail } from "lucide-react";
 import { API_URL } from "@/lib/api";
+import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
 
 export default function InviteAccepted() {
   const [searchParams] = useSearchParams();
@@ -88,6 +88,17 @@ export default function InviteAccepted() {
     }
   };
 
+  const leftContent = (
+    <div className="relative z-10 w-full">
+      <h1 className="text-4xl font-bold text-white mb-4 drop-shadow-sm">
+        Join Your Team
+      </h1>
+      <p className="text-lg text-white/90">
+        You've been invited to collaborate on SalesDuo. Accept your invitation to get started.
+      </p>
+    </div>
+  );
+
   if (status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted">
@@ -103,7 +114,12 @@ export default function InviteAccepted() {
 
   if (status === "error") {
     return (
-      <AuthLayout title="Invitation Invalid" subtitle="There was a problem with your invitation link">
+      <SplitScreenLayout leftContent={leftContent}>
+        <div className="mb-8">
+          <h2 className="text-2xl font-semibold tracking-tight">Invitation Invalid</h2>
+          <p className="mt-2 text-muted-foreground">There was a problem with your invitation link</p>
+        </div>
+
         <div className="flex flex-col items-center justify-center space-y-6 py-8">
           <div className="h-20 w-20 rounded-2xl bg-destructive/10 flex items-center justify-center">
             <XCircle className="h-10 w-10 text-destructive" />
@@ -126,15 +142,17 @@ export default function InviteAccepted() {
             </p>
           </div>
         </div>
-      </AuthLayout>
+      </SplitScreenLayout>
     );
   }
 
   return (
-    <AuthLayout
-      title="You're Invited!"
-      subtitle={`Join ${inviteDetails?.organization_name || "the team"} on SalesDuo`}
-    >
+    <SplitScreenLayout leftContent={leftContent}>
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold tracking-tight">You're Invited!</h2>
+        <p className="mt-2 text-muted-foreground">Join {inviteDetails?.organization_name || "the team"} on SalesDuo</p>
+      </div>
+
       <div className="flex flex-col items-center justify-center space-y-6 py-8">
         {/* Success Icon with animation */}
         <div className="relative">
@@ -183,6 +201,6 @@ export default function InviteAccepted() {
           </p>
         </div>
       </div>
-    </AuthLayout>
+    </SplitScreenLayout>
   );
 }

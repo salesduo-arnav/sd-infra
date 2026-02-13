@@ -21,21 +21,45 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loginMode, setLoginMode] = useState<LoginMode>("password");
   const [otpState, setOtpState] = useState<OtpState>("idle");
-  const { login, sendLoginOtp, verifyLoginOtp, isLoading, checkPendingInvites } = useAuth();
+  const { login, sendLoginOtp, verifyLoginOtp, isLoading, checkPendingInvites, user, switchOrganization } = useAuth();
   const navigate = useNavigate();
 
+  const redirectUrl = searchParams.get("redirect");
+  const appParam = searchParams.get("app");
+
+  const params = new URLSearchParams();
+  if (redirectUrl) params.set("redirect", redirectUrl);
+  if (appParam) params.set("app", appParam);
+
+  const redirectSuffix = params.toString() ? `?${params.toString()}` : "";
+
   const handleAuthSuccess = async () => {
-    // Check for invites
+    // Check for invites first
     try {
       const pending = await checkPendingInvites();
       if (pending && pending.length > 0) {
-        navigate("/pending-invites");
+        navigate(`/pending-invites${redirectSuffix}`);
         return;
       }
     } catch (e) {
       console.error(e);
     }
-    navigate("/apps");
+
+    // Auto-select if user has exactly 1 org — skip the chooser
+    if (user?.memberships?.length === 1) {
+      switchOrganization(user.memberships[0].organization.id);
+      if (redirectUrl) {
+        const url = new URL(redirectUrl, window.location.origin);
+        url.searchParams.set("auth_success", "true");
+        window.location.href = url.toString();
+        return;
+      }
+      navigate("/apps");
+      return;
+    }
+
+    // Multiple orgs or none — go to chooser/creator
+    navigate(`/choose-organisation${redirectSuffix}`);
   };
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
@@ -74,7 +98,7 @@ export default function Login() {
     try {
       setOtpState("verifying");
       await verifyLoginOtp(email, otp);
-      navigate("/apps");
+      await handleAuthSuccess();
     } catch (err) {
       setError(err.message || "Invalid OTP");
       setOtpState("sent");
@@ -297,7 +321,7 @@ export default function Login() {
 
         <p className="text-center text-sm text-muted-foreground">
           Don't have an account?{" "}
-          <Link to="/signup" className="text-primary hover:underline">
+          <Link to={`/signup${redirectSuffix}`} className="text-primary hover:underline">
             Sign up
           </Link>
         </p>

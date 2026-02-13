@@ -6,7 +6,7 @@ import User from '../models/user';
 import { Organization, OrganizationMember } from '../models/organization';
 import { Role } from '../models/role';
 
-import { Invitation } from '../models/invitation';
+import { Invitation, InvitationStatus } from '../models/invitation';
 
 describe('Organization API Integration Tests', () => {
     const testUser = {
@@ -269,6 +269,39 @@ describe('Organization API Integration Tests', () => {
             // Verify member is removed
             const member = await OrganizationMember.findByPk(memberId);
             expect(member).toBeNull();
+        });
+
+        it('should remove member and their associated invitations', async () => {
+            // Setup: Create an accepted invitation for the member
+            const memberUser = await User.findOne({ where: { email: 'member@example.com' } });
+
+            // Create a dummy accepted invitation
+            await Invitation.create({
+                organization_id: orgId,
+                email: memberUser!.email,
+                role_id: (await Role.findOne({ where: { name: 'Member' } }))!.id,
+                token: 'some-random-token-for-test',
+                invited_by: (await User.findOne({ where: { email: testUser.email } }))!.id,
+                status: InvitationStatus.ACCEPTED,
+                expires_at: new Date(Date.now() + 86400000) // Tomorrow
+            });
+
+            // Action: Remove member
+            const res = await request(app)
+                .delete(`/organizations/members/${memberId}`)
+                .set('Cookie', authCookie)
+                .set('x-organization-id', orgId);
+
+            expect(res.statusCode).toEqual(200);
+
+            // Verify invitation is soft-deleted
+            const invite = await Invitation.findOne({
+                where: {
+                    organization_id: orgId,
+                    email: memberUser!.email
+                }
+            });
+            expect(invite).toBeNull(); // Should be null because of paranoid: true
         });
 
         it('should fail to remove member if not Owner/Admin', async () => {

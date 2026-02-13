@@ -6,10 +6,11 @@ import sequelize from '../config/db';
 import { handleError } from '../utils/error';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { AuditService } from '../services/audit.service';
+import { invitationService } from '../services/invitation.service';
 
 export const createOrganization = async (req: Request, res: Response) => {
     try {
-        const { name, website } = req.body;
+        const { name, website, invites } = req.body;
         const userId = req.user?.id;
 
         if (!userId) {
@@ -51,12 +52,46 @@ export const createOrganization = async (req: Request, res: Response) => {
             return organization;
         });
 
+        // Handle Invites in background (fire and forget)
+        const handleInvites = async () => {
+            if (invites && Array.isArray(invites) && invites.length > 0) {
+                try {
+                    // Find Member Role
+                    let memberRole = await Role.findOne({ where: { name: 'Member' } });
+                    if (!memberRole) {
+                        memberRole = await Role.create({ name: 'Member', description: 'Organization Member' });
+                    }
+
+                    for (const email of invites) {
+                        if (email && typeof email === 'string') {
+                            // Use separate transaction or no transaction for each invite
+                            await invitationService.sendInvitation(result.id, email, memberRole.id, userId);
+                        }
+                    }
+                } catch (inviteError) {
+                    console.error('Error sending background invites:', inviteError);
+                }
+            }
+        };
+
+        // Trigger invites without awaiting
+        handleInvites();
+
         await AuditService.log({
             actorId: userId,
             action: 'CREATE_ORGANIZATION',
             entityType: 'Organization',
             entityId: result.id,
-            details: { name: result.name, slug: result.slug },
+            details: { name: result.name, slug: result.slug, invites_count: invites?.length || 0 },
+            req
+        });
+
+        await AuditService.log({
+            actorId: userId,
+            action: 'CREATE_ORGANIZATION',
+            entityType: 'Organization',
+            entityId: result.id,
+            details: { name: result.name, slug: result.slug, invites_count: invites?.length || 0 },
             req
         });
 

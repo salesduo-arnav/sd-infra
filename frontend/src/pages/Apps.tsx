@@ -3,47 +3,41 @@ import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { AppCard } from "@/components/dashboard/AppCard";
 import { FileText, ImageIcon, BarChart, Package } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getTools, Tool } from "@/services/tool.service";
 
 export default function Apps() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const apps = [
-    {
-      title: "Listing Content Generator",
-      description:
-        "Create optimized product listings with AI-powered title, bullet points, and description generation.",
-      icon: FileText,
-      status: "active" as const,
-      route: "/tools/listing-generator",
-    },
-    {
-      title: "Image Editor & Optimizer",
-      description:
-        "Edit, optimize, and enhance your product images for maximum conversion.",
-      icon: ImageIcon,
-      status: "active" as const,
-      route: "/tools/image-editor",
-    },
-    {
-      title: "Analytics Dashboard",
-      description:
-        "Track your sales, rankings, and performance across all your products.",
-      icon: BarChart,
-      status: "coming-soon" as const,
-    },
-    {
-      title: "Inventory Manager",
-      description:
-        "Manage your FBA and FBM inventory levels with smart restocking alerts.",
-      icon: Package,
-      status: "coming-soon" as const,
-    },
-  ];
+  const [tools, setTools] = useState<Tool[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleLaunch = (route: string) => {
-    // navigate(route);
-    window.open("https://test1.salesduo.com", "_blank", "noopener,noreferrer");
+  useEffect(() => {
+    const fetchTools = async () => {
+      try {
+        const data = await getTools();
+        setTools(data);
+      } catch (error) {
+        console.error("Failed to fetch tools", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTools();
+  }, []);
+
+  const icons = [FileText, ImageIcon, BarChart, Package];
+
+  const handleLaunch = (tool: Tool) => {
+    if (tool.tool_link) {
+      if (tool.tool_link.startsWith("http")) {
+        window.open(tool.tool_link, "_blank", "noopener,noreferrer");
+      } else {
+        navigate(tool.tool_link);
+      }
+    }
   };
 
   return (
@@ -72,18 +66,23 @@ export default function Apps() {
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {apps.map((app) => (
-              <AppCard
-                key={app.title}
-                title={app.title}
-                description={app.description}
-                icon={app.icon}
-                status={app.status}
-                onLaunch={
-                  app.route ? () => handleLaunch(app.route!) : undefined
-                }
-              />
-            ))}
+            {loading ? (
+              <div className="col-span-full text-center text-muted-foreground">Loading tools...</div>
+            ) : (
+              tools.map((tool, index) => {
+                const Icon = icons[index % icons.length];
+                return (
+                  <AppCard
+                    key={tool.id}
+                    title={tool.name}
+                    description={tool.description || ""}
+                    icon={Icon}
+                    status={tool.is_active ? "active" : "coming-soon"}
+                    onLaunch={() => handleLaunch(tool)}
+                  />
+                );
+              })
+            )}
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import api from "@/lib/api";
 import { AxiosError } from "axios";
 
@@ -11,6 +11,7 @@ export interface Organization {
 export interface Role {
   id: number;
   name: string;
+  slug: string; // Assuming role has a slug or name
 }
 
 export interface OrganizationMember {
@@ -68,28 +69,24 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const resolveActiveOrg = (user: User | null) => {
+  if (user && user.memberships && user.memberships.length > 0) {
+    const savedOrgId = localStorage.getItem("activeOrganizationId");
+    if (savedOrgId) {
+      const savedOrg = user.memberships.find(m => m.organization.id === savedOrgId)?.organization;
+      if (savedOrg) {
+        return savedOrg;
+      }
+    }
+    return null;
+  }
+  return null;
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [activeOrganization, setActiveOrganization] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Load active organization from localStorage on mount
-  useEffect(() => {
-    const savedOrgId = localStorage.getItem("activeOrganizationId");
-    if (user && user.memberships && user.memberships.length > 0) {
-      if (savedOrgId) {
-        const savedOrg = user.memberships.find(m => m.organization.id === savedOrgId)?.organization;
-        if (savedOrg) {
-          setActiveOrganization(savedOrg);
-          return;
-        }
-      }
-      // Default to first organization if no saved one found or saved one is invalid
-      setActiveOrganization(user.memberships[0].organization);
-    } else {
-      setActiveOrganization(null);
-    }
-  }, [user]);
 
   const switchOrganization = (orgId: string) => {
     if (!user || !user.memberships) return;
@@ -100,15 +97,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const res = await api.get('/auth/me');
-      setUser(res.data);
+      const currentUser = res.data;
+
+      // Resolve org BEFORE setting user to avoid flickering/race conditions in effects
+      const org = resolveActiveOrg(currentUser);
+
+      // Batch updates
+      setActiveOrganization(org);
+      setUser(currentUser);
     } catch (error) {
       console.error("Auth check failed", error);
       setUser(null);
+      setActiveOrganization(null);
     }
-  };
+  }, []);
 
   // Check for session on mount
   useEffect(() => {
@@ -117,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     };
     initAuth();
-  }, []);
+  }, [refreshUser]);
 
   const isAdmin = user?.is_superuser || false;
 
@@ -125,10 +130,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       const res = await api.post('/auth/login', { email, password, token });
-      setUser(res.data.user);
+      const currentUser = res.data.user;
+
+      setActiveOrganization(null);
+      localStorage.removeItem("activeOrganizationId");
+
+      setUser(currentUser);
     } catch (error) {
-       const err = error as AxiosError<{ message: string }>;
-       throw new Error(err.response?.data?.message || "Login failed");
+      const err = error as AxiosError<{ message: string }>;
+      throw new Error(err.response?.data?.message || "Login failed");
     } finally {
       setIsLoading(false);
     }
@@ -139,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await api.post('/auth/register', { full_name: name, email, password, token });
       setUser(res.data.user);
+      setActiveOrganization(null);
       return res.data.user;
     } catch (error) {
       const err = error as AxiosError<{ message: string }>;
@@ -152,8 +163,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       const res = await api.post('/auth/google', { code, token });
-      setUser(res.data.user);
-      return res.data.user;
+      const currentUser = res.data.user;
+      setActiveOrganization(null);
+      localStorage.removeItem("activeOrganizationId");
+      setUser(currentUser);
+      return currentUser;
     } catch (error) {
       const err = error as AxiosError<{ message: string }>;
       throw new Error(err.response?.data?.message || "Google login failed");
@@ -184,10 +198,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const declineInvite = async (token: string) => {
     try {
-        await api.post('/invitations/decline', { token });
+      await api.post('/invitations/decline', { token });
     } catch (error) {
-        const err = error as AxiosError<{ message: string }>;
-        throw new Error(err.response?.data?.message || "Failed to decline invite");
+      const err = error as AxiosError<{ message: string }>;
+      throw new Error(err.response?.data?.message || "Failed to decline invite");
     }
   };
 
@@ -209,8 +223,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api.post('/auth/send-login-otp', { email });
     } catch (error) {
-        const err = error as AxiosError<{ message: string }>;
-        throw new Error(err.response?.data?.message || "Failed to send OTP");
+      const err = error as AxiosError<{ message: string }>;
+      throw new Error(err.response?.data?.message || "Failed to send OTP");
     } finally {
       setIsLoading(false);
     }
@@ -220,10 +234,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       const res = await api.post('/auth/verify-login-otp', { email, otp });
-      setUser(res.data.user);
+      const currentUser = res.data.user;
+      setActiveOrganization(null);
+      localStorage.removeItem("activeOrganizationId");
+      setUser(currentUser);
     } catch (error) {
-        const err = error as AxiosError<{ message: string }>;
-        throw new Error(err.response?.data?.message || "Invalid OTP");
+      const err = error as AxiosError<{ message: string }>;
+      throw new Error(err.response?.data?.message || "Invalid OTP");
     } finally {
       setIsLoading(false);
     }
@@ -233,14 +250,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       await api.post('/auth/send-signup-otp', {
-          email: data.email,
-          password: data.password,
-          full_name: data.full_name,
-          token: data.token,
+        email: data.email,
+        password: data.password,
+        full_name: data.full_name,
+        token: data.token,
       });
     } catch (error) {
-        const err = error as AxiosError<{ message: string }>;
-        throw new Error(err.response?.data?.message || "Failed to send verification OTP");
+      const err = error as AxiosError<{ message: string }>;
+      throw new Error(err.response?.data?.message || "Failed to send verification OTP");
     } finally {
       setIsLoading(false);
     }
@@ -250,11 +267,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       const res = await api.post('/auth/verify-signup-otp', { email, otp });
-      setUser(res.data.user);
-      return res.data.user;
+      const currentUser = res.data.user;
+      setActiveOrganization(null);
+      localStorage.removeItem("activeOrganizationId");
+      setUser(currentUser);
+      return currentUser;
     } catch (error) {
-        const err = error as AxiosError<{ message: string }>;
-        throw new Error(err.response?.data?.message || "Failed to verify OTP");
+      const err = error as AxiosError<{ message: string }>;
+      throw new Error(err.response?.data?.message || "Failed to verify OTP");
     } finally {
       setIsLoading(false);
     }

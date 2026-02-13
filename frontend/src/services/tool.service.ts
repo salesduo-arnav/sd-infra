@@ -1,6 +1,28 @@
 
 import api from '../lib/api';
 
+export interface Tool {
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+    tool_link: string | null;
+    is_active: boolean;
+    required_integrations: string[];
+    created_at: string;
+    updated_at: string;
+}
+
+export const getTools = async (): Promise<Tool[]> => {
+    const response = await api.get('/tools');
+    return response.data;
+};
+
+export const getToolBySlug = async (slug: string): Promise<Tool> => {
+    const response = await api.get(`/tools/by-slug/${slug}`);
+    return response.data;
+};
+
 export const trackToolUsage = async (toolId: string) => {
     try {
         await api.post(`/tools/${toolId}/track`);

@@ -8,47 +8,47 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from "@/components/ui/select";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
 } from "@/components/ui/sheet";
-import { Plus, Pencil, Trash2, Package, Bolt, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, Bolt, Eye, Check, Store, Building2, BarChart3 } from "lucide-react";
 import * as AdminService from "@/services/admin.service";
 import { Tool, Feature } from "@/services/admin.service";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
@@ -56,586 +56,653 @@ import { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table"
 import { toast } from "sonner";
 
 export default function AdminApps() {
-  const [apps, setApps] = useState<Tool[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isFeatureDialogOpen, setIsFeatureDialogOpen] = useState(false);
-  
-  // DataTable State
-  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [rowCount, setRowCount] = useState(0);
-  const [search, setSearch] = useState("");
+    const [apps, setApps] = useState<Tool[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isFeatureDialogOpen, setIsFeatureDialogOpen] = useState(false);
 
-  // Tool State
-  const [editingApp, setEditingApp] = useState<Tool | null>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    slug: "",
-    description: "",
-    tool_link: "",
-    is_active: true,
-  });
+    // DataTable State
+    const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+    const [sorting, setSorting] = useState<SortingState>([]);
+    const [rowCount, setRowCount] = useState(0);
+    const [search, setSearch] = useState("");
 
-  // Feature State
-  const [selectedToolForFeatures, setSelectedToolForFeatures] = useState<Tool | null>(null);
-  const [features, setFeatures] = useState<Feature[]>([]);
-  const [editingFeature, setEditingFeature] = useState<Feature | null>(null);
-  const [featureFormData, setFeatureFormData] = useState({
-    name: "",
-    slug: "",
+    // Available integration types
+    const INTEGRATION_TYPE_OPTIONS = [
+        { value: "sp_api", label: "SP-API (Either SC or VC)", icon: Store },
+        { value: "sp_api_sc", label: "Seller Central Only", icon: Store },
+        { value: "sp_api_vc", label: "Vendor Central Only", icon: Building2 },
+        { value: "ads_api", label: "Advertising API", icon: BarChart3 },
+    ];
 
-    description: "",
-  });
+    // Tool State
+    const [editingApp, setEditingApp] = useState<Tool | null>(null);
+    const [formData, setFormData] = useState({
+        name: "",
+        slug: "",
+        description: "",
+        tool_link: "",
+        is_active: true,
+        required_integrations: [] as string[],
+    });
 
-  // View Details State
-  const [viewingTool, setViewingTool] = useState<Tool | null>(null);
-  const [viewingFeatures, setViewingFeatures] = useState<Feature[]>([]);
-  const [isViewSheetOpen, setIsViewSheetOpen] = useState(false);
+    // Feature State
+    const [selectedToolForFeatures, setSelectedToolForFeatures] = useState<Tool | null>(null);
+    const [features, setFeatures] = useState<Feature[]>([]);
+    const [editingFeature, setEditingFeature] = useState<Feature | null>(null);
+    const [featureFormData, setFeatureFormData] = useState({
+        name: "",
+        slug: "",
 
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const data = await AdminService.getTools({ 
-          page: pagination.pageIndex + 1, 
-          limit: pagination.pageSize, 
-          search,
-          sort_by: sorting.length ? sorting[0].id : undefined,
-          sort_dir: sorting.length ? (sorting[0].desc ? 'desc' : 'asc') : undefined
-      });
-      if (data && data.tools) {
-        setApps(data.tools);
-        setRowCount(data.meta.totalItems);
-      }
-    } catch (error) {
-      console.error("Failed to fetch tools", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [pagination.pageIndex, pagination.pageSize, sorting, search]);
+        description: "",
+    });
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    // View Details State
+    const [viewingTool, setViewingTool] = useState<Tool | null>(null);
+    const [viewingFeatures, setViewingFeatures] = useState<Feature[]>([]);
+    const [isViewSheetOpen, setIsViewSheetOpen] = useState(false);
 
-  // ==============================
-  // Tool Handlers
-  // ==============================
-
-  const handleOpenDialog = useCallback((app?: Tool) => {
-    if (app) {
-      setEditingApp(app);
-      setFormData({
-        name: app.name,
-        slug: app.slug,
-        description: app.description || "",
-        tool_link: app.tool_link || "",
-        is_active: app.is_active,
-      });
-    } else {
-      setEditingApp(null);
-      setFormData({ name: "", slug: "", description: "", tool_link: "", is_active: true });
-    }
-    setIsDialogOpen(true);
-  }, []);
-
-  const generateSlug = (name: string) => {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)+/g, "");
-  };
-
-  const handleNameChange = (name: string) => {
-      if (!editingApp) {
-          setFormData(prev => ({ ...prev, name, slug: generateSlug(name) }));
-      } else {
-          setFormData(prev => ({ ...prev, name }));
-      }
-  };
-
-  const handleSave = async () => {
-    try {
-      if (editingApp) {
-        await AdminService.updateTool(editingApp.id, formData);
-      } else {
-        await AdminService.createTool(formData);
-      }
-      setIsDialogOpen(false);
-      fetchData();
-      toast.success(editingApp ? "App updated" : "App created");
-    } catch (error) {
-      console.error("Failed to save tool", error);
-      toast.error("Failed to save tool.");
-    }
-  };
-
-  const handleDelete = useCallback(async (id: string) => {
-    try {
-      await AdminService.deleteTool(id);
-      fetchData();
-      toast.success("App deleted successfully");
-    } catch (error) {
-      console.error("Failed to delete tool", error);
-      toast.error("Failed to delete tool. It may have active dependencies.");
-    }
-  }, [fetchData]);
-
-  // ==============================
-  // Feature Handlers
-  // ==============================
-
-  const handleManageFeatures = useCallback(async (tool: Tool) => {
-      setSelectedToolForFeatures(tool);
-      setIsFeatureDialogOpen(true);
-      refreshFeatures(tool.id);
-      setEditingFeature(null);
-      setFeatureFormData({ name: "", slug: "", description: "" });
-  }, []);
-
-  const refreshFeatures = async (toolId: string) => {
-      try {
-          const data = await AdminService.getFeatures(toolId);
-          setFeatures(data.features || []);
-      } catch (error) {
-          console.error("Failed to fetch features", error);
-      }
-  };
-
-  const handleFeatureSave = async () => {
-    if (!selectedToolForFeatures) return;
-    try {
-        if (editingFeature) {
-            await AdminService.updateFeature(editingFeature.id, featureFormData);
-        } else {
-            await AdminService.createFeature({
-                ...featureFormData,
-                tool_id: selectedToolForFeatures.id
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const data = await AdminService.getTools({
+                page: pagination.pageIndex + 1,
+                limit: pagination.pageSize,
+                search,
+                sort_by: sorting.length ? sorting[0].id : undefined,
+                sort_dir: sorting.length ? (sorting[0].desc ? 'desc' : 'asc') : undefined
             });
+            if (data && data.tools) {
+                setApps(data.tools);
+                setRowCount(data.meta.totalItems);
+            }
+        } catch (error) {
+            console.error("Failed to fetch tools", error);
+        } finally {
+            setIsLoading(false);
         }
+    }, [pagination.pageIndex, pagination.pageSize, sorting, search]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    // ==============================
+    // Tool Handlers
+    // ==============================
+
+    const handleOpenDialog = useCallback((app?: Tool) => {
+        if (app) {
+            setEditingApp(app);
+            setFormData({
+                name: app.name,
+                slug: app.slug,
+                description: app.description || "",
+                tool_link: app.tool_link || "",
+                is_active: app.is_active,
+                required_integrations: app.required_integrations || [],
+            });
+        } else {
+            setEditingApp(null);
+            setFormData({ name: "", slug: "", description: "", tool_link: "", is_active: true, required_integrations: [] });
+        }
+        setIsDialogOpen(true);
+    }, []);
+
+    const generateSlug = (name: string) => {
+        return name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)+/g, "");
+    };
+
+    const handleNameChange = (name: string) => {
+        if (!editingApp) {
+            setFormData(prev => ({ ...prev, name, slug: generateSlug(name) }));
+        } else {
+            setFormData(prev => ({ ...prev, name }));
+        }
+    };
+
+    const handleSave = async () => {
+        try {
+            if (editingApp) {
+                await AdminService.updateTool(editingApp.id, formData);
+            } else {
+                await AdminService.createTool(formData);
+            }
+            setIsDialogOpen(false);
+            fetchData();
+            toast.success(editingApp ? "App updated" : "App created");
+        } catch (error) {
+            console.error("Failed to save tool", error);
+            toast.error("Failed to save tool.");
+        }
+    };
+
+    const handleDelete = useCallback(async (id: string) => {
+        try {
+            await AdminService.deleteTool(id);
+            fetchData();
+            toast.success("App deleted successfully");
+        } catch (error) {
+            console.error("Failed to delete tool", error);
+            toast.error("Failed to delete tool. It may have active dependencies.");
+        }
+    }, [fetchData]);
+
+    // ==============================
+    // Feature Handlers
+    // ==============================
+
+    const handleManageFeatures = useCallback(async (tool: Tool) => {
+        setSelectedToolForFeatures(tool);
+        setIsFeatureDialogOpen(true);
+        refreshFeatures(tool.id);
         setEditingFeature(null);
         setFeatureFormData({ name: "", slug: "", description: "" });
-        refreshFeatures(selectedToolForFeatures.id);
-        toast.success(editingFeature ? "Feature updated" : "Feature added");
-    } catch (error) {
-        console.error("Failed to save feature", error);
-        toast.error("Failed to save feature.");
-    }
-  };
+    }, []);
 
-  const handleEditFeature = (feature: Feature) => {
-      setEditingFeature(feature);
-      setFeatureFormData({
-          name: feature.name,
-          slug: feature.slug,
-
-          description: feature.description || ""
-      });
-  };
-
-  const handleDeleteFeature = async (featureId: string) => {
-      if (!selectedToolForFeatures) return;
-      try {
-          await AdminService.deleteFeature(featureId);
-          refreshFeatures(selectedToolForFeatures.id);
-          toast.success("Feature deleted");
-      } catch (error) {
-          console.error("Failed to delete feature", error);
-          toast.error("Failed to delete feature.");
-      }
-  };
-
-  const handleViewDetails = useCallback(async (tool: Tool) => {
-      setViewingTool(tool);
-      setIsViewSheetOpen(true);
-      try {
-          const data = await AdminService.getFeatures(tool.id);
-          setViewingFeatures(data.features || []);
-      } catch (error) {
-          console.error("Failed to fetch features for view", error);
-          setViewingFeatures([]);
-      }
-  }, []);
-
-  // ==============================
-  // Columns Definition
-  // ==============================
-  const columns: ColumnDef<Tool>[] = useMemo(() => [
-      {
-          accessorKey: "name",
-          header: ({ column }) => <DataTableColumnHeader column={column} title="App Name" />,
-          cell: ({ row }) => (
-              <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                      <Package className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex flex-col">
-                      <span className="font-medium">{row.getValue("name")}</span>
-                      <span className="text-xs text-muted-foreground">{row.original.slug}</span>
-                  </div>
-              </div>
-          )
-      },
-      {
-          accessorKey: "is_active",
-          header: "Status",
-          cell: ({ row }) => (
-              <Badge variant={row.getValue("is_active") ? "default" : "secondary"}>
-                  {row.getValue("is_active") ? "Active" : "Inactive"}
-              </Badge>
-          )
-      },
-      {
-        accessorKey: "tool_link",
-        header: "Link",
-        cell: ({ row }) => {
-            const link = row.getValue("tool_link") as string;
-            return link ? (
-                <a href={link} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline underline-offset-4 truncate max-w-[150px] block" title={link}>
-                    Link
-                </a>
-            ) : <span className="text-muted-foreground text-xs">-</span>;
+    const refreshFeatures = async (toolId: string) => {
+        try {
+            const data = await AdminService.getFeatures(toolId);
+            setFeatures(data.features || []);
+        } catch (error) {
+            console.error("Failed to fetch features", error);
         }
-      },
-      {
-          accessorKey: "created_at",
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Created" />,
-          cell: ({ row }) => new Date(row.getValue("created_at")).toLocaleDateString()
-      },
-      {
-          id: "actions",
-          cell: ({ row }) => {
-              const tool = row.original;
-              return (
-                  <div className="flex justify-end gap-2">
-                       <Button variant="ghost" size="sm" onClick={() => handleManageFeatures(tool)} title="Manage Features">
-                           <Bolt className="h-4 w-4" />
-                       </Button>
+    };
+
+    const handleFeatureSave = async () => {
+        if (!selectedToolForFeatures) return;
+        try {
+            if (editingFeature) {
+                await AdminService.updateFeature(editingFeature.id, featureFormData);
+            } else {
+                await AdminService.createFeature({
+                    ...featureFormData,
+                    tool_id: selectedToolForFeatures.id
+                });
+            }
+            setEditingFeature(null);
+            setFeatureFormData({ name: "", slug: "", description: "" });
+            refreshFeatures(selectedToolForFeatures.id);
+            toast.success(editingFeature ? "Feature updated" : "Feature added");
+        } catch (error) {
+            console.error("Failed to save feature", error);
+            toast.error("Failed to save feature.");
+        }
+    };
+
+    const handleEditFeature = (feature: Feature) => {
+        setEditingFeature(feature);
+        setFeatureFormData({
+            name: feature.name,
+            slug: feature.slug,
+
+            description: feature.description || ""
+        });
+    };
+
+    const handleDeleteFeature = async (featureId: string) => {
+        if (!selectedToolForFeatures) return;
+        try {
+            await AdminService.deleteFeature(featureId);
+            refreshFeatures(selectedToolForFeatures.id);
+            toast.success("Feature deleted");
+        } catch (error) {
+            console.error("Failed to delete feature", error);
+            toast.error("Failed to delete feature.");
+        }
+    };
+
+    const handleViewDetails = useCallback(async (tool: Tool) => {
+        setViewingTool(tool);
+        setIsViewSheetOpen(true);
+        try {
+            const data = await AdminService.getFeatures(tool.id);
+            setViewingFeatures(data.features || []);
+        } catch (error) {
+            console.error("Failed to fetch features for view", error);
+            setViewingFeatures([]);
+        }
+    }, []);
+
+    // ==============================
+    // Columns Definition
+    // ==============================
+    const columns: ColumnDef<Tool>[] = useMemo(() => [
+        {
+            accessorKey: "name",
+            header: ({ column }) => <DataTableColumnHeader column={column} title="App Name" />,
+            cell: ({ row }) => (
+                <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                        <Package className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="font-medium">{row.getValue("name")}</span>
+                        <span className="text-xs text-muted-foreground">{row.original.slug}</span>
+                    </div>
+                </div>
+            )
+        },
+        {
+            accessorKey: "is_active",
+            header: "Status",
+            cell: ({ row }) => (
+                <Badge variant={row.getValue("is_active") ? "default" : "secondary"}>
+                    {row.getValue("is_active") ? "Active" : "Inactive"}
+                </Badge>
+            )
+        },
+        {
+            accessorKey: "tool_link",
+            header: "Link",
+            cell: ({ row }) => {
+                const link = row.getValue("tool_link") as string;
+                return link ? (
+                    <a href={link} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline underline-offset-4 truncate max-w-[150px] block" title={link}>
+                        Link
+                    </a>
+                ) : <span className="text-muted-foreground text-xs">-</span>;
+            }
+        },
+        {
+            accessorKey: "created_at",
+            header: ({ column }) => <DataTableColumnHeader column={column} title="Created" />,
+            cell: ({ row }) => new Date(row.getValue("created_at")).toLocaleDateString()
+        },
+        {
+            id: "actions",
+            cell: ({ row }) => {
+                const tool = row.original;
+                return (
+                    <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleManageFeatures(tool)} title="Manage Features">
+                            <Bolt className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="sm" onClick={() => handleViewDetails(tool)} title="View Details">
                             <Eye className="h-4 w-4" />
                         </Button>
-                       <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(tool)}>
-                           <Pencil className="h-4 w-4" />
-                       </Button>
-                       <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the app <strong>{tool.name}</strong>.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDelete(tool.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                       </AlertDialog>
-                  </div>
-              )
-          }
-      }
-  ], [handleManageFeatures, handleViewDetails, handleOpenDialog, handleDelete]);
+                        <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(tool)}>
+                            <Pencil className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action cannot be undone. This will permanently delete the app <strong>{tool.name}</strong>.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDelete(tool.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
+                )
+            }
+        }
+    ], [handleManageFeatures, handleViewDetails, handleOpenDialog, handleDelete]);
 
 
-  return (
-    <Layout>
-      <div className="space-y-6">
-        <div className="flex items-center gap-4 justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Manage Apps</h1>
-            <p className="text-muted-foreground mt-1">
-              Create, update, and manage platform applications
-            </p>
-          </div>
-          <Button onClick={() => handleOpenDialog()}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add App
-          </Button>
-        </div>
-
-        <Card>
-            <CardContent className="p-0">
-                <DataTable 
-                    columns={columns} 
-                    data={apps} 
-                    pageCount={Math.ceil(rowCount / pagination.pageSize)}
-                    pagination={pagination}
-                    onPaginationChange={setPagination}
-                    sorting={sorting}
-                    onSortingChange={setSorting}
-                    searchQuery={search}
-                    onSearchChange={setSearch}
-                    placeholder="Search apps..."
-                    isLoading={isLoading}
-                />
-            </CardContent>
-        </Card>
-
-        {/* Create/Edit App Dialog */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>{editingApp ? "Edit App" : "Create New App"}</DialogTitle>
-                    <DialogDescription>
-                    {editingApp ? "Update the app details" : "Add a new application to the platform"}
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                    <Label htmlFor="name">App Name</Label>
-                    <Input
-                        id="name"
-                        value={formData.name}
-                        onChange={(e) => handleNameChange(e.target.value)}
-                        placeholder="Enter app name"
-                    />
+    return (
+        <Layout>
+            <div className="space-y-6">
+                <div className="flex items-center gap-4 justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">Manage Apps</h1>
+                        <p className="text-muted-foreground mt-1">
+                            Create, update, and manage platform applications
+                        </p>
                     </div>
-                    <div className="space-y-2">
-                    <Label htmlFor="slug">Slug</Label>
-                    <Input
-                        id="slug"
-                        value={formData.slug}
-                        onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                        placeholder="app-slug"
-                    />
-                    <p className="text-xs text-muted-foreground">Unique identifier for URLs and DB lookups.</p>
-                    </div>
-                    <div className="space-y-2">
-                    <Label htmlFor="tool_link">Tool Link</Label>
-                    <Input
-                        id="tool_link"
-                        value={formData.tool_link}
-                        onChange={(e) => setFormData({ ...formData, tool_link: e.target.value })}
-                        placeholder="https://example.com"
-                    />
-                    </div>
-                    <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                        id="description"
-                        value={formData.description}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        placeholder="Enter app description"
-                    />
-                    </div>
-                    <div className="flex items-center space-x-2">
-                    <Switch
-                        id="is_active"
-                        checked={formData.is_active}
-                        onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                    />
-                    <Label htmlFor="is_active">Active</Label>
-                    </div>
+                    <Button onClick={() => handleOpenDialog()}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add App
+                    </Button>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancel
-                    </Button>
-                    <Button onClick={handleSave}>
-                    {editingApp ? "Save Changes" : "Create App"}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
 
-        {/* Feature Management Dialog */}
-        <Dialog open={isFeatureDialogOpen} onOpenChange={setIsFeatureDialogOpen}>
-            <DialogContent className="max-w-3xl">
-                <DialogHeader>
-                    <DialogTitle>Manage Features for {selectedToolForFeatures?.name}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-6">
-                    {/* List Features - Features table could be paginated too but keeping simple for now inside dialog */}
-                    <div className="border rounded-md">
-                            <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Name</TableHead>
-                                    <TableHead>Slug</TableHead>
+                <Card>
+                    <CardContent className="p-0">
+                        <DataTable
+                            columns={columns}
+                            data={apps}
+                            pageCount={Math.ceil(rowCount / pagination.pageSize)}
+                            pagination={pagination}
+                            onPaginationChange={setPagination}
+                            sorting={sorting}
+                            onSortingChange={setSorting}
+                            searchQuery={search}
+                            onSearchChange={setSearch}
+                            placeholder="Search apps..."
+                            isLoading={isLoading}
+                        />
+                    </CardContent>
+                </Card>
 
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {features.map(f => (
-                                    <TableRow key={f.id}>
-                                        <TableCell className="font-medium">{f.name}</TableCell>
-                                        <TableCell className="text-xs font-mono">{f.slug}</TableCell>
-
-                                        <TableCell className="text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <Button variant="ghost" size="sm" onClick={() => handleEditFeature(f)}>
-                                                    <Pencil className="h-4 w-4" />
-                                                </Button>
-                                                <AlertDialog>
-                                                  <AlertDialogTrigger asChild>
-                                                    <Button variant="ghost" size="sm" className="text-destructive">
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                  </AlertDialogTrigger>
-                                                  <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                      <AlertDialogDescription>
-                                                        This will delete feature <strong>{f.name}</strong>.
-                                                      </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                      <AlertDialogAction onClick={() => handleDeleteFeature(f.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                  </AlertDialogContent>
-                                                </AlertDialog>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                                {features.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">No features found</TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-
-                    {/* Add/Edit Feature Form */}
-                    <div className="bg-muted/30 p-4 rounded-md border space-y-4">
-                        <h3 className="font-semibold text-sm">{editingFeature ? "Edit Feature" : "Add New Feature"}</h3>
-                        <div className="grid grid-cols-2 gap-4">
+                {/* Create/Edit App Dialog */}
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>{editingApp ? "Edit App" : "Create New App"}</DialogTitle>
+                            <DialogDescription>
+                                {editingApp ? "Update the app details" : "Add a new application to the platform"}
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 max-h-[70vh] overflow-y-auto pb-10 px-4">
                             <div className="space-y-2">
-                                <Label>Name</Label>
-                                <Input 
-                                    value={featureFormData.name} 
-                                    onChange={e => {
-                                        const name = e.target.value;
-                                            if (!editingFeature) {
-                                            setFeatureFormData(prev => ({ ...prev, name, slug: generateSlug(name) }));
-                                        } else {
-                                            setFeatureFormData(prev => ({ ...prev, name }));
-                                        }
-                                    }}
-                                    placeholder="Feature Name" 
+                                <Label htmlFor="name">App Name</Label>
+                                <Input
+                                    id="name"
+                                    value={formData.name}
+                                    onChange={(e) => handleNameChange(e.target.value)}
+                                    placeholder="Enter app name"
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Slug</Label>
-                                <Input value={featureFormData.slug} onChange={e => setFeatureFormData({...featureFormData, slug: e.target.value})} placeholder="feature_slug" />
+                                <Label htmlFor="slug">Slug</Label>
+                                <Input
+                                    id="slug"
+                                    value={formData.slug}
+                                    onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                                    placeholder="app-slug"
+                                />
+                                <p className="text-xs text-muted-foreground">Unique identifier for URLs and DB lookups.</p>
                             </div>
-
                             <div className="space-y-2">
-                                <Label>Description</Label>
-                                <Input value={featureFormData.description} onChange={e => setFeatureFormData({...featureFormData, description: e.target.value})} placeholder="Internal description" />
+                                <Label htmlFor="tool_link">Tool Link</Label>
+                                <Input
+                                    id="tool_link"
+                                    value={formData.tool_link}
+                                    onChange={(e) => setFormData({ ...formData, tool_link: e.target.value })}
+                                    placeholder="https://example.com"
+                                />
                             </div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            {editingFeature && <Button variant="ghost" onClick={() => {
-                                setEditingFeature(null);
-                                setFeatureFormData({ name: "", slug: "", description: "" });
-                            }}>Cancel Edit</Button>}
-                            <Button size="sm" onClick={handleFeatureSave}>{editingFeature ? "Update Feature" : "Add Feature"}</Button>
-                        </div>
-                    </div>
-                </div>
-            </DialogContent>
-        </Dialog>
-
-        {/* View Details Sheet */}
-        <Sheet open={isViewSheetOpen} onOpenChange={setIsViewSheetOpen}>
-            <SheetContent className="sm:max-w-xl overflow-y-auto">
-                <SheetHeader>
-                    <SheetTitle>Tool Details</SheetTitle>
-                    <SheetDescription>Detailed information about {viewingTool?.name}</SheetDescription>
-                </SheetHeader>
-                
-                {viewingTool && (
-                    <div className="space-y-6 py-6">
-                        <section className="space-y-3">
-                            <h3 className="font-semibold text-lg flex items-center gap-2">
-                                <Package className="h-5 w-5" />
-                                Basic Info
-                            </h3>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <span className="text-muted-foreground block">Name</span>
-                                    <span className="font-medium">{viewingTool.name}</span>
-                                </div>
-                                <div>
-                                    <span className="text-muted-foreground block">Slug</span>
-                                    <span className="font-mono bg-muted px-2 py-0.5 rounded">{viewingTool.slug}</span>
-                                </div>
-                                <div className="col-span-2">
-                                    <span className="text-muted-foreground block">Description</span>
-                                    <span>{viewingTool.description || "No description provided."}</span>
-                                </div>
-                                <div className="col-span-2">
-                                    <span className="text-muted-foreground block">Tool Link</span>
-                                    {viewingTool.tool_link ? (
-                                        <a href={viewingTool.tool_link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline underline-offset-4">
-                                            {viewingTool.tool_link}
-                                        </a>
-                                    ) : (
-                                        <span className="text-muted-foreground italic">No link provided</span>
-                                    )}
-                                </div>
-                                <div>
-                                    <span className="text-muted-foreground block">Status</span>
-                                    <Badge variant={viewingTool.is_active ? "default" : "secondary"}>
-                                        {viewingTool.is_active ? "Active" : "Inactive"}
-                                    </Badge>
-                                </div>
-                                <div>
-                                    <span className="text-muted-foreground block">Created At</span>
-                                    <span>{new Date(viewingTool.created_at).toLocaleString()}</span>
+                            <div className="space-y-2">
+                                <Label htmlFor="description">Description</Label>
+                                <Textarea
+                                    id="description"
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    placeholder="Enter app description"
+                                />
+                            </div>
+                            {/* Required Integrations */}
+                            <div className="space-y-2">
+                                <Label>Required Integrations</Label>
+                                <p className="text-xs text-muted-foreground">Select which integrations this app requires during onboarding.</p>
+                                <div className="grid gap-2">
+                                    {INTEGRATION_TYPE_OPTIONS.map((opt) => {
+                                        const isSelected = formData.required_integrations.includes(opt.value);
+                                        return (
+                                            <button
+                                                key={opt.value}
+                                                type="button"
+                                                onClick={() => {
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        required_integrations: isSelected
+                                                            ? prev.required_integrations.filter(v => v !== opt.value)
+                                                            : [...prev.required_integrations, opt.value],
+                                                    }));
+                                                }}
+                                                className={`flex items-center gap-3 p-3 rounded-lg border text-left text-sm transition-all ${isSelected
+                                                    ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                                                    : "border-border hover:border-muted-foreground/30 hover:bg-muted/50"
+                                                    }`}
+                                            >
+                                                <opt.icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                                                <span className="flex-1 font-medium">{opt.label}</span>
+                                                <div
+                                                    className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected
+                                                        ? "border-primary bg-primary text-primary-foreground"
+                                                        : "border-muted-foreground/30"
+                                                        }`}
+                                                >
+                                                    {isSelected && <Check className="h-3 w-3" />}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
-                        </section>
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id="is_active"
+                                    checked={formData.is_active}
+                                    onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                                />
+                                <Label htmlFor="is_active">Active</Label>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button onClick={handleSave}>
+                                {editingApp ? "Save Changes" : "Create App"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
-                        <div className="h-px bg-border" />
+                {/* Feature Management Dialog */}
+                <Dialog open={isFeatureDialogOpen} onOpenChange={setIsFeatureDialogOpen}>
+                    <DialogContent className="max-w-3xl">
+                        <DialogHeader>
+                            <DialogTitle>Manage Features for {selectedToolForFeatures?.name}</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-6 max-h-[80vh] overflow-y-auto py-5 px-4">
+                            {/* List Features - Features table could be paginated too but keeping simple for now inside dialog */}
+                            <div className="border rounded-md">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Name</TableHead>
+                                            <TableHead>Slug</TableHead>
 
-                        <section className="space-y-3">
-                            <h3 className="font-semibold text-lg flex items-center gap-2">
-                                <Bolt className="h-5 w-5" />
-                                Features
-                            </h3>
-                            {viewingFeatures.length > 0 ? (
-                                <div className="border rounded-md">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Name</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {features.map(f => (
+                                            <TableRow key={f.id}>
+                                                <TableCell className="font-medium">{f.name}</TableCell>
+                                                <TableCell className="text-xs font-mono">{f.slug}</TableCell>
 
-                                                <TableHead>Slug</TableHead>
+                                                <TableCell className="text-right">
+                                                    <div className="flex justify-end gap-2">
+                                                        <Button variant="ghost" size="sm" onClick={() => handleEditFeature(f)}>
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button variant="ghost" size="sm" className="text-destructive">
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                                    <AlertDialogDescription>
+                                                                        This will delete feature <strong>{f.name}</strong>.
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => handleDeleteFeature(f.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    </div>
+                                                </TableCell>
                                             </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {viewingFeatures.map(f => (
-                                                <TableRow key={f.id}>
-                                                    <TableCell className="font-medium">{f.name}</TableCell>
+                                        ))}
+                                        {features.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">No features found</TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
 
-                                                    <TableCell className="text-xs font-mono">{f.slug}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                            {/* Add/Edit Feature Form */}
+                            <div className="bg-muted/30 p-4 rounded-md border space-y-4">
+                                <h3 className="font-semibold text-sm">{editingFeature ? "Edit Feature" : "Add New Feature"}</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Name</Label>
+                                        <Input
+                                            value={featureFormData.name}
+                                            onChange={e => {
+                                                const name = e.target.value;
+                                                if (!editingFeature) {
+                                                    setFeatureFormData(prev => ({ ...prev, name, slug: generateSlug(name) }));
+                                                } else {
+                                                    setFeatureFormData(prev => ({ ...prev, name }));
+                                                }
+                                            }}
+                                            placeholder="Feature Name"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Slug</Label>
+                                        <Input value={featureFormData.slug} onChange={e => setFeatureFormData({ ...featureFormData, slug: e.target.value })} placeholder="feature_slug" />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Description</Label>
+                                        <Input value={featureFormData.description} onChange={e => setFeatureFormData({ ...featureFormData, description: e.target.value })} placeholder="Internal description" />
+                                    </div>
                                 </div>
-                            ) : (
-                                <div className="text-center py-8 text-muted-foreground bg-muted/20 rounded-lg">
-                                    No features configured for this tool.
+                                <div className="flex justify-end gap-2">
+                                    {editingFeature && <Button variant="ghost" onClick={() => {
+                                        setEditingFeature(null);
+                                        setFeatureFormData({ name: "", slug: "", description: "" });
+                                    }}>Cancel Edit</Button>}
+                                    <Button size="sm" onClick={handleFeatureSave}>{editingFeature ? "Update Feature" : "Add Feature"}</Button>
                                 </div>
-                            )}
-                        </section>
-                    </div>
-                )}
-            </SheetContent>
-        </Sheet>
-      </div>
-    </Layout>
-  );
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                {/* View Details Sheet */}
+                <Sheet open={isViewSheetOpen} onOpenChange={setIsViewSheetOpen}>
+                    <SheetContent className="sm:max-w-xl overflow-y-auto">
+                        <SheetHeader>
+                            <SheetTitle>Tool Details</SheetTitle>
+                            <SheetDescription>Detailed information about {viewingTool?.name}</SheetDescription>
+                        </SheetHeader>
+
+                        {viewingTool && (
+                            <div className="space-y-6 py-6">
+                                <section className="space-y-3">
+                                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                                        <Package className="h-5 w-5" />
+                                        Basic Info
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                        <div>
+                                            <span className="text-muted-foreground block">Name</span>
+                                            <span className="font-medium">{viewingTool.name}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground block">Slug</span>
+                                            <span className="font-mono bg-muted px-2 py-0.5 rounded">{viewingTool.slug}</span>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <span className="text-muted-foreground block">Description</span>
+                                            <span>{viewingTool.description || "No description provided."}</span>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <span className="text-muted-foreground block">Tool Link</span>
+                                            {viewingTool.tool_link ? (
+                                                <a href={viewingTool.tool_link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline underline-offset-4">
+                                                    {viewingTool.tool_link}
+                                                </a>
+                                            ) : (
+                                                <span className="text-muted-foreground italic">No link provided</span>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground block">Status</span>
+                                            <Badge variant={viewingTool.is_active ? "default" : "secondary"}>
+                                                {viewingTool.is_active ? "Active" : "Inactive"}
+                                            </Badge>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground block">Created At</span>
+                                            <span>{new Date(viewingTool.created_at).toLocaleString()}</span>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <span className="text-muted-foreground block mb-1">Required Integrations</span>
+                                            {viewingTool.required_integrations && viewingTool.required_integrations.length > 0 ? (
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {viewingTool.required_integrations.map(ri => {
+                                                        const opt = INTEGRATION_TYPE_OPTIONS.find(o => o.value === ri);
+                                                        return (
+                                                            <Badge key={ri} variant="outline" className="gap-1">
+                                                                {opt && <opt.icon className="h-3 w-3" />}
+                                                                {opt?.label || ri}
+                                                            </Badge>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <span className="text-muted-foreground italic text-sm">None configured</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <div className="h-px bg-border" />
+
+                                <section className="space-y-3">
+                                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                                        <Bolt className="h-5 w-5" />
+                                        Features
+                                    </h3>
+                                    {viewingFeatures.length > 0 ? (
+                                        <div className="border rounded-md">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>Name</TableHead>
+
+                                                        <TableHead>Slug</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {viewingFeatures.map(f => (
+                                                        <TableRow key={f.id}>
+                                                            <TableCell className="font-medium">{f.name}</TableCell>
+
+                                                            <TableCell className="text-xs font-mono">{f.slug}</TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-8 text-muted-foreground bg-muted/20 rounded-lg">
+                                            No features configured for this tool.
+                                        </div>
+                                    )}
+                                </section>
+                            </div>
+                        )}
+                    </SheetContent>
+                </Sheet>
+            </div>
+        </Layout>
+    );
 }
