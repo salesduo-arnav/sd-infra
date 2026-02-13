@@ -37,11 +37,42 @@ export default function Billing() {
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    const fetchData = async () => {
-        await Promise.all([fetchSubscription(), fetchInvoices()]);
+    const init = async () => {
+        const params = new URLSearchParams(window.location.search);
+        
+        const invoicePromise = fetchInvoices();
+        let subPromise;
+
+        if (params.get('success') === 'true') {
+            subPromise = (async () => {
+                 try {
+                    const response = await axios.get(`${API_URL}/billing`, { withCredentials: true });
+                    const subs = response.data.subscriptions;
+                    setSubscriptions(subs);
+                    
+                    if (subs.length > 0) {
+                        const latestSub = subs[0];
+                        if (latestSub.status === 'canceled' && latestSub.cancellation_reason === 'duplicate_card') {
+                            toast.error("Trial blocked: A trial for this tool has already been redeemed with this card.", {
+                                duration: 8000,
+                            });
+                        } else {
+                             toast.success("Subscription updated successfully");
+                        }
+                    }
+                 } catch (e) {
+                     console.error("Failed to check subscription status", e);
+                 }
+            })();
+        } else {
+            subPromise = fetchSubscription();
+        }
+
+        await Promise.all([subPromise, invoicePromise]);
         setLoading(false);
     };
-    fetchData();
+    
+    init();
   }, []);
 
   const fetchSubscription = async () => {
@@ -265,7 +296,7 @@ export default function Billing() {
                         Cancel Scheduled Downgrade
                     </DropdownMenuItem>
                 )}
-                {isCanceling ? (
+                {isCanceling && !(sub.status === 'trialing' && sub.plan?.price === 0) ? (
                     <DropdownMenuItem onClick={() => handleResumeSubscription(sub.id, sub.stripe_subscription_id)}>
                         Resume Subscription
                     </DropdownMenuItem>
