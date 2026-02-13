@@ -5,6 +5,7 @@ import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { Check, Sparkles } from "lucide-react";
 import { App, CartItem } from "./types";
+import { TierItem } from "./TierItem";
 
 interface AppCardProps {
   app: App;
@@ -100,80 +101,55 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Select a Tier {hasTierSelected && <span className="text-primary">(1 selected)</span>}
                         </p>
-                        {app.tiers.length > 0 ? (
-                            app.tiers.map((tier) => {
-                            const inCart = isInCart(app.id, tier.name);
-                            const isCurrent = currentSubscription?.plan?.id === tier.id;
-                            const isUpcoming = currentSubscription?.upcoming_plan?.id === tier.id;
-                            const isUpgrade = currentSubscription && tier.price > currentPrice;
-                            const isDowngrade = currentSubscription && tier.price < currentPrice;
+            {app.tiers.length > 0 ? (
+              app.tiers.map((tier) => {
+                const inCart = isInCart(app.id, tier.name);
+                const isCurrent = currentSubscription?.plan?.id === tier.id;
+                const isUpcoming = currentSubscription?.upcoming_plan?.id === tier.id;
+                const isUpgrade = currentSubscription && tier.price > currentPrice && !isCurrent && !isUpcoming;
+                const isDowngrade = currentSubscription && tier.price < currentPrice && !isCurrent && !isUpcoming;
 
-                            return (
-                                <div
-                                key={tier.name}
-                                onClick={(isCurrent || isUpcoming) ? undefined : () =>
-                                    onToggleCartItem({
-                                    id: app.id,
-                                    planId: tier.id,
-                                    type: "app",
-                                    name: app.name,
-                                    tierName: tier.name,
-                                    price: tier.price,
-                                    period: tier.period,
-                                    limits: tier.limits,
-                                    features: tier.features,
-                                    ...(currentSubscription ? {
-                                        isUpgrade: !!isUpgrade,
-                                        isDowngrade: !!isDowngrade,
-                                        currentPrice,
-                                        subscriptionId: currentSubscription.id,
-                                    } : {}),
-                                    trialDays: tier.trialDays
-                                    })
-                                }
-                                className={cn(
-                                    "group flex items-center justify-between gap-4 rounded-lg border p-3 transition-all duration-200",
-                                    (isCurrent || isUpcoming) ? "cursor-default" : "cursor-pointer",
-                                    inCart
-                                    ? "border-primary bg-primary/10 shadow-sm"
-                                    : !(isCurrent || isUpcoming) && "hover:bg-muted/50 hover:border-primary/50",
-                                    isCurrent && "border-blue-500 bg-blue-50/10"
-                                )}
-                                >
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <p className="font-medium truncate">{tier.name}</p>
-                                        {tier.isTrial && tier.trialDays && (
-                                            <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full dark:bg-indigo-900/30 dark:text-indigo-400 whitespace-nowrap">
-                                                {tier.trialDays} day free trial available
-                                            </span>
-                                        )}
-                                        {isCurrent && <Badge className="h-5 text-[10px] px-1.5">Current</Badge>}
-                                        {isUpcoming && <Badge variant="outline" className="h-5 text-[10px] px-1.5 border-orange-500 text-orange-500">Scheduled</Badge>}
-                                    </div>
-                                    <p className="text-xs text-muted-foreground line-clamp-1">{tier.limits}</p>
-                                </div>
-                                <div className="text-right whitespace-nowrap flex items-center gap-3">
-                                    <p className="font-semibold text-foreground">
-                                        ${tier.price}
-                                        <span className="text-xs text-muted-foreground">{tier.period}</span>
-                                    </p>
-                                    
-                                    {/* Upgrade/Downgrade label for non-current tiers */}
-                                    {currentSubscription && !isCurrent && !isUpcoming && isUpgrade && (
-                                        <Badge variant="outline" className="h-5 text-[10px] px-1.5 border-green-500 text-green-500">Upgrade</Badge>
-                                    )}
-                                    {currentSubscription && !isCurrent && !isUpcoming && isDowngrade && (
-                                        <Badge variant="outline" className="h-5 text-[10px] px-1.5 border-orange-500 text-orange-500">Downgrade</Badge>
-                                    )}
-                                </div>
-                                </div>
-                            );
+                return (
+                  <TierItem
+                    key={tier.name}
+                    tier={tier}
+                    isInCart={inCart}
+                    isCurrent={isCurrent}
+                    isUpcoming={isUpcoming}
+                    isUpgrade={!!isUpgrade}
+                    isDowngrade={!!isDowngrade}
+                    onSelect={
+                      (isCurrent || isUpcoming)
+                        ? undefined
+                        : () =>
+                            onToggleCartItem({
+                              id: app.id,
+                              planId: tier.id,
+                              type: "app",
+                              name: app.name,
+                              tierName: tier.name,
+                              price: tier.price,
+                              period: tier.period,
+                              limits: tier.limits,
+                              features: tier.features,
+                              ...(currentSubscription
+                                ? {
+                                    isUpgrade: !!isUpgrade,
+                                    isDowngrade: !!isDowngrade,
+                                    currentPrice,
+                                    subscriptionId: currentSubscription.id,
+                                  }
+                                : {}),
+                              trialDays: tier.trialDays,
                             })
-                        ) : (
-                            <div className="text-sm text-muted-foreground">No plans available for this app yet.</div>
-                        )}
-                    </div>
+                    }
+                  />
+                );
+              })
+            ) : (
+              <div className="text-sm text-muted-foreground">No plans available for this app yet.</div>
+            )}
+          </div>
                 </CollapsibleContent>
             </Collapsible>
         )}
