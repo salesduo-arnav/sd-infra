@@ -939,7 +939,6 @@ export default function AdminPlans() {
                           <SelectContent>
                               <SelectItem value="monthly">Monthly</SelectItem>
                               <SelectItem value="yearly">Yearly</SelectItem>
-                              <SelectItem value="one_time">One Time</SelectItem>
                           </SelectContent>
                       </Select>
                   </div>

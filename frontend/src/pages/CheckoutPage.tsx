@@ -3,8 +3,7 @@ import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Check, ShieldCheck } from 'lucide-react';
-import axios from 'axios';
-import { API_URL } from '@/lib/api';
+import api from '@/lib/api';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   EmbeddedCheckoutProvider,
@@ -56,11 +55,9 @@ export default function CheckoutPage() {
           items = [{ id: bundleId, type: 'bundle', interval }];
       }
 
-      const response = await axios.post(`${API_URL}/billing/checkout-session`, {
+      const response = await api.post('/billing/checkout-session', {
         items,
         ui_mode: 'embedded'
-      }, {
-        withCredentials: true
       });
 
       if (response.data.clientSecret) {

@@ -8,13 +8,12 @@ import { Download, CreditCard, Loader2, MoreHorizontal, AlertCircle, RefreshCcw 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import axios from 'axios';
+import api from "@/lib/api"; 
 import { toast } from "sonner";
 import * as BillingService from "@/services/billing.service";
+import { useAuth } from "@/contexts/AuthContext";
 import { ColumnDef, SortingState, PaginationState, ColumnFiltersState } from "@tanstack/react-table";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export default function Billing() {
   const navigate = useNavigate();
@@ -36,48 +35,68 @@ export default function Billing() {
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [searchQuery, setSearchQuery] = useState("");
 
+  const { activeOrganization } = useAuth();
+
   useEffect(() => {
     const init = async () => {
         const params = new URLSearchParams(window.location.search);
         
+        // Always sync first to ensure status (especially cancellation) is up to date
+        // This handles the race condition where webhook hasn't fired/finished yet
+        await handleSyncSubscription(false);
+
         const invoicePromise = fetchInvoices();
         let subPromise;
 
         if (params.get('success') === 'true') {
             subPromise = (async () => {
                  try {
-                    const response = await axios.get(`${API_URL}/billing`, { withCredentials: true });
+                    // Fetch latest data (handleSyncSubscription already updated DB, but we fetch to render)
+                    // Note: handleSyncSubscription calls fetchSubscription internally, 
+                    // implying 'subscriptions' state *might* be stale inside this closure if we don't refetch or rely on updated state.
+                    // But handleSyncSubscription updates state. Let's just re-fetch to be safe or rely on state update.
+                    // Actually, handleSyncSubscription calls fetchSubscription, which updates 'subscriptions'.
+                    // We can just check the state... BUT state updates are async in React.
+                    // So we should re-fetch explicitly here to get the return value for immediate checking.
+                    const response = await api.get(`/billing`);
                     const subs = response.data.subscriptions;
                     setSubscriptions(subs);
                     
                     if (subs.length > 0) {
                         const latestSub = subs[0];
                         if (latestSub.status === 'canceled' && latestSub.cancellation_reason === 'duplicate_card') {
-                            toast.error("Trial blocked: A trial for this tool has already been redeemed with this card.", {
+                            toast.error("Trial blocked: A subscription for this tool was already used with this card.", {
                                 duration: 8000,
                             });
                         } else {
                              toast.success("Subscription updated successfully");
                         }
+                    } else {
+                        toast.success("Subscription updated successfully");
                     }
                  } catch (e) {
                      console.error("Failed to check subscription status", e);
                  }
             })();
         } else {
-            subPromise = fetchSubscription();
+            // Already synced, just fetch invoices or let sync handle sub fetch
+            // But to be consistent with Promise.all below:
+            // handleSyncSubscription already fetched subs.
+            subPromise = Promise.resolve(); 
         }
 
         await Promise.all([subPromise, invoicePromise]);
         setLoading(false);
     };
     
-    init();
-  }, []);
+    if (activeOrganization) {
+      init();
+    }
+  }, [activeOrganization]);
 
   const fetchSubscription = async () => {
     try {
-      const response = await axios.get(`${API_URL}/billing`, { withCredentials: true });
+      const response = await api.get(`/billing`);
       setSubscriptions(response.data.subscriptions);
     } catch (error) {
       console.error("Failed to fetch subscription", error);
@@ -86,7 +105,7 @@ export default function Billing() {
 
   const fetchInvoices = async () => {
     try {
-      const response = await axios.get(`${API_URL}/billing/invoices?limit=100`, { withCredentials: true });
+      const response = await api.get(`/billing/invoices?limit=100`);
       setInvoices(response.data.invoices || []);
     } catch (error) {
       console.error("Failed to fetch invoices", error);
@@ -97,7 +116,7 @@ export default function Billing() {
     if (!confirm("Are you sure you want to cancel? Your subscription will remain active until the end of the billing period.")) return;
     setActionLoading(subId);
     try {
-        await axios.post(`${API_URL}/billing/subscription/${stripeSubId}/cancel`, {}, { withCredentials: true });
+        await api.post(`/billing/subscription/${stripeSubId}/cancel`);
         toast.success("Subscription cancelled successfully");
         fetchSubscription();
     } catch (error) {
@@ -111,7 +130,7 @@ export default function Billing() {
   const handleResumeSubscription = async (subId: string, stripeSubId: string) => {
     setActionLoading(subId);
     try {
-        await axios.post(`${API_URL}/billing/subscription/${stripeSubId}/resume`, {}, { withCredentials: true });
+        await api.post(`/billing/subscription/${stripeSubId}/resume`);
         toast.success("Subscription resumed successfully");
         fetchSubscription();
     } catch (error) {
@@ -140,7 +159,7 @@ export default function Billing() {
   const handleManageSubscription = async () => {
     setPortalLoading(true);
     try {
-      const response = await axios.post(`${API_URL}/billing/portal-session`, {}, { withCredentials: true });
+      const response = await api.post(`/billing/portal-session`);
       if (response.data.url) {
         window.location.href = response.data.url;
       }
@@ -152,15 +171,15 @@ export default function Billing() {
     }
   };
 
-  useEffect(() => {
-    // Auto-sync on mount (silent)
-    handleSyncSubscription(false);
-  }, []);
+  // Removed separate useEffect for auto-sync to strictly order it in init()
+  // useEffect(() => {
+  //   handleSyncSubscription(false);
+  // }, []);
 
   const handleSyncSubscription = async (manual = true) => {
     setSyncLoading(true);
     try {
-        await axios.post(`${API_URL}/billing/sync`, {}, { withCredentials: true });
+        await api.post(`/billing/sync`);
         if (manual) {
             toast.success("Subscription status synced with Stripe");
         }
@@ -200,7 +219,7 @@ export default function Billing() {
             const sub = row.original;
             // Bundle Group Name takes precedence for bundles, Tool Name for plans
             const name = sub.bundle?.group?.name || sub.plan?.tool?.name || sub.plan?.name || sub.bundle?.name || "Unknown Plan";
-            const tier = sub.bundle?.tier_label || sub.plan?.tier || (sub.plan?.price > 0 ? 'Paid' : 'Free');
+            const tier = sub.plan?.is_trial_plan ? 'Free Trial' : (sub.bundle?.tier_label || sub.plan?.tier || (sub.plan?.price > 0 ? 'Paid' : 'Free'));
             
             const upcomingName = sub.upcoming_bundle?.group?.name || sub.upcoming_plan?.tool?.name || sub.upcoming_plan?.name || sub.upcoming_bundle?.name;
             const upcomingTier = sub.upcoming_bundle?.tier_label || sub.upcoming_plan?.tier;
