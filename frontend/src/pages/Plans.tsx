@@ -3,7 +3,7 @@ import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Star, Zap, Crown, Sparkles, FileText, ImageIcon, BarChart, TrendingUp, ShoppingCart, X, Trash2, ChevronRight } from "lucide-react";
+import { Package, Star, Zap, Crown, Sparkles, FileText, ImageIcon, BarChart, TrendingUp, ShoppingCart, X, Trash2, ChevronRight, Loader2, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import * as PublicService from "@/services/public.service";
@@ -11,36 +11,44 @@ import { toast } from "sonner";
 import { BundleCard } from "@/components/plans/BundleCard";
 import { AppCard } from "@/components/plans/AppCard";
 import { Bundle, App, CartItem } from "@/components/plans/types";
+import { CartSidebarItem } from "@/components/plans/CartSidebarItem";
 import { PublicBundleGroup, PublicBundlePlan } from "@/services/public.service";
+import { useNavigate } from "react-router-dom";
+import * as BillingService from "@/services/billing.service";
+import { transformBundles, transformPlansToApps, enrichAppsWithEligibility } from "@/components/plans/utils";
+import { Subscription } from '@/types/subscription';
 
-// Icons mapping helper
-const getIconForSlug = (slug: string) => {
-    if (slug.includes('generator') || slug.includes('content')) return <FileText className="h-5 w-5" />;
-    if (slug.includes('image')) return <ImageIcon className="h-5 w-5" />;
-    if (slug.includes('analytics') || slug.includes('tracker')) return <BarChart className="h-5 w-5" />;
-    if (slug.includes('inventory')) return <Package className="h-5 w-5" />;
-    if (slug.includes('competitor')) return <TrendingUp className="h-5 w-5" />;
-    // Bundles
-    if (slug.includes('creator')) return <Sparkles className="h-5 w-5" />;
-    if (slug.includes('automation')) return <Zap className="h-5 w-5" />;
-    if (slug.includes('full')) return <Crown className="h-5 w-5" />;
-    return <Star className="h-5 w-5" />;
-};
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Plans() {
+  const { activeOrganization } = useAuth();
+  const navigate = useNavigate();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeTab, setActiveTab] = useState("bundles");
   const [expandedBundle, setExpandedBundle] = useState<string | null>(null);
   const [expandedApp, setExpandedApp] = useState<string | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [currentSubscriptions, setCurrentSubscriptions] = useState<Subscription[]>([]);
+  const [changingSubId, setChangingSubId] = useState<string | null>(null);
+  const [trialEligibility, setTrialEligibility] = useState<Record<string, { eligible: boolean; trialDays: number }>>({}); 
+  const [startingTrialToolId, setStartingTrialToolId] = useState<string | null>(null);
 
-  // State to control transitions - prevents initial load animation glitch
+  // Transition state
   const [enableTransition, setEnableTransition] = useState(false);
 
-  // Dynamic Data State
+  // Data State
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [apps, setApps] = useState<App[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const fetchSubscriptions = async () => {
+      try {
+          const data = await BillingService.getSubscriptions();
+          setCurrentSubscriptions(data.subscriptions || []);
+      } catch (error) {
+          console.error("Failed to fetch subscriptions", error);
+      }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -50,96 +58,116 @@ export default function Plans() {
                 PublicService.getPublicBundles(),
                 PublicService.getPublicPlans()
             ]);
+            
+            await fetchSubscriptions();
 
-            // Transform Bundle Groups into Bundle UI Model
-            const transformedBundles: Bundle[] = publicBundles.map((group: PublicBundleGroup) => {
-                const firstBundle = group.bundles && group.bundles.length > 0 ? group.bundles[0] : null;
-
-                const apps = firstBundle ? firstBundle.bundle_plans.map((bp: PublicBundlePlan) => ({
-                    name: bp.plan.tool?.name || "Unknown App",
-                    features: bp.plan.tool?.features?.map((f: { name: string }) => f.name) || []
-                })) : [];
-
-                return {
-                    id: group.id,
-                    name: group.name,
-                    description: group.description,
-                    apps: apps,
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    tiers: group.bundles.map((b: any) => ({
-                        name: b.tier_label || b.name, // Use label vs name fallback
-                        price: b.price,
-                        period: "/" + b.interval,
-                        limits: b.description || "Full access" // Use description as limits/details
-                    })),
-                    popular: false, 
-                    icon: getIconForSlug(group.slug)
-                };
-            });
+            // Transform Bundles
+            const transformedBundles = transformBundles(publicBundles);
             setBundles(transformedBundles);
 
-            // Transform Plans into Apps (grouped by Tool)
-            const appsMap = new Map<string, App>();
+            // Transform Apps
+            const initialApps = transformPlansToApps(publicPlans);
+            setApps(initialApps);
 
-            publicPlans.forEach(plan => {
-                const tool = plan.tool;
-                if (!tool) return;
-
-                if (!appsMap.has(tool.id)) {
-                    appsMap.set(tool.id, {
-                        id: tool.id,
-                        name: tool.name,
-                        description: tool.description,
-                        icon: getIconForSlug(tool.slug),
-                        tiers: [],
-                        features: tool.features?.map(f => f.name) || [],
-                        status: tool.is_active ? "available" : "coming-soon"
-                    });
+            // Check eligibility
+            const toolIds = initialApps.map(app => app.id);
+            const eligibilityResults: Record<string, { eligible: boolean; trialDays: number }> = {};
+            await Promise.all(
+              toolIds.map(async (toolId) => {
+                try {
+                  const result = await BillingService.checkTrialEligibility(toolId);
+                  eligibilityResults[toolId] = { eligible: result.eligible, trialDays: result.trialDays };
+                } catch {
+                  eligibilityResults[toolId] = { eligible: false, trialDays: 0 };
                 }
-
-                const app = appsMap.get(tool.id)!;
-                app.tiers.push({
-                    name: plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1), // Capitalize
-                    price: plan.price,
-                    period: "/" + plan.interval,
-                    limits: plan.description || "See details"
-                });
-            });
-
-            setApps(Array.from(appsMap.values()));
+              })
+            );
+            setTrialEligibility(eligibilityResults);
 
         } catch (error) {
             console.error("Failed to fetch plans data", error);
             toast.error("Failed to load plans.");
         } finally {
             setIsLoading(false);
-            // Enable transitions after a short delay to prevent initial layout shift animation
+            // Enable transitions
             setTimeout(() => setEnableTransition(true), 100);
         }
     };
 
     fetchData();
-  }, []);
+  }, [activeOrganization]);
 
   const allBundles = bundles;
 
-  /**
-   * Toggle a tier in the cart.
-   * - If the same tier is already in cart, remove it (toggle off)
-   * - If a different tier from the same bundle/app is in cart, replace it
-   * - Otherwise, add the new tier
-   */
+  // Enrich apps
+  const enrichedApps = enrichAppsWithEligibility(apps, trialEligibility);
+
+  const handleStartTrial = async (toolId: string) => {
+    const app = enrichedApps.find(a => a.id === toolId);
+    if (!app) return;
+
+    // Card required: add to cart
+    if (app.trialCardRequired && app.trialPlanId) {
+        if (isInCart(app.id, 'Trial')) {
+            // Open cart
+            setIsCartOpen(true);
+            return;
+        }
+
+        const trialItem: CartItem = {
+            id: app.id,
+            planId: app.trialPlanId,
+            type: 'app',
+            name: app.name,
+            tierName: 'Free Trial',
+            price: 0,
+            period: app.trialPlanInterval ? `/${app.trialPlanInterval}` : `${app.trialDays} days`,
+            features: [],
+            limits: 'Free Trial',
+            isUpgrade: false,
+            isDowngrade: false,
+            trialDays: app.trialDays
+        };
+        toggleCartItem(trialItem);
+        setIsCartOpen(true);
+        return;
+    }
+
+    // No card required: start immediately
+    setStartingTrialToolId(toolId);
+    try {
+      await BillingService.startTrial(toolId);
+      toast.success('Free trial started successfully!');
+      await fetchSubscriptions();
+      // Refresh eligibility
+      setTrialEligibility(prev => ({
+        ...prev,
+        [toolId]: { ...prev[toolId], eligible: false }
+      }));
+    } catch (error: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      toast.error((error as any)?.response?.data?.message || 'Failed to start trial');
+    } finally {
+      setStartingTrialToolId(null);
+    }
+  };
+
+  // Cart helpers
+  const hasSubscriptionChanges = cart.some(item => item.isUpgrade || item.isDowngrade);
+  const hasNewItems = cart.some(item => !item.isUpgrade && !item.isDowngrade);
+
+  // Toggle cart item
   const toggleCartItem = (item: CartItem) => {
-    // Check if this exact tier is already in cart
+    // Exact match check
     const exactMatch = cart.find(
       (cartItem) => cartItem.id === item.id && cartItem.tierName === item.tierName
     );
 
     if (exactMatch) {
-      // Toggle off - remove from cart
+      // Toggle off
       setCart((prev) => prev.filter((cartItem) => !(cartItem.id === item.id && cartItem.tierName === item.tierName)));
     } else {
-      // Remove any existing tier from the same bundle/app, then add the new one
+      // Replace existing tier
       setCart((prev) => {
         const filtered = prev.filter((cartItem) => cartItem.id !== item.id);
         return [...filtered, item];
@@ -161,7 +189,91 @@ export default function Plans() {
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + item.price, 0);
+  const cartCurrency = cart.length > 0 ? cart[0].currency || 'USD' : 'USD';
   const cartItemCount = cart.length;
+  
+  const formatPrice = (price: number, currency = 'USD') => {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+    }).format(price);
+  };
+
+  const handleCheckout = () => {
+    if (cart.length === 0) return;
+
+    // Validate mixed trials
+    const trialVariations = new Set(cart.map(item => item.trialDays || 0));
+    if (trialVariations.size > 1) {
+        toast.error("Please checkout plans with different trial periods separately.");
+        return;
+    }
+
+    const itemsToCheckout = cart.map(item => ({
+        id: item.planId,
+        type: item.type === 'app' ? 'plan' : item.type,
+        interval: item.period.includes('year') ? 'yearly' : 'monthly',
+        price: item.price,
+        name: item.name,
+        tier: item.tierName,
+        features: item.features,
+        limits: item.limits,
+        currency: item.currency
+    }));
+    
+    // Check mixed intervals
+    const firstInterval = itemsToCheckout[0].interval;
+    if (itemsToCheckout.some(i => i.interval !== firstInterval)) {
+        toast.error("Please checkout monthly and yearly plans separately.");
+        return;
+    }
+
+    // Check mixed currencies
+    const firstCurrency = cart[0].currency || 'USD';
+    if (cart.some(item => (item.currency || 'USD') !== firstCurrency)) {
+        toast.error("Please checkout plans with the same currency together.");
+        return;
+    }
+
+    navigate('/checkout', { state: { items: itemsToCheckout } });
+  };
+
+  // Handle subscription change
+  const handleSubscriptionChange = async () => {
+    const changeItems = cart.filter(item => item.subscriptionId);
+    if (changeItems.length === 0) return;
+
+    setChangingSubId('processing');
+    try {
+        for (const item of changeItems) {
+            const interval = item.period.includes('year') ? 'yearly' : 'monthly';
+            await BillingService.updateSubscription(item.subscriptionId!, [{
+                id: item.planId,
+                type: (item.type === 'app' ? 'plan' : item.type) as 'plan' | 'bundle',
+                interval: interval as 'monthly' | 'yearly'
+            }]);
+        }
+        
+        const hasUpgrade = changeItems.some(i => i.isUpgrade);
+        const hasDowngrade = changeItems.some(i => i.isDowngrade);
+        
+        if (hasUpgrade) {
+            toast.success("Subscription upgraded successfully!");
+        } else if (hasDowngrade) {
+            toast.success("Downgrade scheduled for next billing cycle.");
+        }
+        
+        setCart([]);
+        await fetchSubscriptions();
+    } catch (error) {
+        console.error(error);
+        toast.error("Failed to update subscription.");
+    } finally {
+        setChangingSubId(null);
+    }
+  };
 
   const handleBundleClick = (bundleId: string) => {
     setExpandedBundle(expandedBundle === bundleId ? null : bundleId);
@@ -171,12 +283,11 @@ export default function Plans() {
     setExpandedApp(expandedApp === appId ? null : appId);
   };
 
-  // Close expanded cards when clicking outside
+  // Outside click handler
   const handleOutsideClick = useCallback((e: MouseEvent) => {
     const target = e.target as HTMLElement;
-    // Check if click is inside a card
+    // Check if click is inside card or cart
     const isInsideCard = target.closest('[data-card]');
-    // Check if click is inside the cart sidebar
     const isInsideCart = target.closest('[data-cart]');
 
     if (!isInsideCard && !isInsideCart) {
@@ -205,7 +316,7 @@ export default function Plans() {
   return (
     <Layout animationClass="">
       <div className="flex animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {/* Main Content */}
+        {/* Content */}
         <div className={cn("flex-1 container py-8", enableTransition && "transition-[padding] duration-300", isCartOpen ? "pr-[340px]" : "pr-4")}>
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold">Choose Your Plan</h1>
@@ -221,7 +332,7 @@ export default function Plans() {
               <TabsTrigger value="apps">Individual Apps</TabsTrigger>
             </TabsList>
 
-            {/* Bundles Tab */}
+            {/* Bundles */}
             <TabsContent value="bundles" className="space-y-12">
               {/* All Bundles */}
               <section>
@@ -230,18 +341,25 @@ export default function Plans() {
                   <h2 className="text-xl font-semibold">Available Bundles</h2>
                 </div>
                 <div className={cn("grid gap-6", isCartOpen ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3")}>
-                  {allBundles.map((bundle) => (
-                    <BundleCard
-                      key={bundle.id}
-                      bundle={bundle}
-                      isExpanded={expandedBundle === bundle.id}
-                      onToggle={() => handleBundleClick(bundle.id)}
-                      onToggleCartItem={toggleCartItem}
-                      isInCart={isInCart}
-                      hasAnyTierInCart={hasAnyTierInCart}
-                      compact
-                    />
-                  ))}
+                  {allBundles.map((bundle) => {
+                      const activeSub = currentSubscriptions.find(s => 
+                        ['active', 'trialing', 'past_due'].includes(s.status) &&
+                        (s.bundle?.group?.id === bundle.id || s.upcoming_bundle?.group?.id === bundle.id)
+                      );
+                      return (
+                        <BundleCard
+                          key={bundle.id}
+                          bundle={bundle}
+                          isExpanded={expandedBundle === bundle.id}
+                          onToggle={() => handleBundleClick(bundle.id)}
+                          onToggleCartItem={toggleCartItem}
+                          isInCart={isInCart}
+                          hasAnyTierInCart={hasAnyTierInCart}
+                          currentSubscription={activeSub}
+                          compact
+                        />
+                      );
+                  })}
                   {allBundles.length === 0 && (
                       <div className="col-span-full text-center text-muted-foreground py-8">
                           No bundles available at the moment.
@@ -251,7 +369,7 @@ export default function Plans() {
               </section>
             </TabsContent>
 
-            {/* All Apps Tab */}
+            {/* Apps */}
             <TabsContent value="apps" className="space-y-6">
               <div className="mb-6">
                 <h2 className="text-xl font-semibold">Individual Apps</h2>
@@ -260,17 +378,27 @@ export default function Plans() {
                 </p>
               </div>
               <div className={cn("grid gap-6", isCartOpen ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3")}>
-                {apps.map((app) => (
-                  <AppCard
-                    key={app.id}
-                    app={app}
-                    isExpanded={expandedApp === app.id}
-                    onToggle={() => handleAppClick(app.id)}
-                    onToggleCartItem={toggleCartItem}
-                    isInCart={isInCart}
-                    hasAnyTierInCart={hasAnyTierInCart}
-                  />
-                ))}
+                {enrichedApps.map((app) => {
+                    // Check active subscription
+                    const activeSub = currentSubscriptions.find(s => 
+                        ['active', 'trialing', 'past_due'].includes(s.status) &&
+                        (s.plan?.tool?.id === app.id || s.upcoming_plan?.tool?.id === app.id)
+                    );
+                    return (
+                      <AppCard
+                        key={app.id}
+                        app={app}
+                        isExpanded={expandedApp === app.id}
+                        onToggle={() => handleAppClick(app.id)}
+                        onToggleCartItem={toggleCartItem}
+                        isInCart={isInCart}
+                        hasAnyTierInCart={hasAnyTierInCart}
+                        currentSubscription={activeSub}
+                        onStartTrial={handleStartTrial}
+                        isStartingTrial={startingTrialToolId === app.id}
+                      />
+                    );
+                })}
                  {apps.length === 0 && (
                       <div className="col-span-full text-center text-muted-foreground py-8">
                           No apps available at the moment.
@@ -282,7 +410,7 @@ export default function Plans() {
         </div>
       </div>
 
-        {/* Minimized Cart Floating Button */}
+        {/* Mobile Cart Button */}
         <button
           onClick={() => setIsCartOpen(!isCartOpen)}
           className={cn(
@@ -303,12 +431,12 @@ export default function Plans() {
                   {cartItemCount}
                 </Badge>
               )}
-              <span className="font-medium">${cartTotal.toFixed(2)}</span>
+              <span className="font-medium">{formatPrice(cartTotal, cartCurrency)}</span>
             </>
           )}
         </button>
 
-        {/* Sticky Cart Sidebar */}
+        {/* Cart Sidebar */}
         <div
           data-cart
           className={cn(
@@ -317,7 +445,7 @@ export default function Plans() {
             isCartOpen ? "w-80 translate-x-0" : "w-80 translate-x-full"
           )}
         >
-          {/* Cart Header */}
+          {/* Header */}
           <div className="p-4 border-b bg-gradient-to-r from-primary/5 to-transparent">
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-primary/10 p-2">
@@ -334,7 +462,7 @@ export default function Plans() {
             </div>
           </div>
 
-          {/* Cart Content */}
+          {/* Content */}
           <ScrollArea className="flex-1">
             <div className="p-4">
               {cart.length === 0 ? (
@@ -350,57 +478,49 @@ export default function Plans() {
               ) : (
                 <div className="space-y-2">
                   {cart.map((item) => (
-                    <div
+                    <CartSidebarItem
                       key={`${item.id}-${item.tierName}`}
-                      className="group flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2.5 transition-all duration-200 hover:border-primary/20"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{item.name}</p>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <Badge
-                            variant="secondary"
-                            className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-0"
-                          >
-                            {item.tierName}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">•</span>
-                          <span className="text-xs text-muted-foreground capitalize">{item.type}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-sm whitespace-nowrap">
-                          ${item.price.toFixed(2)}
-                          <span className="text-[10px] text-muted-foreground font-normal">{item.period}</span>
-                        </p>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => removeFromCart(item.id, item.tierName)}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
+                      item={item}
+                      onRemove={removeFromCart}
+                    />
                   ))}
                 </div>
               )}
             </div>
           </ScrollArea>
 
-          {/* Cart Footer */}
+          {/* Footer */}
           {cart.length > 0 && (
             <div className="p-4 border-t bg-gradient-to-t from-muted/30 to-transparent space-y-4">
-              {/* <Separator /> */}
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Monthly Total</span>
+                <span className="text-sm text-muted-foreground">
+                  {hasSubscriptionChanges ? "New Price" : "Monthly Total"}
+                </span>
                 <span className="text-2xl font-bold tracking-tight">
-                  ${cartTotal.toFixed(2)}
+                  {formatPrice(cartTotal, cartCurrency)}
                 </span>
               </div>
-              <Button className="w-full" size="lg">
-                Proceed to Checkout
-              </Button>
+
+              {/* Subscription actions */}
+              {hasSubscriptionChanges && (
+                <Button 
+                  className="w-full" 
+                  size="lg" 
+                  onClick={handleSubscriptionChange}
+                  disabled={changingSubId === 'processing'}
+                >
+                  {changingSubId === 'processing' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {cart.some(i => i.isUpgrade) ? 'Confirm Upgrade' : 'Confirm Downgrade'}
+                </Button>
+              )}
+
+              {/* Checkout */}
+              {hasNewItems && (
+                <Button className="w-full" size="lg" onClick={handleCheckout}>
+                  Proceed to Checkout
+                </Button>
+              )}
+
               <Button
                 variant="outline"
                 className="w-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"

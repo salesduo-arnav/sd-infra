@@ -1,10 +1,11 @@
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { Check, Star } from "lucide-react";
 import { Bundle, CartItem } from "./types";
+import { TierItem } from "./TierItem";
+import { Subscription } from "@/types/subscription";
 
 interface BundleCardProps {
   bundle: Bundle;
@@ -14,10 +15,23 @@ interface BundleCardProps {
   isInCart: (id: string, tierName: string) => boolean;
   hasAnyTierInCart: (id: string) => boolean;
   compact?: boolean;
+  currentSubscription?: Subscription | null;
 }
 
-export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isInCart, hasAnyTierInCart, compact }: BundleCardProps) {
+export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isInCart, hasAnyTierInCart, compact, currentSubscription }: BundleCardProps) {
   const hasTierSelected = hasAnyTierInCart(bundle.id);
+
+  const currentPrice = currentSubscription?.bundle?.price ?? 0;
+
+  const formatPrice = (price: number, currency = 'USD') => {
+      return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: currency,
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2
+      }).format(price);
+  };
+
   return (
     <Card
       data-card
@@ -27,7 +41,7 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
           ? "border-primary ring-2 ring-primary/20 shadow-lg scale-[1.02]"
           : "hover:border-primary/50 hover:shadow-md",
         bundle.popular && !isExpanded && "border-primary/30",
-        hasTierSelected && !isExpanded && "border-primary/50 bg-primary/5"
+        (hasTierSelected || currentSubscription) && !isExpanded && "border-primary/50 bg-primary/5"
       )}
       onClick={onToggle}
     >
@@ -48,6 +62,10 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
             {bundle.icon}
           </span>
           <span className={compact ? "text-base" : ""}>{bundle.name}</span>
+          {/* Current Plan Badge */}
+           {!isExpanded && currentSubscription && (
+              <Badge variant="outline" className="ml-auto border-purple-500 text-purple-500">Active</Badge>
+           )}
         </CardTitle>
         <CardDescription className={compact ? "text-xs" : ""}>{bundle.description}</CardDescription>
       </CardHeader>
@@ -86,37 +104,45 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
                     </p>
                     {bundle.tiers.map((tier) => {
                     const inCart = isInCart(bundle.id, tier.name);
+                    const isCurrent = currentSubscription?.bundle?.id === tier.id;
+                    const isUpcoming = currentSubscription?.upcoming_bundle?.id === tier.id;
+                    const isUpgrade = currentSubscription && tier.price > currentPrice && !isCurrent && !isUpcoming;
+                    const isDowngrade = currentSubscription && tier.price < currentPrice && !isCurrent && !isUpcoming;
+
                     return (
-                        <div
-                        key={tier.name}
-                        onClick={() =>
-                            onToggleCartItem({
-                            id: bundle.id, // Group ID
-                            type: "bundle",
-                            name: bundle.name, // Group Name
-                            tierName: tier.name,
-                            price: tier.price,
-                            period: tier.period,
-                            })
-                        }
-                        className={cn(
-                            "group flex items-center justify-between gap-4 rounded-lg border p-3 transition-all duration-200 cursor-pointer",
-                            inCart
-                            ? "border-primary bg-primary/10 shadow-sm"
-                            : "hover:bg-muted/50 hover:border-primary/50"
-                        )}
-                        >
-                        <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{tier.name}</p>
-                            <p className="text-xs text-muted-foreground line-clamp-1">{tier.limits}</p>
-                        </div>
-                        <div className="text-right whitespace-nowrap">
-                            <p className="font-semibold text-foreground">
-                                ${tier.price}
-                                <span className="text-xs text-muted-foreground">{tier.period}</span>
-                            </p>
-                        </div>
-                        </div>
+                        <TierItem
+                            key={tier.name}
+                            tier={tier}
+                            isInCart={inCart}
+                            isCurrent={isCurrent}
+                            isUpcoming={isUpcoming}
+                            isUpgrade={!!isUpgrade}
+                            isDowngrade={!!isDowngrade}
+                            onSelect={
+                                (isCurrent || isUpcoming)
+                                    ? undefined
+                                    : () =>
+                                        onToggleCartItem({
+                                        id: bundle.id,
+                                        planId: tier.id,
+                                        type: "bundle",
+                                        name: bundle.name,
+                                        tierName: tier.name,
+                                        price: tier.price,
+                                        period: tier.period,
+                                        limits: tier.limits,
+                                        features: tier.features,
+                                        ...(currentSubscription
+                                            ? {
+                                                isUpgrade: !!isUpgrade,
+                                                isDowngrade: !!isDowngrade,
+                                                currentPrice,
+                                                subscriptionId: currentSubscription.id,
+                                            }
+                                            : {}),
+                                        })
+                            }
+                        />
                     );
                     })}
                 </div>
@@ -129,7 +155,7 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
             <div className="pt-2 border-t">
                 <p className="text-xs text-muted-foreground">Price</p>
                 <p className="text-lg font-bold">
-                ${bundle.tiers[0].price}
+                {formatPrice(bundle.tiers[0].price, bundle.tiers[0].currency)}
                 <span className="text-sm font-normal text-muted-foreground">{bundle.tiers[0].period}</span>
                 </p>
             </div>

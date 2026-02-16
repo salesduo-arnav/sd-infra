@@ -48,7 +48,8 @@ describe('Admin Bundle Management', () => {
             name: 'Test Tool',
             slug: 'test-tool',
             description: 'Test Tool Description',
-            tool_link: 'http://example.com'
+            tool_link: 'http://example.com',
+            trial_days: 0
         });
 
         testPlan = await Plan.create({
@@ -142,6 +143,38 @@ describe('Admin Bundle Management', () => {
             expect(res.status).toBe(201);
             expect(res.body.name).toBe('Test Bundle');
             bundleId = res.body.id;
+        });
+
+        it('should create a bundle in a bundle group', async () => {
+             // 1. Create Group
+             const groupRes = await request(app)
+                .post('/admin/bundle-groups')
+                .set('Cookie', [`session_id=${adminSession}`])
+                .send({
+                    name: 'Group 1',
+                    slug: `group-1-${uuidv4()}`,
+                    active: true
+                });
+             expect(groupRes.status).toBe(201);
+             const groupId = groupRes.body.id;
+
+             // 2. Create Bundle in Group
+             const bundleRes = await request(app)
+                .post('/admin/bundles')
+                .set('Cookie', [`session_id=${adminSession}`])
+                .send({
+                    name: 'Bundle Inside Group',
+                    slug: `bundle-in-group-${uuidv4()}`,
+                    price: 3000,
+                    currency: 'USD',
+                    interval: PriceInterval.MONTHLY,
+                    bundle_group_id: groupId,
+                    tier_label: 'Pro Tier'
+                });
+            
+            expect(bundleRes.status).toBe(201);
+            expect(bundleRes.body.bundle_group_id).toBe(groupId);
+            // This implicitly tests that the controller logic for fetching group and creating product didn't throw
         });
 
         it('should get bundles (paginated)', async () => {

@@ -5,11 +5,13 @@ import { Bundle } from '../models/bundle';
 import { BundleGroup } from '../models/bundle_group';
 import { Plan } from '../models/plan';
 import { PlanLimit } from '../models/plan_limit';
+import { stripeService } from '../services/stripe.service';
 import { Feature } from '../models/feature';
 import { BundlePlan } from '../models/bundle_plan';
 import { PriceInterval } from '../models/enums';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
+import { SubStatus } from '../models/enums';
 import { AuditService } from '../services/audit.service';
 
 // ==========================
@@ -105,27 +107,61 @@ export const updateBundleGroup = async (req: Request, res: Response) => {
 export const deleteBundleGroup = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const group = await BundleGroup.findByPk(id);
+        
+        await sequelize.transaction(async (t) => {
+            const group = await BundleGroup.findByPk(id, { transaction: t });
+            
+            if (!group) {
+                 throw new Error('NOT_FOUND');
+            }
 
-        if (!group) {
-            return res.status(404).json({ message: 'Bundle Group not found' });
-        }
+            // Check if any bundles in this group have active subscriptions
+            const bundles = await Bundle.findAll({
+                where: { bundle_group_id: id },
+                attributes: ['id'],
+                transaction: t
+            });
 
-        const groupId = group.id;
-        const groupName = group.name;
-        await group.destroy();
+            const bundleIds = bundles.map(b => b.id);
 
-        await AuditService.log({
+            if (bundleIds.length > 0) {
+                 const activeSubscription = await import('../models/subscription').then(({ Subscription }) => 
+                    Subscription.findOne({
+                        where: {
+                            bundle_id: { [Op.in]: bundleIds },
+                            status: { [Op.in]: [SubStatus.ACTIVE, SubStatus.TRIALING, SubStatus.PAST_DUE] }
+                        },
+                        transaction: t
+                    })
+                );
+
+                if (activeSubscription) {
+                    throw new Error('HAS_ACTIVE_SUBSCRIPTIONS');
+                }
+            }
+
+            await group.destroy({ transaction: t });
+            const groupId = group.id;
+            const groupName = group.name;
+
+            await AuditService.log({
             actorId: req.user?.id,
             action: 'DELETE_BUNDLE_GROUP',
             entityType: 'BundleGroup',
             entityId: groupId,
             details: { deleted_group_name: groupName },
             req
+            });
         });
 
         res.status(200).json({ message: 'Bundle Group deleted' });
     } catch (error) {
+        const err = error as Error;
+        if (err.message === 'HAS_ACTIVE_SUBSCRIPTIONS') {
+             return res.status(400).json({ 
+                message: 'Cannot delete bundle group. There are active subscriptions associated with bundles in this group.' 
+            });
+        }
         handleError(res, error, 'Delete Bundle Group Error');
     }
 };
@@ -209,6 +245,27 @@ export const createBundle = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Invalid price interval' });
         }
 
+        // 1. Create Stripe Product & Prices
+        let productName = name;
+        if (bundle_group_id) {
+            const group = await BundleGroup.findByPk(bundle_group_id);
+            if (group) {
+                productName = `${group.name} (${tier_label || name})`;
+            }
+        } else if (tier_label) {
+             productName = `${name} (${tier_label})`;
+        }
+
+        const stripeProduct = await stripeService.createProduct(productName, description);
+
+        // STRIPE EXPECTS AMOUNTS IN CENTS
+        const PRICE_IN_CENTS = Math.round(price * 100);
+        const monthlyAmount = interval === 'monthly' ? PRICE_IN_CENTS : Math.round(PRICE_IN_CENTS / 12);
+        const yearlyAmount = interval === 'yearly' ? PRICE_IN_CENTS : PRICE_IN_CENTS * 12;
+
+        const stripePriceMonthly = await stripeService.createPrice(stripeProduct.id, monthlyAmount, currency, 'month');
+        const stripePriceYearly = await stripeService.createPrice(stripeProduct.id, yearlyAmount, currency, 'year');
+
         const bundle = await sequelize.transaction(async (t) => {
             const existingBundle = await Bundle.findOne({ where: { slug }, transaction: t });
             if (existingBundle) {
@@ -224,7 +281,10 @@ export const createBundle = async (req: Request, res: Response) => {
                 description,
                 active: active ?? true,
                 bundle_group_id,
-                tier_label
+                tier_label,
+                stripe_product_id: stripeProduct.id,
+                stripe_price_id_monthly: stripePriceMonthly.id,
+                stripe_price_id_yearly: stripePriceYearly.id
             }, { transaction: t });
         });
 
@@ -262,7 +322,7 @@ export const updateBundle = async (req: Request, res: Response) => {
                 }
             }
 
-            return await bundle.update({
+            const updates = {
                 name: name ?? bundle.name,
                 slug: slug ?? bundle.slug,
                 price: price !== undefined ? price : bundle.price,
@@ -271,8 +331,62 @@ export const updateBundle = async (req: Request, res: Response) => {
                 description: description ?? bundle.description,
                 active: active ?? bundle.active,
                 bundle_group_id: bundle_group_id !== undefined ? bundle_group_id : bundle.bundle_group_id,
-                tier_label: tier_label !== undefined ? tier_label : bundle.tier_label
-            }, { transaction: t });
+                tier_label: tier_label !== undefined ? tier_label : bundle.tier_label,
+                stripe_price_id_monthly: bundle.stripe_price_id_monthly, // Initialize with current values
+                stripe_price_id_yearly: bundle.stripe_price_id_yearly
+            };
+
+            // Sync Stripe Product Name/Description
+            if (
+                name !== undefined || 
+                tier_label !== undefined || 
+                bundle_group_id !== undefined || 
+                description !== undefined
+            ) {
+                const productId = bundle.stripe_product_id;
+                if (productId) {
+                    let productName = updates.name;
+                    const groupId = updates.bundle_group_id;
+                    
+                    if (groupId) {
+                        const group = await BundleGroup.findByPk(groupId, { transaction: t });
+                         if (group) {
+                            productName = `${group.name} (${updates.tier_label || updates.name})`;
+                        }
+                    } else if (updates.tier_label) {
+                         productName = `${updates.name} (${updates.tier_label})`;
+                    }
+
+                    await stripeService.updateProduct(productId, productName, updates.description);
+                }
+            }
+
+            // Check if price-affecting fields are changed
+             if (
+                (updates.price !== undefined && updates.price !== bundle.price) ||
+                (updates.currency && updates.currency !== bundle.currency) ||
+                (updates.interval && updates.interval !== bundle.interval)
+            ) {
+                 const productId = bundle.stripe_product_id;
+                 if (productId) {
+                     const newPrice = updates.price;
+                     const newCurrency = updates.currency;
+                     const newInterval = updates.interval;
+
+                     // STRIPE EXPECTS AMOUNTS IN CENTS
+                     const PRICE_IN_CENTS = Math.round(newPrice * 100);
+                     const monthlyAmount = newInterval === 'monthly' ? PRICE_IN_CENTS : Math.round(PRICE_IN_CENTS / 12);
+                     const yearlyAmount = newInterval === 'yearly' ? PRICE_IN_CENTS : PRICE_IN_CENTS * 12;
+
+                     const stripePriceMonthly = await stripeService.createPrice(productId, monthlyAmount, newCurrency, 'month');
+                     const stripePriceYearly = await stripeService.createPrice(productId, yearlyAmount, newCurrency, 'year');
+                     
+                     updates.stripe_price_id_monthly = stripePriceMonthly.id;
+                     updates.stripe_price_id_yearly = stripePriceYearly.id;
+                 }
+            }
+
+            return await bundle.update(updates, { transaction: t });
         });
 
         await AuditService.log({
@@ -301,6 +415,21 @@ export const deleteBundle = async (req: Request, res: Response) => {
                 throw new Error('NOT_FOUND');
             }
 
+            // Check for active subscriptions for this bundle
+            const activeSubscription = await import('../models/subscription').then(({ Subscription }) => 
+                Subscription.findOne({
+                    where: {
+                        bundle_id: id,
+                        status: { [Op.in]: [SubStatus.ACTIVE, SubStatus.TRIALING, SubStatus.PAST_DUE] }
+                    },
+                    transaction: t
+                })
+            );
+
+            if (activeSubscription) {
+                throw new Error('HAS_ACTIVE_SUBSCRIPTIONS');
+            }
+
             await bundle.destroy({ transaction: t });
         });
 
@@ -315,6 +444,12 @@ export const deleteBundle = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Bundle deleted successfully' });
     } catch (error) {
+        const err = error as Error;
+        if (err.message === 'HAS_ACTIVE_SUBSCRIPTIONS') {
+             return res.status(400).json({ 
+                message: 'Cannot delete bundle. There are active subscriptions associated with this bundle.' 
+            });
+        }
         handleError(res, error, 'Delete Bundle Error');
     }
 };

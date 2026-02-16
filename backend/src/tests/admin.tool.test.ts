@@ -125,9 +125,9 @@ describe('Admin Tool Management Integration Tests', () => {
     describe('GET /admin/tools', () => {
         beforeEach(async () => {
             await Tool.bulkCreate([
-                { name: 'Tool 1', slug: 'tool-1', is_active: true },
-                { name: 'Tool 2', slug: 'tool-2', is_active: false },
-                { name: 'Tool 3', slug: 'tool-3', is_active: true }
+                { name: 'Tool 1', slug: 'tool-1', is_active: true, trial_days: 0 },
+                { name: 'Tool 2', slug: 'tool-2', is_active: false, trial_days: 0 },
+                { name: 'Tool 3', slug: 'tool-3', is_active: true, trial_days: 0 }
             ]);
         });
 
@@ -168,7 +168,8 @@ describe('Admin Tool Management Integration Tests', () => {
             tool = await Tool.create({
                 name: 'Detail Tool',
                 slug: 'detail-tool',
-                is_active: true
+                is_active: true,
+                trial_days: 0
             });
             await Feature.create({
                 name: 'Feat 1',
@@ -204,7 +205,8 @@ describe('Admin Tool Management Integration Tests', () => {
                 name: 'Update Tool',
                 slug: 'update-tool',
                 description: 'Original',
-                is_active: true
+                is_active: true,
+                trial_days: 0
             });
         });
 
@@ -227,7 +229,7 @@ describe('Admin Tool Management Integration Tests', () => {
         });
 
         it('should fail if updating slug to existing one', async () => {
-            await Tool.create({ name: 'Other', slug: 'other-tool' });
+            await Tool.create({ name: 'Other', slug: 'other-tool', trial_days: 0 });
 
             const res = await request(app)
                 .put(`/admin/tools/${tool.id}`)
@@ -254,7 +256,8 @@ describe('Admin Tool Management Integration Tests', () => {
         beforeEach(async () => {
             tool = await Tool.create({
                 name: 'Delete Tool',
-                slug: 'delete-tool'
+                slug: 'delete-tool',
+                trial_days: 0
             });
         });
 

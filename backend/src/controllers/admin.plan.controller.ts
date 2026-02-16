@@ -6,8 +6,10 @@ import { PlanLimit } from '../models/plan_limit';
 import { Tool } from '../models/tool';
 import { Feature } from '../models/feature';
 import { PriceInterval, TierType, FeatureResetPeriod } from '../models/enums';
+import { stripeService } from '../services/stripe.service';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
+import { SubStatus } from '../models/enums';
 import { AuditService } from '../services/audit.service';
 
 // ==========================
@@ -82,8 +84,8 @@ export const createPlan = async (req: Request, res: Response) => {
             price,
             currency,
             interval,
-            trial_period_days,
-            active
+            active,
+            is_trial_plan
         } = req.body;
 
         // Basic validation
@@ -99,7 +101,31 @@ export const createPlan = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Invalid price interval' });
         }
 
+        // 1. Create Stripe Product & Prices
+        const stripeProduct = await stripeService.createProduct(name, description);
+        
+        // Calculate amounts (simplified logic: if monthly plan, yearly = price * 12)
+        // STRIPE EXPECTS AMOUNTS IN CENTS
+        const PRICE_IN_CENTS = Math.round(price * 100);
+        const monthlyAmount = interval === 'monthly' ? PRICE_IN_CENTS : Math.round(PRICE_IN_CENTS / 12);
+        const yearlyAmount = interval === 'yearly' ? PRICE_IN_CENTS : PRICE_IN_CENTS * 12;
+
+        const stripePriceMonthly = await stripeService.createPrice(stripeProduct.id, monthlyAmount, currency, 'month');
+        const stripePriceYearly = await stripeService.createPrice(stripeProduct.id, yearlyAmount, currency, 'year');
+
         const plan = await sequelize.transaction(async (t) => {
+            // Validate: Only one trial plan per tool
+            if (is_trial_plan) {
+                const existingTrialPlan = await Plan.findOne({
+                    where: { tool_id, is_trial_plan: true },
+                    transaction: t
+                });
+
+                if (existingTrialPlan) {
+                    throw new Error(`The plan "${existingTrialPlan.name}" is already set as the trial plan for this tool.`);
+                }
+            }
+
             return await Plan.create({
                 name,
                 description,
@@ -108,8 +134,11 @@ export const createPlan = async (req: Request, res: Response) => {
                 price,
                 currency,
                 interval,
-                trial_period_days: trial_period_days ?? 0,
-                active: active ?? true
+                active: active ?? true,
+                is_trial_plan: is_trial_plan ?? false,
+                stripe_product_id: stripeProduct.id,
+                stripe_price_id_monthly: stripePriceMonthly.id,
+                stripe_price_id_yearly: stripePriceYearly.id
             }, { transaction: t });
         });
 
@@ -129,6 +158,10 @@ export const createPlan = async (req: Request, res: Response) => {
 
         res.status(201).json(plan);
     } catch (error) {
+        const err = error as Error;
+        if (err.message.includes('already set as the trial plan')) {
+             return res.status(400).json({ message: err.message });
+        }
         handleError(res, error, 'Create Plan Error');
     }
 };
@@ -143,6 +176,48 @@ export const updatePlan = async (req: Request, res: Response) => {
 
             if (!plan) {
                 throw new Error('NOT_FOUND');
+            }
+
+            // Check if price-affecting fields are changed
+            if (
+                (updates.price !== undefined && updates.price !== plan.price) ||
+                (updates.currency && updates.currency !== plan.currency) ||
+                (updates.interval && updates.interval !== plan.interval)
+            ) {
+                 // Re-calculate prices
+                 const newPrice = updates.price !== undefined ? updates.price : plan.price;
+                 const newCurrency = updates.currency || plan.currency;
+                 const newInterval = updates.interval || plan.interval;
+                 const productId = plan.stripe_product_id;
+
+                 if (productId) {
+                     // STRIPE EXPECTS AMOUNTS IN CENTS
+                     const PRICE_IN_CENTS = Math.round(newPrice * 100);
+                     const monthlyAmount = newInterval === 'monthly' ? PRICE_IN_CENTS : Math.round(PRICE_IN_CENTS / 12);
+                     const yearlyAmount = newInterval === 'yearly' ? PRICE_IN_CENTS : PRICE_IN_CENTS * 12;
+
+                     const stripePriceMonthly = await stripeService.createPrice(productId, monthlyAmount, newCurrency, 'month');
+                     const stripePriceYearly = await stripeService.createPrice(productId, yearlyAmount, newCurrency, 'year');
+                     
+                     updates.stripe_price_id_monthly = stripePriceMonthly.id;
+                     updates.stripe_price_id_yearly = stripePriceYearly.id;
+                 }
+            }
+
+            // Validate: Only one trial plan per tool
+            if (updates.is_trial_plan === true) {
+                 const existingTrialPlan = await Plan.findOne({
+                    where: { 
+                        tool_id: plan.tool_id, 
+                        is_trial_plan: true, 
+                        id: { [Op.ne]: plan.id } 
+                    },
+                    transaction: t
+                });
+
+                if (existingTrialPlan) {
+                    throw new Error(`The plan "${existingTrialPlan.name}" is already set as the trial plan for this tool.`);
+                }
             }
 
             return await plan.update(updates, { transaction: t });
@@ -161,6 +236,10 @@ export const updatePlan = async (req: Request, res: Response) => {
 
         res.status(200).json(updatedPlan);
     } catch (error) {
+        const err = error as Error;
+        if (err.message.includes('already set as the trial plan')) {
+             return res.status(400).json({ message: err.message });
+        }
         handleError(res, error, 'Update Plan Error');
     }
 };
@@ -174,6 +253,21 @@ export const deletePlan = async (req: Request, res: Response) => {
 
             if (!plan) {
                 throw new Error('NOT_FOUND');
+            }
+
+            // Check for active subscriptions for this plan
+            const activeSubscription = await import('../models/subscription').then(({ Subscription }) => 
+                Subscription.findOne({
+                    where: {
+                        plan_id: id,
+                        status: { [Op.in]: [SubStatus.ACTIVE, SubStatus.TRIALING, SubStatus.PAST_DUE] }
+                    },
+                    transaction: t
+                })
+            );
+
+            if (activeSubscription) {
+                throw new Error('HAS_ACTIVE_SUBSCRIPTIONS');
             }
 
             await plan.destroy({ transaction: t });
@@ -190,6 +284,12 @@ export const deletePlan = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Plan deleted successfully' });
     } catch (error) {
+        const err = error as Error;
+        if (err.message === 'HAS_ACTIVE_SUBSCRIPTIONS') {
+             return res.status(400).json({ 
+                message: 'Cannot delete plan. There are active subscriptions associated with this plan.' 
+            });
+        }
         handleError(res, error, 'Delete Plan Error');
     }
 };

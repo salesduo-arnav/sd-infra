@@ -17,6 +17,9 @@ export enum SubStatus {
   CANCELED = 'canceled',
   TRIALING = 'trialing',
   INCOMPLETE = 'incomplete',
+  INCOMPLETE_EXPIRED = 'incomplete_expired',
+  UNPAID = 'unpaid',
+  PAUSED = 'paused',
 }
 
 export enum FeatureType {

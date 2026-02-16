@@ -28,6 +28,8 @@ export interface Tool {
   description: string;
   tool_link?: string;
   is_active: boolean;
+  trial_card_required: boolean;
+  trial_days: number;
   required_integrations?: string[];
   features?: Feature[];
   created_at: string;
@@ -51,6 +53,7 @@ export interface Plan {
   currency: string;
   interval: 'monthly' | 'yearly' | 'one_time';
   trial_period_days: number;
+  is_trial_plan: boolean;
   active: boolean;
   tool?: Tool;
   limits?: PlanLimit[];

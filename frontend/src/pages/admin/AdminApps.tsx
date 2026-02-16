@@ -75,16 +75,18 @@ export default function AdminApps() {
         { value: "ads_api", label: "Advertising API", icon: BarChart3 },
     ];
 
-    // Tool State
-    const [editingApp, setEditingApp] = useState<Tool | null>(null);
-    const [formData, setFormData] = useState({
-        name: "",
-        slug: "",
-        description: "",
-        tool_link: "",
-        is_active: true,
-        required_integrations: [] as string[],
-    });
+  // Tool State
+  const [editingApp, setEditingApp] = useState<Tool | null>(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    slug: "",
+    description: "",
+    tool_link: "",
+    is_active: true,
+    required_integrations: [] as string[],
+    trial_card_required: false,
+    trial_days: 0
+  });
 
     // Feature State
     const [selectedToolForFeatures, setSelectedToolForFeatures] = useState<Tool | null>(null);
@@ -131,23 +133,25 @@ export default function AdminApps() {
     // Tool Handlers
     // ==============================
 
-    const handleOpenDialog = useCallback((app?: Tool) => {
-        if (app) {
-            setEditingApp(app);
-            setFormData({
-                name: app.name,
-                slug: app.slug,
-                description: app.description || "",
-                tool_link: app.tool_link || "",
-                is_active: app.is_active,
-                required_integrations: app.required_integrations || [],
-            });
-        } else {
-            setEditingApp(null);
-            setFormData({ name: "", slug: "", description: "", tool_link: "", is_active: true, required_integrations: [] });
-        }
-        setIsDialogOpen(true);
-    }, []);
+  const handleOpenDialog = useCallback((app?: Tool) => {
+    if (app) {
+      setEditingApp(app);
+      setFormData({
+        name: app.name,
+        slug: app.slug,
+        description: app.description || "",
+        tool_link: app.tool_link || "",
+        is_active: app.is_active,
+        required_integrations: app.required_integrations || [],
+        trial_card_required: app.trial_card_required || false,
+        trial_days: app.trial_days || 0
+      });
+    } else {
+      setEditingApp(null);
+      setFormData({ name: "", slug: "", description: "", tool_link: "", is_active: true, required_integrations: [], trial_card_required: false, trial_days: 0 });
+    }
+    setIsDialogOpen(true);
+  }, []);
 
     const generateSlug = (name: string) => {
         return name
@@ -387,111 +391,123 @@ export default function AdminApps() {
                     </CardContent>
                 </Card>
 
-                {/* Create/Edit App Dialog */}
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>{editingApp ? "Edit App" : "Create New App"}</DialogTitle>
-                            <DialogDescription>
-                                {editingApp ? "Update the app details" : "Add a new application to the platform"}
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4 max-h-[70vh] overflow-y-auto pb-10 px-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="name">App Name</Label>
-                                <Input
-                                    id="name"
-                                    value={formData.name}
-                                    onChange={(e) => handleNameChange(e.target.value)}
-                                    placeholder="Enter app name"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="slug">Slug</Label>
-                                <Input
-                                    id="slug"
-                                    value={formData.slug}
-                                    onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                                    placeholder="app-slug"
-                                />
-                                <p className="text-xs text-muted-foreground">Unique identifier for URLs and DB lookups.</p>
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="tool_link">Tool Link</Label>
-                                <Input
-                                    id="tool_link"
-                                    value={formData.tool_link}
-                                    onChange={(e) => setFormData({ ...formData, tool_link: e.target.value })}
-                                    placeholder="https://example.com"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="description">Description</Label>
-                                <Textarea
-                                    id="description"
-                                    value={formData.description}
-                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                    placeholder="Enter app description"
-                                />
-                            </div>
-                            {/* Required Integrations */}
-                            <div className="space-y-2">
-                                <Label>Required Integrations</Label>
-                                <p className="text-xs text-muted-foreground">Select which integrations this app requires during onboarding.</p>
-                                <div className="grid gap-2">
-                                    {INTEGRATION_TYPE_OPTIONS.map((opt) => {
-                                        const isSelected = formData.required_integrations.includes(opt.value);
-                                        return (
-                                            <button
-                                                key={opt.value}
-                                                type="button"
-                                                onClick={() => {
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        required_integrations: isSelected
-                                                            ? prev.required_integrations.filter(v => v !== opt.value)
-                                                            : [...prev.required_integrations, opt.value],
-                                                    }));
-                                                }}
-                                                className={`flex items-center gap-3 p-3 rounded-lg border text-left text-sm transition-all ${isSelected
-                                                    ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                                                    : "border-border hover:border-muted-foreground/30 hover:bg-muted/50"
-                                                    }`}
-                                            >
-                                                <opt.icon className="h-4 w-4 text-muted-foreground shrink-0" />
-                                                <span className="flex-1 font-medium">{opt.label}</span>
-                                                <div
-                                                    className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected
-                                                        ? "border-primary bg-primary text-primary-foreground"
-                                                        : "border-muted-foreground/30"
-                                                        }`}
-                                                >
-                                                    {isSelected && <Check className="h-3 w-3" />}
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <Switch
-                                    id="is_active"
-                                    checked={formData.is_active}
-                                    onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                                />
-                                <Label htmlFor="is_active">Active</Label>
-                            </div>
+        {/* Create/Edit App Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{editingApp ? "Edit App" : "Create New App"}</DialogTitle>
+                    <DialogDescription>
+                    {editingApp ? "Update the app details" : "Add a new application to the platform"}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 max-h-[70vh] overflow-y-auto pb-10 px-4">
+                    <div className="space-y-2">
+                    <Label htmlFor="name">App Name</Label>
+                    <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => handleNameChange(e.target.value)}
+                        placeholder="Enter app name"
+                    />
+                    </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="slug">Slug</Label>
+                    <Input
+                        id="slug"
+                        value={formData.slug}
+                        onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                        placeholder="app-slug"
+                    />
+                    <p className="text-xs text-muted-foreground">Unique identifier for URLs and DB lookups.</p>
+                    </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="tool_link">Tool Link</Label>
+                    <Input
+                        id="tool_link"
+                        value={formData.tool_link}
+                        onChange={(e) => setFormData({ ...formData, tool_link: e.target.value })}
+                        placeholder="https://example.com"
+                    />
+                    </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                        id="description"
+                        value={formData.description}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        placeholder="Enter app description"
+                    />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="trial_days">Trial Days</Label>
+                        <Input
+                            id="trial_days"
+                            type="number"
+                            min="0"
+                            value={formData.trial_days}
+                            onChange={(e) => setFormData({ ...formData, trial_days: parseInt(e.target.value) || 0 })}
+                            placeholder="0"
+                        />
+                        <p className="text-xs text-muted-foreground">Number of days for free trial (0 to disable).</p>
+                    </div>
+                    {/* Required Integrations */}
+                    <div className="space-y-2">
+                        <Label>Required Integrations</Label>
+                        <p className="text-xs text-muted-foreground">Select which integrations this app requires during onboarding.</p>
+                        <div className="grid gap-2">
+                            {INTEGRATION_TYPE_OPTIONS.map((opt) => {
+                                const isSelected = formData.required_integrations.includes(opt.value);
+                                return (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                required_integrations: isSelected
+                                                    ? prev.required_integrations.filter(v => v !== opt.value)
+                                                    : [...prev.required_integrations, opt.value],
+                                            }));
+                                        }}
+                                        className={`flex items-center gap-3 p-3 rounded-lg border text-left text-sm transition-all ${isSelected
+                                            ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                                            : "border-border hover:border-muted-foreground/30 hover:bg-muted/50"
+                                            }`}
+                                    >
+                                        <opt.icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                                        <span className="flex-1 font-medium">{opt.label}</span>
+                                        <div
+                                            className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected
+                                                ? "border-primary bg-primary text-primary-foreground"
+                                                : "border-muted-foreground/30"
+                                                }`}
+                                        >
+                                            {isSelected && <Check className="h-3 w-3" />}
+                                        </div>
+                                    </button>
+                                );
+                            })}
                         </div>
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button onClick={handleSave}>
-                                {editingApp ? "Save Changes" : "Create App"}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                    <Switch
+                        id="is_active"
+                        checked={formData.is_active}
+                        onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                    />
+                    <Label htmlFor="is_active">Active</Label>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    Cancel
+                    </Button>
+                    <Button onClick={handleSave}>
+                    {editingApp ? "Save Changes" : "Create App"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
                 {/* Feature Management Dialog */}
                 <Dialog open={isFeatureDialogOpen} onOpenChange={setIsFeatureDialogOpen}>

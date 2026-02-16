@@ -50,7 +50,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   activeOrganization: Organization | null;
-  switchOrganization: (orgId: string) => void;
+  switchOrganization: (orgId: string, org?: Organization) => void;
   login: (email: string, password: string, token?: string) => Promise<void>;
   loginWithGoogle: (code: string, token?: string) => Promise<User | void>;
   signup: (name: string, email: string, password: string, token?: string) => Promise<User | void>;
@@ -88,7 +88,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [activeOrganization, setActiveOrganization] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const switchOrganization = (orgId: string) => {
+  // Load active organization from localStorage on mount
+  useEffect(() => {
+    const savedOrgId = localStorage.getItem("activeOrganizationId");
+    if (user && user.memberships && user.memberships.length > 0) {
+      if (savedOrgId) {
+        const savedOrg = user.memberships.find(m => m.organization.id === savedOrgId)?.organization;
+        if (savedOrg) {
+          setActiveOrganization(savedOrg);
+          return;
+        }
+      }
+      // Default to first organization if no saved one found or saved one is invalid
+      setActiveOrganization(user.memberships[0].organization);
+    } else {
+      setActiveOrganization(null);
+    }
+  }, [user]);
+
+  const switchOrganization = (orgId: string, org?: Organization) => {
+    if (org) {
+        setActiveOrganization(org);
+        localStorage.setItem("activeOrganizationId", org.id);
+        return;
+    }
+
     if (!user || !user.memberships) return;
     const member = user.memberships.find(m => m.organization.id === orgId);
     if (member) {

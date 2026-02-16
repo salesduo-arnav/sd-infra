@@ -68,7 +68,6 @@ export default function CreateOrganisation() {
       }
 
       await refreshUser();
-
       // Redirect to external app if redirect param exists
       if (redirectUrl) {
         const url = new URL(redirectUrl, window.location.origin);

@@ -26,7 +26,8 @@ describe('Public Plan Access', () => {
             slug: 'public-test-tool',
             description: 'Tool for Public Tests',
             tool_link: 'http://example.com',
-            is_active: true
+            is_active: true,
+            trial_days: 0
         });
 
         // Create Active Plan
