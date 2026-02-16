@@ -55,7 +55,6 @@ export const getIntegrationAccounts = async (req: Request, res: Response) => {
 
         res.status(200).json({ accounts });
     } catch (error) {
-        Logger.error('Get Integration Accounts Error', { error });
         handleError(res, error, 'Get Integration Accounts Error');
     }
 };
@@ -113,7 +112,6 @@ export const createIntegrationAccount = async (req: Request, res: Response) => {
 
         res.status(201).json({ account });
     } catch (error) {
-        Logger.error('Create Integration Account Error', { error });
         handleError(res, error, 'Create Integration Account Error');
     }
 };
@@ -138,7 +136,6 @@ export const deleteIntegrationAccount = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Integration account deleted successfully' });
     } catch (error) {
-        Logger.error('Delete Integration Account Error', { error });
         handleError(res, error, 'Delete Integration Account Error');
     }
 };
@@ -170,7 +167,6 @@ export const connectIntegrationAccount = async (req: Request, res: Response) => 
 
         res.status(200).json({ account });
     } catch (error) {
-        Logger.error('Connect Integration Account Error', { error });
         handleError(res, error, 'Connect Integration Account Error');
     }
 };
@@ -200,7 +196,6 @@ export const disconnectIntegrationAccount = async (req: Request, res: Response) 
 
         res.status(200).json({ account });
     } catch (error) {
-        Logger.error('Disconnect Integration Account Error', { error });
         handleError(res, error, 'Disconnect Integration Account Error');
     }
 };
@@ -222,7 +217,6 @@ export const getGlobalIntegrations = async (req: Request, res: Response) => {
 
         res.status(200).json({ integrations });
     } catch (error) {
-        Logger.error('Get Global Integrations Error', { error });
         handleError(res, error, 'Get Global Integrations Error');
     }
 };
@@ -275,7 +269,6 @@ export const connectGlobalIntegration = async (req: Request, res: Response) => {
 
         res.status(200).json({ integration });
     } catch (error) {
-        Logger.error('Connect Global Integration Error', { error });
         handleError(res, error, 'Connect Global Integration Error');
     }
 };
@@ -304,7 +297,6 @@ export const disconnectGlobalIntegration = async (req: Request, res: Response) =
 
         res.status(200).json({ message: 'Global integration disconnected successfully' });
     } catch (error) {
-        Logger.error('Disconnect Global Integration Error', { error });
         handleError(res, error, 'Disconnect Global Integration Error');
     }
 };

@@ -42,7 +42,6 @@ export const getFeatures = async (req: Request, res: Response) => {
 
         res.status(200).json(formatPaginationResponse(rows, count, page, limit, 'features'));
     } catch (error) {
-        Logger.error('Get Features Error', { error });
         handleError(res, error, 'Get Features Error');
     }
 };
@@ -60,7 +59,6 @@ export const getFeatureById = async (req: Request, res: Response) => {
 
         res.status(200).json(feature);
     } catch (error) {
-        Logger.error('Get Feature Error', { error });
         handleError(res, error, 'Get Feature Error');
     }
 };
@@ -99,7 +97,6 @@ export const createFeature = async (req: Request, res: Response) => {
 
         res.status(201).json(feature);
     } catch (error) {
-        Logger.error('Create Feature Error', { error });
         handleError(res, error, 'Create Feature Error');
     }
 };
@@ -142,7 +139,6 @@ export const updateFeature = async (req: Request, res: Response) => {
 
         res.status(200).json(updatedFeature);
     } catch (error) {
-        Logger.error('Update Feature Error', { error });
         handleError(res, error, 'Update Feature Error');
     }
 };
@@ -174,7 +170,6 @@ export const deleteFeature = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Feature deleted successfully' });
     } catch (error) {
-        Logger.error('Delete Feature Error', { error });
         handleError(res, error, 'Delete Feature Error');
     }
 };

@@ -103,7 +103,6 @@ export const createOrganization = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        Logger.error("Create Org Error", { error });
         handleError(res, error, 'Create Org Error');
     }
 };
@@ -160,7 +159,6 @@ export const getMyOrganization = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        Logger.error("Get Org Error", { error });
         handleError(res, error, 'Get Org Error');
     }
 };
@@ -246,7 +244,6 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
         res.json(formatPaginationResponse(members, totalCount, page, limit, 'members'));
 
     } catch (error) {
-        Logger.error("Get Members Error", { error });
         handleError(res, error, 'Get Members Error');
     }
 };
@@ -309,7 +306,6 @@ export const updateOrganization = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        Logger.error("Update Org Error", { error });
         handleError(res, error, 'Update Org Error');
     }
 };
@@ -385,8 +381,7 @@ export const removeMember = async (req: Request, res: Response) => {
         res.json({ message: 'Member removed successfully' });
 
     } catch (error) {
-        Logger.error('Remove Member Error', { error });
-        res.status(500).json({ message: 'Server error removing member' });
+        handleError(res, error, 'Remove Member Error');
     }
 };
 
@@ -464,8 +459,7 @@ export const updateMemberRole = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        Logger.error('Update Member Role Error', { error });
-        res.status(500).json({ message: 'Server error updating member role' });
+        handleError(res, error, 'Update Member Role Error');
     }
 };
 
@@ -541,8 +535,7 @@ export const transferOwnership = async (req: Request, res: Response) => {
         res.json({ message: 'Ownership transferred successfully' });
 
     } catch (error) {
-        Logger.error('Transfer Ownership Error', { error });
-        res.status(500).json({ message: 'Server error transferring ownership' });
+        handleError(res, error, 'Transfer Ownership Error');
     }
 };
 
@@ -591,7 +584,6 @@ export const deleteOrganization = async (req: Request, res: Response) => {
         res.json({ message: 'Organization deleted successfully' });
 
     } catch (error) {
-        Logger.error('Delete Organization Error', { error });
-        res.status(500).json({ message: 'Server error deleting organization' });
+        handleError(res, error, 'Delete Organization Error');
     }
 };

@@ -46,7 +46,6 @@ export const getTools = async (req: Request, res: Response) => {
 
         res.status(200).json(formatPaginationResponse(rows, count, page, limit, 'tools'));
     } catch (error) {
-        Logger.error('Get Tools Error', { error });
         handleError(res, error, 'Get Tools Error');
     }
 };
@@ -64,7 +63,6 @@ export const getToolById = async (req: Request, res: Response) => {
 
         res.status(200).json(tool);
     } catch (error) {
-        Logger.error('Get Tool Error', { error });
         handleError(res, error, 'Get Tool Error');
     }
 };
@@ -107,7 +105,6 @@ export const createTool = async (req: Request, res: Response) => {
 
         res.status(201).json(tool);
     } catch (error) {
-        Logger.error('Create Tool Error', { error });
         handleError(res, error, 'Create Tool Error');
     }
 };
@@ -155,7 +152,6 @@ export const updateTool = async (req: Request, res: Response) => {
 
         res.status(200).json(updatedTool);
     } catch (error) {
-        Logger.error('Update Tool Error', { error });
         handleError(res, error, 'Update Tool Error');
     }
 };
@@ -237,7 +233,6 @@ export const deleteTool = async (req: Request, res: Response) => {
                 message: 'Cannot delete tool. There are active subscriptions associated with plans for this tool. Please cancel subscriptions first.'
             });
         }
-        Logger.error('Delete Tool Error', { error });
         handleError(res, error, 'Delete Tool Error');
     }
 };

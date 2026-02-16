@@ -44,7 +44,6 @@ export const getBundleGroups = async (req: Request, res: Response) => {
 
         res.status(200).json(groups);
     } catch (error) {
-        Logger.error('Get Bundle Groups Error', { error });
         handleError(res, error, 'Get Bundle Groups Error');
     }
 };
@@ -76,7 +75,6 @@ export const createBundleGroup = async (req: Request, res: Response) => {
 
         res.status(201).json(group);
     } catch (error) {
-        Logger.error('Create Bundle Group Error', { error });
         handleError(res, error, 'Create Bundle Group Error');
     }
 };
@@ -105,7 +103,6 @@ export const updateBundleGroup = async (req: Request, res: Response) => {
 
         res.status(200).json(group);
     } catch (error) {
-        Logger.error('Update Bundle Group Error', { error });
         handleError(res, error, 'Update Bundle Group Error');
     }
 };
@@ -210,7 +207,6 @@ export const getBundles = async (req: Request, res: Response) => {
 
         res.status(200).json(formatPaginationResponse(rows, count, page, limit, 'bundles'));
     } catch (error) {
-        Logger.error('Get Bundles Error', { error });
         handleError(res, error, 'Get Bundles Error');
     }
 };
@@ -232,7 +228,6 @@ export const getBundleById = async (req: Request, res: Response) => {
 
         res.status(200).json(bundle);
     } catch (error) {
-        Logger.error('Get Bundle Error', { error });
         handleError(res, error, 'Get Bundle Error');
     }
 };
@@ -310,7 +305,6 @@ export const createBundle = async (req: Request, res: Response) => {
 
         res.status(201).json(bundle);
     } catch (error) {
-        Logger.error('Create Bundle Error', { error });
         handleError(res, error, 'Create Bundle Error');
     }
 };
@@ -413,7 +407,6 @@ export const updateBundle = async (req: Request, res: Response) => {
 
         res.status(200).json(updatedBundle);
     } catch (error) {
-        Logger.error('Update Bundle Error', { error });
         handleError(res, error, 'Update Bundle Error');
     }
 };
@@ -510,7 +503,6 @@ export const addPlanToBundle = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Plan added to bundle' });
     } catch (error) {
-        Logger.error('Add Plan to Bundle Error', { error });
         handleError(res, error, 'Add Plan to Bundle Error');
     }
 };
@@ -548,7 +540,6 @@ export const removePlanFromBundle = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Plan removed from bundle' });
     } catch (error) {
-        Logger.error('Remove Plan from Bundle Error', { error });
         handleError(res, error, 'Remove Plan from Bundle Error');
     }
 };

@@ -55,7 +55,6 @@ export const getOrganizations = async (req: Request, res: Response) => {
 
         res.status(200).json(formatPaginationResponse(organizationsWithCount, count, page, limit, 'organizations'));
     } catch (error) {
-        Logger.error('Get Organizations Error', { error });
         handleError(res, error, 'Get Organizations Error');
     }
 };
@@ -100,7 +99,6 @@ export const updateOrganization = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Organization updated successfully', organization });
     } catch (error) {
-        Logger.error('Update Organization Error', { error });
         handleError(res, error, 'Update Organization Error');
     }
 };
@@ -136,7 +134,6 @@ export const deleteOrganization = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Organization deleted successfully' });
     } catch (error) {
-        Logger.error('Delete Organization Error', { error });
         handleError(res, error, 'Delete Organization Error');
     }
 };
@@ -227,7 +224,6 @@ export const getOrganizationDetails = async (req: Request, res: Response) => {
             }
         });
     } catch (error) {
-        Logger.error('Get Organization Details Error', { error });
         handleError(res, error, 'Get Organization Details Error');
     }
 };

@@ -152,7 +152,6 @@ export const register = async (req: Request, res: Response) => {
             user: userWithOrg
         });
     } catch (error) {
-        Logger.error("Registration Error", { error });
         handleError(res, error, 'Registration Error');
     }
 };
@@ -248,7 +247,6 @@ export const login = async (req: Request, res: Response) => {
             user: userWithOrg
         });
     } catch (error) {
-        Logger.error("Login Error", { error });
         handleError(res, error, 'Login Error');
     }
 };
@@ -306,7 +304,6 @@ export const getMe = async (req: Request, res: Response) => {
 
         res.json(userWithOrg);
     } catch (error) {
-        Logger.error("GetMe Error", { error });
         handleError(res, error, 'GetMe Error');
     }
 };
@@ -366,7 +363,6 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
         res.json({ message: 'If an account exists, a reset link has been sent.' });
     } catch (error) {
-        Logger.error("Forgot Password Error", { error });
         handleError(res, error, 'Forgot Password Error');
     }
 };
@@ -409,7 +405,6 @@ export const resetPassword = async (req: Request, res: Response) => {
 
         res.json({ message: 'Password has been reset successfully. You can now login.' });
     } catch (error) {
-        Logger.error("Reset Password Error", { error });
         handleError(res, error, 'Reset Password Error');
     }
 };
@@ -553,7 +548,6 @@ export const googleAuth = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        Logger.error("Google authentication failed", { error });
         handleError(res, error, 'Google authentication failed');
     }
 };
@@ -603,7 +597,6 @@ export const sendLoginOtp = async (req: Request, res: Response) => {
 
         res.json({ message: 'If an account exists, an OTP has been sent.' });
     } catch (error) {
-        Logger.error('Send Login OTP Error', { error });
         handleError(res, error, 'Send Login OTP Error');
     }
 };
@@ -672,7 +665,6 @@ export const verifyLoginOtp = async (req: Request, res: Response) => {
             user: userWithOrg
         });
     } catch (error) {
-        Logger.error('Verify Login OTP Error', { error });
         handleError(res, error, 'Verify Login OTP Error');
     }
 };
@@ -742,7 +734,6 @@ export const sendSignupOtp = async (req: Request, res: Response) => {
 
         res.json({ message: 'Verification OTP sent to your email' });
     } catch (error) {
-        Logger.error('Send Signup OTP Error', { error });
         handleError(res, error, 'Send Signup OTP Error');
     }
 };
@@ -862,7 +853,6 @@ export const verifySignupOtp = async (req: Request, res: Response) => {
             user: userWithOrg
         });
     } catch (error) {
-        Logger.error('Verify Signup OTP Error', { error });
         handleError(res, error, 'Verify Signup OTP Error');
     }
 };

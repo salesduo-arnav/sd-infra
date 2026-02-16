@@ -93,7 +93,6 @@ export const getOverviewStats = async (req: Request, res: Response) => {
             mrrGrowthAbsolute
         });
     } catch (error) {
-        Logger.error('Get Overview Stats Error', { error });
         handleError(res, error, 'Get Overview Stats Error');
     }
 };
@@ -113,7 +112,6 @@ export const getRevenueChart = async (req: Request, res: Response) => {
 
         res.status(200).json(revenueData);
     } catch (error) {
-        Logger.error('Get Revenue Chart Error', { error });
         handleError(res, error, 'Get Revenue Chart Error');
     }
 }
@@ -132,7 +130,6 @@ export const getUserGrowthChart = async (req: Request, res: Response) => {
 
         res.status(200).json(growthData);
     } catch (error) {
-        Logger.error('Get User Growth Chart Error', { error });
         handleError(res, error, 'Get User Growth Chart Error');
     }
 };
@@ -154,7 +151,6 @@ export const getToolUsageChart = async (req: Request, res: Response) => {
 
         res.status(200).json(usageData);
     } catch (error) {
-        Logger.error('Get Tool Usage Chart Error', { error });
         handleError(res, error, 'Get Tool Usage Chart Error');
     }
 }

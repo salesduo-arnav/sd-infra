@@ -42,7 +42,6 @@ export const getUsers = async (req: Request, res: Response) => {
 
         res.status(200).json(formatPaginationResponse(rows, count, page, limit, 'users'));
     } catch (error) {
-        Logger.error('Get Users Error', { error });
         handleError(res, error, 'Get Users Error');
     }
 };
@@ -89,7 +88,6 @@ export const updateUser = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'User updated successfully', user });
     } catch (error) {
-        Logger.error('Update User Error', { error });
         handleError(res, error, 'Update User Error');
     }
 };
@@ -212,7 +210,6 @@ export const deleteUser = async (req: Request, res: Response) => {
             req
         });
     } catch (error) {
-        Logger.error('Delete User Error', { error });
         handleError(res, error, 'Delete User Error');
     }
 };

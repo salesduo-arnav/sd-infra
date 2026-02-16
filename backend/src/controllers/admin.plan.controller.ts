@@ -51,7 +51,6 @@ export const getPlans = async (req: Request, res: Response) => {
 
         res.status(200).json(formatPaginationResponse(rows, count, page, limit, 'plans'));
     } catch (error) {
-        Logger.error('Get Plans Error', { error });
         handleError(res, error, 'Get Plans Error');
     }
 };
@@ -72,7 +71,6 @@ export const getPlanById = async (req: Request, res: Response) => {
 
         res.status(200).json(plan);
     } catch (error) {
-        Logger.error('Get Plan Error', { error });
         handleError(res, error, 'Get Plan Error');
     }
 };
@@ -355,7 +353,6 @@ export const upsertPlanLimit = async (req: Request, res: Response) => {
 
         res.status(200).json(limit);
     } catch (error) {
-        Logger.error('Upsert Plan Limit Error', { error });
         handleError(res, error, 'Upsert Plan Limit Error');
     }
 };
@@ -386,7 +383,6 @@ export const deletePlanLimit = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Plan Limit deleted successfully' });
     } catch (error) {
-        Logger.error('Delete Plan Limit Error', { error });
         handleError(res, error, 'Delete Plan Limit Error');
     }
 };
