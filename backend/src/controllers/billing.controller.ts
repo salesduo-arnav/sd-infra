@@ -10,6 +10,7 @@ import { Subscription } from '../models/subscription';
 import { SubStatus } from '../models/enums';
 import sequelize from '../config/db';
 import { Op } from 'sequelize';
+import { AuditService } from '../services/audit.service';
 
 class BillingController {
     async createCheckoutSession(req: Request, res: Response, next: NextFunction) {
@@ -88,9 +89,10 @@ class BillingController {
                 metadata: {
                     organizationId: organization.id,
                     items: JSON.stringify(metadataItems),
-                    interval: firstInterval
+                    interval: firstInterval,
+                    userId: user?.id
                 },
-                subscription_data: { metadata: { organizationId: organization.id } }
+                subscription_data: { metadata: { organizationId: organization.id, userId: user?.id } }
             };
 
             if (trialPeriodDays > 0) {
@@ -120,6 +122,19 @@ class BillingController {
             } else {
                 res.status(200).json({ url: session.url, sessionId: session.id });
             }
+
+            await AuditService.log({
+                actorId: user?.id,
+                action: 'INITIATE_CHECKOUT',
+                entityType: 'Organization',
+                entityId: organization.id,
+                details: {
+                    items: metadataItems,
+                    interval: firstInterval,
+                    ui_mode
+                },
+                req
+            });
 
         } catch (error) {
             next(error);
@@ -298,6 +313,15 @@ class BillingController {
             await subscription.update({ cancel_at_period_end: true });
 
             res.status(200).json({ message: 'Subscription cancelled successfully' });
+
+            await AuditService.log({
+                actorId: req.user?.id,
+                action: 'CANCEL_SUBSCRIPTION',
+                entityType: 'Subscription',
+                entityId: subscription.id,
+                details: { stripe_subscription_id: id },
+                req
+            });
         } catch (error) {
             next(error);
         }
@@ -323,6 +347,15 @@ class BillingController {
             await subscription.update({ cancel_at_period_end: false });
 
             res.status(200).json({ message: 'Subscription resumed successfully' });
+
+            await AuditService.log({
+                actorId: req.user?.id,
+                action: 'RESUME_SUBSCRIPTION',
+                entityType: 'Subscription',
+                entityId: subscription.id,
+                details: { stripe_subscription_id: id },
+                req
+            });
         } catch (error) {
             next(error);
         }
@@ -432,7 +465,7 @@ class BillingController {
                     }
 
                     if (fingerprint) {
-                        await this.checkAndEnforceTrialAbuse(localSub, stripeSub, localSub.plan_id, fingerprint);
+                        await this.checkAndEnforceTrialAbuse(localSub, stripeSub, localSub.plan_id, fingerprint, req.user?.id);
                     }
                     updatedCount++;
                 }
@@ -461,6 +494,19 @@ class BillingController {
                     await organization.update({ stripe_customer_id: session.customer as string });
                 }
             }
+            
+            await AuditService.log({
+                actorId: session.metadata?.userId,
+                action: session.amount_total === 0 ? 'TRIAL_STARTED' : 'PURCHASE_COMPLETED',
+                entityType: 'Subscription',
+                entityId: session.subscription as string,
+                details: {
+                    organizationId: orgId,
+                    amount_total: session.amount_total,
+                    currency: session.currency,
+                    sessionId: session.id
+                }
+            });
         }
     }
 
@@ -530,11 +576,24 @@ class BillingController {
         }
 
         if (fingerprint && (status === SubStatus.TRIALING || status === SubStatus.ACTIVE)) {
-            await this.checkAndEnforceTrialAbuse(subscription, stripeSub, finalPlanId || subscription.plan_id, fingerprint);
+            await this.checkAndEnforceTrialAbuse(subscription, stripeSub, finalPlanId || subscription.plan_id, fingerprint, stripeSub.metadata?.userId);
         }
+
+        await AuditService.log({
+            actorId: stripeSub.metadata?.userId,
+            action: 'SUBSCRIPTION_UPDATED',
+            entityType: 'Subscription',
+            entityId: subscription.id,
+            details: {
+                status,
+                planId: finalPlanId,
+                bundleId: finalBundleId,
+                stripe_subscription_id: stripeSub.id
+            }
+        });
     }
 
-    private async checkAndEnforceTrialAbuse(subscription: Subscription, stripeSub: Stripe.Subscription, planId: string | null | undefined, fingerprint: string | null) {
+    private async checkAndEnforceTrialAbuse(subscription: Subscription, stripeSub: Stripe.Subscription, planId: string | null | undefined, fingerprint: string | null, actorId?: string) {
         if (fingerprint && (subscription.status === SubStatus.TRIALING || subscription.status === SubStatus.ACTIVE)) {
             try {
                 // Check for duplicates
@@ -580,6 +639,18 @@ class BillingController {
                                 cancellation_reason: 'duplicate_card'
                             });
                         }
+
+                        await AuditService.log({
+                            actorId,
+                            action: 'TRIAL_ABUSE_DETECTED',
+                            entityType: 'Subscription',
+                            entityId: subscription?.id || 'unknown',
+                            details: {
+                                fingerprint,
+                                duplicate_subscription_id: duplicateSub.id,
+                                stripe_subscription_id: stripeSub.id
+                            }
+                        });
                     }
                 }
             } catch (err) {
@@ -595,6 +666,17 @@ class BillingController {
         if (subscriptions && subscriptions.length > 0) {
             for (const sub of subscriptions) {
                 await sub.update({ status: SubStatus.CANCELED });
+
+                await AuditService.log({
+                    actorId: stripeSub.metadata?.userId,
+                    action: 'CANCEL_SUBSCRIPTION',
+                    entityType: 'Subscription',
+                    entityId: sub.id,
+                    details: {
+                        stripe_subscription_id: stripeSub.id,
+                        reason: 'Webhook: customer.subscription.deleted'
+                    }
+                });
             }
         }
     }
@@ -621,6 +703,28 @@ class BillingController {
                     status: SubStatus.PAST_DUE,
                     last_payment_failure_at: new Date()
                 });
+
+                // Fetch Stripe Subscription to get Metadata (userId)
+                let actorId: string | undefined;
+                try {
+                    const stripeSub = await stripeService.getSubscription(subscriptionId);
+                    actorId = stripeSub.metadata?.userId;
+                } catch (e) {
+                    console.warn(`[Billing] Failed to fetch stripe sub for actor details: ${subscriptionId}`, e);
+                }
+
+                await AuditService.log({
+                    actorId,
+                    action: 'PAYMENT_FAILED',
+                    entityType: 'Subscription',
+                    entityId: subscription.id,
+                    details: {
+                        invoice_id: invoice.id,
+                        amount_due: invoice.amount_due,
+                        currency: invoice.currency,
+                        stripe_subscription_id: subscriptionId
+                    }
+                });
             } else {
                 console.warn(`[BillingController] Subscription not found for failed invoice: ${invoice.id}, Sub ID: ${subscriptionId}`);
             }
@@ -632,7 +736,6 @@ class BillingController {
     private async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
         console.log('Invoice payment succeeded', invoice.id);
 
-        // Resolve subscription ID (handle different invoice structures)
         // Resolve subscription ID (handle different invoice structures)
         const inv = invoice as unknown as { subscription?: string | null; parent?: { subscription_details?: { subscription?: string } } };
         const subscriptionId = typeof inv.subscription === 'string'
@@ -646,9 +749,32 @@ class BillingController {
 
             if (subscription) {
                 console.log(`[BillingController] Validating subscription ${subscription.id} status after payment success.`);
+                
+                // Fetch Stripe Subscription to get Metadata (userId)
+                let actorId: string | undefined;
+                try {
+                    const stripeSub = await stripeService.getSubscription(subscriptionId);
+                    actorId = stripeSub.metadata?.userId;
+                } catch (e) {
+                    console.warn(`[Billing] Failed to fetch stripe sub for actor details: ${subscriptionId}`, e);
+                }
+
                 await subscription.update({
                     status: SubStatus.ACTIVE,
                     last_payment_failure_at: null
+                });
+
+                await AuditService.log({
+                    actorId,
+                    action: 'PAYMENT_SUCCEEDED',
+                    entityType: 'Subscription',
+                    entityId: subscription.id,
+                    details: {
+                        invoice_id: invoice.id,
+                        amount_paid: invoice.amount_paid,
+                        currency: invoice.currency,
+                        stripe_subscription_id: subscriptionId
+                    }
                 });
             }
         }
@@ -734,10 +860,27 @@ class BillingController {
 
                 res.status(200).json({ message: `Subscription scheduled to downgrade at the end of the billing cycle.` });
 
+                await AuditService.log({
+                    actorId: req.user?.id,
+                    action: 'UPDATE_SUBSCRIPTION',
+                    entityType: 'Subscription',
+                    entityId: subscription.id,
+                    details: {
+                        type: 'DOWNGRADE',
+                        target_price_id: targetPriceId,
+                        target_plan_id: targetPlanId,
+                        target_bundle_id: targetBundleId,
+                        schedule: 'PERIOD_END'
+                    },
+                    req
+                });
+
             } else {
                 // UPGRADE (or same price switch) -> Immediate
                 console.log(`[BillingController] Upgrading subscription ${stripeSubId} to ${targetItem.type} ${targetItem.id}`);
-                await stripeService.updateSubscription(stripeSubId, targetPriceId);
+                
+                // Ensure userId is in metadata for future webhooks
+                await stripeService.updateSubscription(stripeSubId, targetPriceId, req.user ? { userId: req.user.id } : undefined);
 
                 // Immediately update local DB with new plan/bundle
                 await subscription.update({
@@ -748,6 +891,21 @@ class BillingController {
                 });
 
                 res.status(200).json({ message: 'Subscription updated successfully' });
+
+                await AuditService.log({
+                    actorId: req.user?.id,
+                    action: 'UPDATE_SUBSCRIPTION',
+                    entityType: 'Subscription',
+                    entityId: subscription.id,
+                    details: {
+                        type: 'UPGRADE_OR_CHANGE',
+                        target_price_id: targetPriceId,
+                        target_plan_id: targetPlanId,
+                        target_bundle_id: targetBundleId,
+                        schedule: 'IMMEDIATE'
+                    },
+                    req
+                });
             }
 
         } catch (error) {
@@ -859,6 +1017,19 @@ class BillingController {
                 current_period_start: now,
                 current_period_end: trialEnd,
                 cancel_at_period_end: false,
+            });
+
+            await AuditService.log({
+                actorId: req.user?.id,
+                action: 'TRIAL_STARTED',
+                entityType: 'Subscription',
+                entityId: subscription.id,
+                details: {
+                    toolId: tool_id,
+                    trialDays: trialDays,
+                    planId: trialPlan.id
+                },
+                req
             });
 
             res.status(201).json(subscription);

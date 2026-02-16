@@ -7,6 +7,8 @@ import { Check, Sparkles } from "lucide-react";
 import { App, CartItem } from "./types";
 import { TierItem } from "./TierItem";
 import { Subscription } from "@/types/subscription";
+import { FeatureComparisonModal } from "./FeatureComparisonModal";
+import { useState } from "react";
 
 interface AppCardProps {
   app: App;
@@ -21,6 +23,7 @@ interface AppCardProps {
 }
 
 export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart, hasAnyTierInCart, currentSubscription, onStartTrial, isStartingTrial }: AppCardProps) {
+  const [showDetails, setShowDetails] = useState(false);
   const isComingSoon = app.status === "coming-soon";
   const hasTierSelected = hasAnyTierInCart(app.id);
 
@@ -200,7 +203,33 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
             </div>
             )}
         </div>
+
+        {/* View Details Link */}
+        {!isComingSoon && (
+            <div className="flex justify-center">
+                <Button 
+                    variant="link" 
+                    size="sm" 
+                    className="text-muted-foreground h-auto p-0 text-xs hover:text-primary"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setShowDetails(true);
+                    }}
+                >
+                    View details & compare features
+                </Button>
+            </div>
+        )}
       </CardContent>
+
+      <FeatureComparisonModal
+        isOpen={showDetails}
+        onClose={() => setShowDetails(false)}
+        title={app.name}
+        description={app.description}
+        tiers={app.tiers}
+        apps={[{ name: app.name, description: app.description, features: app.features }]}
+      />
     </Card>
   );
 }

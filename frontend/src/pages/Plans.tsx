@@ -340,7 +340,7 @@ export default function Plans() {
                   <Package className="h-5 w-5 text-primary" />
                   <h2 className="text-xl font-semibold">Available Bundles</h2>
                 </div>
-                <div className={cn("grid gap-6", isCartOpen ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3")}>
+                <div className={cn("grid gap-6 items-start", isCartOpen ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3")}>
                   {allBundles.map((bundle) => {
                       const activeSub = currentSubscriptions.find(s => 
                         ['active', 'trialing', 'past_due'].includes(s.status) &&
@@ -377,7 +377,7 @@ export default function Plans() {
                   Purchase individual tools with flexible tier options
                 </p>
               </div>
-              <div className={cn("grid gap-6", isCartOpen ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3")}>
+              <div className={cn("grid gap-6 items-start", isCartOpen ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3")}>
                 {enrichedApps.map((app) => {
                     // Check active subscription
                     const activeSub = currentSubscriptions.find(s => 

@@ -5,6 +5,7 @@ export interface FeatureItem {
   limit?: string;
   isEnabled: boolean;
   toolName?: string;
+  resetPeriod?: string;
 }
 
 export interface BundleTier {
@@ -21,7 +22,7 @@ export interface Bundle {
   id: string;
   name: string;
   description: string;
-  apps: { name: string; features: string[] }[];
+  apps: { name: string; description?: string; features: string[] }[];
   tiers: BundleTier[];
   popular?: boolean;
   icon: ReactNode;

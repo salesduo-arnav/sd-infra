@@ -23,6 +23,7 @@ export const transformBundles = (publicBundles: PublicBundleGroup[]): Bundle[] =
 
         const apps = firstBundle ? firstBundle.bundle_plans.map((bp: PublicBundlePlan) => ({
             name: bp.plan.tool?.name || "Unknown App",
+            description: bp.plan.tool?.description,
             features: bp.plan.tool?.features?.map((f: { name: string }) => f.name) || []
         })) : [];
 
@@ -43,7 +44,8 @@ export const transformBundles = (publicBundles: PublicBundleGroup[]): Bundle[] =
                         name: limit.feature?.name || "Unknown Feature",
                         limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
                         isEnabled: limit.is_enabled,
-                        toolName: bp.plan?.tool?.name || "Unknown Tool"
+                        toolName: bp.plan?.tool?.name || "Unknown Tool",
+                        resetPeriod: limit.reset_period
                     })) || []
                 ) || []
             })),
@@ -98,7 +100,8 @@ export const transformPlansToApps = (publicPlans: PublicPlan[]): App[] => {
                         name: limit.feature?.name || "Unknown Feature",
                         limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
                         isEnabled: limit.is_enabled,
-                        toolName: tool.name
+                        toolName: tool.name,
+                        resetPeriod: limit.reset_period
                     })) || [],
                     isTrial: true,
                     trialDays: tool.trial_days
@@ -117,7 +120,8 @@ export const transformPlansToApps = (publicPlans: PublicPlan[]): App[] => {
                     name: limit.feature?.name || "Unknown Feature",
                     limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
                     isEnabled: limit.is_enabled,
-                    toolName: tool.name
+                    toolName: tool.name,
+                    resetPeriod: limit.reset_period
                 })) || []
             });
         }
