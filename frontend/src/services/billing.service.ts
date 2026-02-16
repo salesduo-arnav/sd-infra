@@ -19,7 +19,7 @@ export const cancelDowngrade = async (subscriptionId: string) => {
     return response.data;
 };
 
-// Trial Management
+// Trials
 export const startTrial = async (toolId: string) => {
     const response = await api.post('/billing/trial/start', { tool_id: toolId });
     return response.data;

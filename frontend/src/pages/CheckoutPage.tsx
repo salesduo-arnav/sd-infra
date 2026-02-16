@@ -14,7 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-// Initialize Stripe outside component to avoid recreation
+// Initialize Stripe
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
 
 export default function CheckoutPage() {
@@ -26,7 +26,7 @@ export default function CheckoutPage() {
   const bundleId = searchParams.get('bundleId');
   const interval = searchParams.get('interval') || 'monthly';
   
-  // Items from navigation state (Cart)
+  // Cart Items
   const cartItems = location.state?.items;
 
   const [loading, setLoading] = useState(false);
@@ -37,7 +37,7 @@ export default function CheckoutPage() {
     setLoading(true);
     setError(null);
     try {
-      // Construct items array
+      // Construct items
       let items = [];
       if (cartItems && cartItems.length > 0) {
           items = cartItems;
@@ -92,7 +92,7 @@ export default function CheckoutPage() {
     );
   }
 
-  // Calculate totals for summary
+  // Totals
   const total = cartItems?.reduce((sum: number, item: CartItem) => sum + (item.price || 0), 0) || 0;
   const billingInterval = cartItems?.[0]?.period || interval;
 
@@ -100,7 +100,7 @@ export default function CheckoutPage() {
     <div className="min-h-screen bg-gray-50/50 p-4 lg:p-8">
       <div className="mx-auto max-w-6xl grid gap-8 lg:grid-cols-2 lg:h-[calc(100vh-4rem)]">
         
-        {/* Left Column: Order Summary */}
+        {/* Order Summary */}
         <div className="flex flex-col gap-6 order-2 lg:order-1 h-full max-h-[calc(100vh-6rem)] overflow-hidden">
             <div className="flex items-center gap-2 mb-2">
                 <Button variant="ghost" size="sm" onClick={() => navigate('/plans')} className="text-muted-foreground hover:text-foreground -ml-2">
@@ -164,7 +164,7 @@ export default function CheckoutPage() {
             </Card>
         </div>
 
-        {/* Right Column: Stripe Checkout */}
+        {/* Stripe Checkout */}
         <div className="order-1 lg:order-2 h-full">
             <Card className="h-full border-none shadow-md overflow-hidden flex flex-col">
                 <CardHeader className="border-b bg-white">

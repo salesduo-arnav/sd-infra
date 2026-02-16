@@ -33,10 +33,10 @@ export default function Plans() {
   const [trialEligibility, setTrialEligibility] = useState<Record<string, { eligible: boolean; trialDays: number }>>({}); 
   const [startingTrialToolId, setStartingTrialToolId] = useState<string | null>(null);
 
-  // State to control transitions - prevents initial load animation glitch
+  // Transition state
   const [enableTransition, setEnableTransition] = useState(false);
 
-  // Dynamic Data State
+  // Data State
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [apps, setApps] = useState<App[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -61,15 +61,15 @@ export default function Plans() {
             
             await fetchSubscriptions();
 
-            // Transform Bundle Groups into Bundle UI Model
+            // Transform Bundles
             const transformedBundles = transformBundles(publicBundles);
             setBundles(transformedBundles);
 
-            // Transform Plans into Apps (grouped by Tool)
+            // Transform Apps
             const initialApps = transformPlansToApps(publicPlans);
             setApps(initialApps);
 
-            // Fetch trial eligibility for each tool
+            // Check eligibility
             const toolIds = initialApps.map(app => app.id);
             const eligibilityResults: Record<string, { eligible: boolean; trialDays: number }> = {};
             await Promise.all(
@@ -89,7 +89,7 @@ export default function Plans() {
             toast.error("Failed to load plans.");
         } finally {
             setIsLoading(false);
-            // Enable transitions after a short delay to prevent initial layout shift animation
+            // Enable transitions
             setTimeout(() => setEnableTransition(true), 100);
         }
     };
@@ -99,17 +99,17 @@ export default function Plans() {
 
   const allBundles = bundles;
 
-  // Enrich apps with trial eligibility
+  // Enrich apps
   const enrichedApps = enrichAppsWithEligibility(apps, trialEligibility);
 
   const handleStartTrial = async (toolId: string) => {
     const app = enrichedApps.find(a => a.id === toolId);
     if (!app) return;
 
-    // If card required, add to cart for checkout
+    // Card required: add to cart
     if (app.trialCardRequired && app.trialPlanId) {
         if (isInCart(app.id, 'Trial')) {
-            // Already in cart, just open it
+            // Open cart
             setIsCartOpen(true);
             return;
         }
@@ -122,7 +122,7 @@ export default function Plans() {
             tierName: 'Free Trial',
             price: 0,
             period: app.trialPlanInterval ? `/${app.trialPlanInterval}` : `${app.trialDays} days`,
-            features: [], // detailed features not strictly needed for cart logic currently
+            features: [],
             limits: 'Free Trial',
             isUpgrade: false,
             isDowngrade: false,
@@ -133,7 +133,7 @@ export default function Plans() {
         return;
     }
 
-    // Direct start for no-card trials
+    // No card required: start immediately
     setStartingTrialToolId(toolId);
     try {
       await BillingService.startTrial(toolId);
@@ -152,27 +152,22 @@ export default function Plans() {
     }
   };
 
-  // Check if cart has any upgrade/downgrade items
+  // Cart helpers
   const hasSubscriptionChanges = cart.some(item => item.isUpgrade || item.isDowngrade);
   const hasNewItems = cart.some(item => !item.isUpgrade && !item.isDowngrade);
 
-  /**
-   * Toggle a tier in the cart.
-   * - If the same tier is already in cart, remove it (toggle off)
-   * - If a different tier from the same bundle/app is in cart, replace it
-   * - Otherwise, add the new tier
-   */
+  // Toggle cart item
   const toggleCartItem = (item: CartItem) => {
-    // Check if this exact tier is already in cart
+    // Exact match check
     const exactMatch = cart.find(
       (cartItem) => cartItem.id === item.id && cartItem.tierName === item.tierName
     );
 
     if (exactMatch) {
-      // Toggle off - remove from cart
+      // Toggle off
       setCart((prev) => prev.filter((cartItem) => !(cartItem.id === item.id && cartItem.tierName === item.tierName)));
     } else {
-      // Remove any existing tier from the same bundle/app, then add the new one
+      // Replace existing tier
       setCart((prev) => {
         const filtered = prev.filter((cartItem) => cartItem.id !== item.id);
         return [...filtered, item];
@@ -199,7 +194,7 @@ export default function Plans() {
   const handleCheckout = () => {
     if (cart.length === 0) return;
 
-    // Validate mixed trial periods
+    // Validate mixed trials
     const trialVariations = new Set(cart.map(item => item.trialDays || 0));
     if (trialVariations.size > 1) {
         toast.error("Please checkout plans with different trial periods separately.");
@@ -207,8 +202,8 @@ export default function Plans() {
     }
 
     const itemsToCheckout = cart.map(item => ({
-        id: item.planId, // Use the specific Plan/Bundle Variant ID
-        type: item.type === 'app' ? 'plan' : item.type, // Map 'app' to 'plan'
+        id: item.planId,
+        type: item.type === 'app' ? 'plan' : item.type,
         interval: item.period.includes('year') ? 'yearly' : 'monthly',
         price: item.price,
         name: item.name,
@@ -227,7 +222,7 @@ export default function Plans() {
     navigate('/checkout', { state: { items: itemsToCheckout } });
   };
 
-  /** Handle upgrade/downgrade via updateSubscription API */
+  // Handle subscription change
   const handleSubscriptionChange = async () => {
     const changeItems = cart.filter(item => item.subscriptionId);
     if (changeItems.length === 0) return;
@@ -270,12 +265,11 @@ export default function Plans() {
     setExpandedApp(expandedApp === appId ? null : appId);
   };
 
-  // Close expanded cards when clicking outside
+  // Outside click handler
   const handleOutsideClick = useCallback((e: MouseEvent) => {
     const target = e.target as HTMLElement;
-    // Check if click is inside a card
+    // Check if click is inside card or cart
     const isInsideCard = target.closest('[data-card]');
-    // Check if click is inside the cart sidebar
     const isInsideCart = target.closest('[data-cart]');
 
     if (!isInsideCard && !isInsideCart) {
@@ -304,7 +298,7 @@ export default function Plans() {
   return (
     <Layout animationClass="">
       <div className="flex animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {/* Main Content */}
+        {/* Content */}
         <div className={cn("flex-1 container py-8", enableTransition && "transition-[padding] duration-300", isCartOpen ? "pr-[340px]" : "pr-4")}>
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold">Choose Your Plan</h1>
@@ -320,7 +314,7 @@ export default function Plans() {
               <TabsTrigger value="apps">Individual Apps</TabsTrigger>
             </TabsList>
 
-            {/* Bundles Tab */}
+            {/* Bundles */}
             <TabsContent value="bundles" className="space-y-12">
               {/* All Bundles */}
               <section>
@@ -357,7 +351,7 @@ export default function Plans() {
               </section>
             </TabsContent>
 
-            {/* All Apps Tab */}
+            {/* Apps */}
             <TabsContent value="apps" className="space-y-6">
               <div className="mb-6">
                 <h2 className="text-xl font-semibold">Individual Apps</h2>
@@ -367,7 +361,7 @@ export default function Plans() {
               </div>
               <div className={cn("grid gap-6", isCartOpen ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3")}>
                 {enrichedApps.map((app) => {
-                    // Only consider active, trialing, or past_due subscriptions as "active" for the UI
+                    // Check active subscription
                     const activeSub = currentSubscriptions.find(s => 
                         ['active', 'trialing', 'past_due'].includes(s.status) &&
                         (s.plan?.tool?.id === app.id || s.upcoming_plan?.tool?.id === app.id)
@@ -398,7 +392,7 @@ export default function Plans() {
         </div>
       </div>
 
-        {/* Minimized Cart Floating Button */}
+        {/* Mobile Cart Button */}
         <button
           onClick={() => setIsCartOpen(!isCartOpen)}
           className={cn(
@@ -424,7 +418,7 @@ export default function Plans() {
           )}
         </button>
 
-        {/* Sticky Cart Sidebar */}
+        {/* Cart Sidebar */}
         <div
           data-cart
           className={cn(
@@ -433,7 +427,7 @@ export default function Plans() {
             isCartOpen ? "w-80 translate-x-0" : "w-80 translate-x-full"
           )}
         >
-          {/* Cart Header */}
+          {/* Header */}
           <div className="p-4 border-b bg-gradient-to-r from-primary/5 to-transparent">
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-primary/10 p-2">
@@ -450,7 +444,7 @@ export default function Plans() {
             </div>
           </div>
 
-          {/* Cart Content */}
+          {/* Content */}
           <ScrollArea className="flex-1">
             <div className="p-4">
               {cart.length === 0 ? (
@@ -477,7 +471,7 @@ export default function Plans() {
             </div>
           </ScrollArea>
 
-          {/* Cart Footer */}
+          {/* Footer */}
           {cart.length > 0 && (
             <div className="p-4 border-t bg-gradient-to-t from-muted/30 to-transparent space-y-4">
               <div className="flex items-center justify-between">
@@ -489,7 +483,7 @@ export default function Plans() {
                 </span>
               </div>
 
-              {/* Subscription change button */}
+              {/* Subscription actions */}
               {hasSubscriptionChanges && (
                 <Button 
                   className="w-full" 
@@ -502,7 +496,7 @@ export default function Plans() {
                 </Button>
               )}
 
-              {/* New subscription checkout button */}
+              {/* Checkout */}
               {hasNewItems && (
                 <Button className="w-full" size="lg" onClick={handleCheckout}>
                   Proceed to Checkout

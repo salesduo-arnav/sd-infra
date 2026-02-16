@@ -59,14 +59,14 @@ export default function AdminPlans() {
   const [isLoadingPlans, setIsLoadingPlans] = useState(false);
   const [isLoadingBundles, setIsLoadingBundles] = useState(false);
 
-  // Plans State (DataTable)
+  // Plans State
   const [plans, setPlans] = useState<Plan[]>([]);
   const [plansPagination, setPlansPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [plansSorting, setPlansSorting] = useState<SortingState>([]);
   const [plansRowCount, setPlansRowCount] = useState(0);
   const [plansSearch, setPlansSearch] = useState("");
 
-  // Bundles State (DataTable)
+  // Bundles State
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [bundleGroups, setBundleGroups] = useState<BundleGroup[]>([]);
   const [isLoadingBundleGroups, setIsLoadingBundleGroups] = useState(false);
@@ -75,20 +75,20 @@ export default function AdminPlans() {
   const [bundlesRowCount, setBundlesRowCount] = useState(0);
   const [bundlesSearch, setBundlesSearch] = useState("");
 
-  // View Details State
+  // View State
   const [viewingPlan, setViewingPlan] = useState<Plan | null>(null);
   const [isPlanSheetOpen, setIsPlanSheetOpen] = useState(false);
 
   const [viewingBundle, setViewingBundle] = useState<Bundle | null>(null);
   const [isBundleSheetOpen, setIsBundleSheetOpen] = useState(false);
 
-  // Dialog State
+  // Dialogs
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
   const [isBundleDialogOpen, setIsBundleDialogOpen] = useState(false);
   const [isLimitDialogOpen, setIsLimitDialogOpen] = useState(false);
   const [isBundlePlansDialogOpen, setIsBundlePlansDialogOpen] = useState(false);
 
-  // Form Data State
+  // Forms
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [planFormData, setPlanFormData] = useState({
     name: "",
@@ -102,7 +102,7 @@ export default function AdminPlans() {
     active: true,
   });
 
-  // Bundle Group State
+  // Bundle Groups
   const [isBundleGroupDialogOpen, setIsBundleGroupDialogOpen] = useState(false);
   const [editingBundleGroup, setEditingBundleGroup] = useState<BundleGroup | null>(null);
   const [bundleGroupFormData, setBundleGroupFormData] = useState({
@@ -129,7 +129,7 @@ export default function AdminPlans() {
       tier_label: "" as string | undefined
   });
 
-  // Limit/Association State
+  // Limits & Associations
   const [selectedPlanForLimits, setSelectedPlanForLimits] = useState<Plan | null>(null);
   const [planLimits, setPlanLimits] = useState<PlanLimit[]>([]);
   const [stagedLimits, setStagedLimits] = useState<Record<string, { limit: number | null, reset_period: string, enabled: boolean }>>({});
@@ -142,9 +142,7 @@ export default function AdminPlans() {
   const [isSavingBundlePlans, setIsSavingBundlePlans] = useState(false);
   const [allActivePlans, setAllActivePlans] = useState<Plan[]>([]); // For selection
 
-  // ==========================
-  // Fetchers
-  // ==========================
+  // --- Fetchers ---
 
   const fetchPlans = useCallback(async () => {
     setIsLoadingPlans(true);
@@ -223,9 +221,7 @@ export default function AdminPlans() {
   }, [fetchBundles, fetchBundleGroups]);
 
   
-  // ==========================
-  // Plan Handlers
-  // ==========================
+  // --- Plan Handlers ---
 
   const handleOpenPlanDialog = useCallback((plan?: Plan) => {
     if (plan) {
@@ -293,9 +289,7 @@ export default function AdminPlans() {
     }
   }, [fetchPlans]);
 
-  // ==========================
-  // Bundle Group Handlers
-  // ==========================
+  // --- Bundle Group Handlers ---
 
   const handleOpenBundleGroupDialog = (group?: BundleGroup) => {
       if (group) {
@@ -350,9 +344,7 @@ export default function AdminPlans() {
   };
 
 
-  // ==========================
-  // Bundle Handlers
-  // ==========================
+  // --- Bundle Handlers ---
 
   const handleOpenBundleDialog = useCallback((bundle?: Bundle, groupId?: string) => {
       if (bundle) {
@@ -419,9 +411,7 @@ export default function AdminPlans() {
       }
   }, [fetchBundles, fetchBundleGroups]);
 
-  // ==========================
-  // Plan Limit Handlers
-  // ==========================
+  // --- Plan Limit Handlers ---
 
   const handleManageLimits = useCallback(async (plan: Plan) => {
       setSelectedPlanForLimits(plan);
@@ -497,9 +487,7 @@ export default function AdminPlans() {
       }
   };
 
-  // ==========================
-  // Bundle Plans Handlers
-  // ==========================
+  // --- Bundle Plans Handlers ---
 
   const handleManageBundlePlans = useCallback(async (bundle: Bundle) => {
       setSelectedBundleForPlans(bundle);
@@ -566,9 +554,7 @@ export default function AdminPlans() {
     }
   };
 
-  // ==========================
-  // Column Definitions
-  // ==========================
+  // --- Column Definitions ---
 
   const planColumns: ColumnDef<Plan>[] = useMemo(() => [
       {
@@ -634,7 +620,7 @@ export default function AdminPlans() {
               )
           }
       }
-  ], [handleViewPlanDetails, handleManageLimits, handleOpenPlanDialog, handlePlanDelete]); // Dependencies for actions
+  ], [handleViewPlanDetails, handleManageLimits, handleOpenPlanDialog, handlePlanDelete]);
 
   const bundleColumns: ColumnDef<Bundle>[] = useMemo(() => [
         {
@@ -722,7 +708,7 @@ export default function AdminPlans() {
 
 
         <div className="space-y-8">
-            {/* PLANS SECTION */}
+            {/* Plans List */}
             <div className="space-y-4">
                  <div className="flex items-center justify-between">
                     <div>
@@ -752,7 +738,7 @@ export default function AdminPlans() {
                 </Card>
             </div>
 
-            {/* BUNDLES SECTION */}
+            {/* Bundles List */}
              <div className="space-y-4">
                  <div className="flex items-center justify-between">
                     <div>
@@ -830,7 +816,7 @@ export default function AdminPlans() {
                                                         <TableRow key={bundle.id}>
                                                             <TableCell className="font-medium">
                                                                 <div>{bundle.name}</div>
-                                                                {/* Only show badge if label distinct from name, which strictly it isn't anymore, but for legacy data */}
+                                                                {/* Only show badge if label distinct from name (legacy data) */}
                                                                 {bundle.tier_label && bundle.tier_label !== bundle.name && <Badge variant="outline" className="text-[10px]">{bundle.tier_label}</Badge>}
                                                             </TableCell>
                                                             <TableCell>{bundle.currency} {bundle.price}/{bundle.interval}</TableCell>
@@ -894,7 +880,7 @@ export default function AdminPlans() {
             </div>
         </div>
 
-        {/* --- DIALOGS --- */}
+        {/* --- Dialogs --- */}
 
         {/* Plan Create/Edit Dialog */}
         <Dialog open={isPlanDialogOpen} onOpenChange={setIsPlanDialogOpen}>
@@ -983,7 +969,7 @@ export default function AdminPlans() {
                                  ...bundleFormData, 
                                  tier_label: label,
                                  name: label,
-                                 // Append random suffix to slug to avoid collisions across groups
+                                 // Auto-generate slug with random suffix
                                  slug: label ? `${label.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '')}-${Math.random().toString(36).substring(2, 7)}` : ''
                              })
                         }} placeholder="e.g. Basic, Premium" />
@@ -1413,7 +1399,7 @@ export default function AdminPlans() {
                                                 </div>
                                             </div>
 
-                                            {/* Plans in this Tier */}
+                                            {/* Plans */}
                                              <div className="space-y-2">
                                                 {bundle.plans && bundle.plans.length > 0 ? (
                                                     bundle.plans.map(plan => (
@@ -1429,7 +1415,7 @@ export default function AdminPlans() {
                                                                 </div>
                                                                 <Eye className="h-3 w-3 opacity-50" />
                                                             </div>
-                                                            {/* Quick Limit Preview (Optional) */}
+                                                            {/* Limit Preview */}
                                                             <div className="mt-2 text-xs text-muted-foreground">
                                                                 {plan.limits && plan.limits.length > 0 ? (
                                                                      <div className="flex flex-wrap gap-1">

@@ -15,7 +15,7 @@ interface CheckoutFeatureListProps {
 export function CheckoutFeatureList({ features = [], limits }: CheckoutFeatureListProps) {
     if ((!features || features.length === 0) && !limits) return null;
 
-    // Group features by tool
+    // Group features
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const groupedFeatures = features.reduce((acc: any, feature: Feature) => {
         const tool = feature.toolName || 'General Features';

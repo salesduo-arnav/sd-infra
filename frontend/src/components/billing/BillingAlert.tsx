@@ -13,7 +13,7 @@ interface BillingAlertProps {
 
 export function BillingAlert({ subscription, onManage, onCancel, isLoading, actionLoading }: BillingAlertProps) {
   const failureDate = subscription.last_payment_failure_at ? new Date(subscription.last_payment_failure_at) : new Date(); 
-  // 3 days grace period
+  // Grace period (3 days)
   const gracePeriodInMillis = 3 * 24 * 60 * 60 * 1000;
   const isGracePeriod = (new Date().getTime() - failureDate.getTime()) < gracePeriodInMillis;
 

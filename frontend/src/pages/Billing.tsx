@@ -28,12 +28,12 @@ export default function Billing() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
 
-  // Subscription Table State
+  // Subscription State
   const [subSorting, setSubSorting] = useState<SortingState>([]);
   const [subPagination, setSubPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 5 });
   const [subStatusFilter, setSubStatusFilter] = useState<string>("all");
 
-  // Invoice Table State
+  // Invoice State
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [searchQuery, setSearchQuery] = useState("");
@@ -119,10 +119,7 @@ export default function Billing() {
     }
   }, []);
 
-  // Removed separate useEffect for auto-sync to strictly order it in init()
-  // useEffect(() => {
-  //   handleSyncSubscription(false);
-  // }, []);
+
 
   const handleSyncSubscription = useCallback(async (manual = true) => {
     setSyncLoading(true);
@@ -161,8 +158,7 @@ export default function Billing() {
     const init = async () => {
         const params = new URLSearchParams(window.location.search);
         
-        // Always sync first to ensure status (especially cancellation) is up to date
-        // This handles the race condition where webhook hasn't fired/finished yet
+        // Sync status to handle potential race conditions
         await handleSyncSubscription(false);
 
         const invoicePromise = fetchInvoices();
@@ -171,13 +167,7 @@ export default function Billing() {
         if (params.get('success') === 'true') {
             subPromise = (async () => {
                  try {
-                    // Fetch latest data (handleSyncSubscription already updated DB, but we fetch to render)
-                    // Note: handleSyncSubscription calls fetchSubscription internally, 
-                    // implying 'subscriptions' state *might* be stale inside this closure if we don't refetch or rely on updated state.
-                    // But handleSyncSubscription updates state. Let's just re-fetch to be safe or rely on state update.
-                    // Actually, handleSyncSubscription calls fetchSubscription, which updates 'subscriptions'.
-                    // We can just check the state... BUT state updates are async in React.
-                    // So we should re-fetch explicitly here to get the return value for immediate checking.
+                    // Re-fetch to ensure we have the absolute latest state after sync
                     const response = await api.get(`/billing`);
                     const subs = response.data.subscriptions;
                     setSubscriptions(subs);
@@ -199,9 +189,7 @@ export default function Billing() {
                  }
             })();
         } else {
-            // Already synced, just fetch invoices or let sync handle sub fetch
-            // But to be consistent with Promise.all below:
-            // handleSyncSubscription already fetched subs.
+            // Already synced, resolve immediately
             subPromise = Promise.resolve(); 
         }
 
@@ -214,7 +202,7 @@ export default function Billing() {
     }
   }, [activeOrganization, handleSyncSubscription, fetchInvoices]);
 
-  // --- Subscriptions Table Logic ---
+  // --- Subscriptions ---
 
   const subscriptionColumns = useMemo(() => getSubscriptionColumns({
       actionLoading,
@@ -243,12 +231,12 @@ export default function Billing() {
   const subPageCount = Math.ceil(filteredSubscriptions.length / subPagination.pageSize);
 
 
-  // --- Invoices Table Logic ---
+  // --- Invoices ---
   
   // Use imported invoiceColumns
   const columns = invoiceColumns;
 
-  // Client-side sorting and simple search for Invoices
+  // Client-side sorting/filtering for Invoices
   const filteredAndSortedInvoices = useMemo(() => {
     let result = [...invoices];
 
@@ -312,7 +300,7 @@ export default function Billing() {
                     Manage your subscriptions and view billing history
                 </p>
             </div>
-            {/* Main Manage Subscription button (Portal) as a fallback or general setting */}
+            {/* Billing Actions */}
             <div className="flex gap-2">
                 <Button onClick={() => handleSyncSubscription(true)} disabled={syncLoading} variant="outline" size="icon" title="Sync Status">
                      <RefreshCcw className={`h-4 w-4 ${syncLoading ? 'animate-spin' : ''}`} />
