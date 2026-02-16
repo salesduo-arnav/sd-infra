@@ -2,7 +2,6 @@
 import { Request, Response } from 'express';
 import { Tool, ToolUsage } from '../models';
 import { handleError } from '../utils/error';
-import Logger from '../utils/logger';
 
 export const getTools = async (req: Request, res: Response) => {
     try {

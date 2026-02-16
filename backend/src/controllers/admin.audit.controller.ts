@@ -4,7 +4,6 @@ import AuditLog from '../models/audit_log';
 import { User } from '../models/user';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
-import Logger from '../utils/logger';
 
 export const getAuditLogs = async (req: Request, res: Response) => {
     try {
