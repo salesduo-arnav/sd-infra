@@ -7,6 +7,7 @@ import sequelize from '../config/db';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
+import Logger from '../utils/logger';
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
@@ -41,6 +42,7 @@ export const getUsers = async (req: Request, res: Response) => {
 
         res.status(200).json(formatPaginationResponse(rows, count, page, limit, 'users'));
     } catch (error) {
+        Logger.error('Get Users Error', { error });
         handleError(res, error, 'Get Users Error');
     }
 };
@@ -49,6 +51,7 @@ export const updateUser = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { full_name, is_superuser } = req.body;
+        Logger.info('Updating user', { id, full_name, is_superuser, userId: req.user?.id });
 
         const user = await User.findByPk(id);
 
@@ -86,13 +89,15 @@ export const updateUser = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'User updated successfully', user });
     } catch (error) {
+        Logger.error('Update User Error', { error });
         handleError(res, error, 'Update User Error');
     }
 };
 
 export const deleteUser = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    Logger.info('Deleting user', { id, userId: req.user?.id });
     try {
-        const { id } = req.params;
 
         // Early validation before starting transaction
         const user = await User.findByPk(id);
@@ -175,7 +180,7 @@ export const deleteUser = async (req: Request, res: Response) => {
 
                     if (oldestMember) {
                         await oldestMember.update({ role_id: ownedMemberships[0].role_id }, { transaction: t });
-                        console.log(`Transferred ownership of org ${org.id} to user ${oldestMember.user_id}`);
+                        Logger.info(`Transferred ownership of org ${org.id} to user ${oldestMember.user_id}`);
                     }
                 }
             }
@@ -184,7 +189,7 @@ export const deleteUser = async (req: Request, res: Response) => {
             // This will trigger Organization hooks to soft delete its data
             for (const conflict of conflicts) {
                 await Organization.destroy({ where: { id: conflict.id }, individualHooks: true, transaction: t });
-                console.log(`Force deleted organization ${conflict.id}`);
+                Logger.info(`Force deleted organization ${conflict.id}`);
             }
 
             // Delete the user
@@ -207,6 +212,7 @@ export const deleteUser = async (req: Request, res: Response) => {
             req
         });
     } catch (error) {
+        Logger.error('Delete User Error', { error });
         handleError(res, error, 'Delete User Error');
     }
 };

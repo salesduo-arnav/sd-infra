@@ -4,6 +4,7 @@ import AuditLog from '../models/audit_log';
 import { User } from '../models/user';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
+import Logger from '../utils/logger';
 
 export const getAuditLogs = async (req: Request, res: Response) => {
     try {
@@ -62,6 +63,7 @@ export const getAuditLogs = async (req: Request, res: Response) => {
 
         res.status(200).json(formatPaginationResponse(rows, count, page, limit, 'audit_logs'));
     } catch (error) {
+        Logger.error('Get Audit Logs Error', { error });
         handleError(res, error, 'Get Audit Logs Error');
     }
 };
@@ -86,6 +88,7 @@ export const getAuditLogById = async (req: Request, res: Response) => {
 
         res.status(200).json(log);
     } catch (error) {
+        Logger.error('Get Audit Log Details Error', { error });
         handleError(res, error, 'Get Audit Log Details Error');
     }
 };

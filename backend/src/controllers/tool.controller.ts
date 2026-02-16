@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import { Tool, ToolUsage } from '../models';
 import { handleError } from '../utils/error';
+import Logger from '../utils/logger';
 
 export const getTools = async (req: Request, res: Response) => {
     try {
@@ -11,6 +12,7 @@ export const getTools = async (req: Request, res: Response) => {
         });
         res.status(200).json(tools);
     } catch (error) {
+        Logger.error('Get Tools Error', { error });
         handleError(res, error, 'Get Tools Error');
     }
 };
@@ -26,6 +28,7 @@ export const getToolBySlug = async (req: Request, res: Response) => {
         }
         res.status(200).json(tool);
     } catch (error) {
+        Logger.error('Get Tool By Slug Error', { error });
         handleError(res, error, 'Get Tool By Slug Error');
     }
 };
@@ -78,6 +81,7 @@ export const trackToolUsage = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Usage tracked successfully' });
     } catch (error) {
+        Logger.error('Track Tool Usage Error', { error });
         handleError(res, error, 'Track Tool Usage Error');
     }
 };

@@ -7,8 +7,10 @@ import { handleError } from '../utils/error';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { AuditService } from '../services/audit.service';
 import { invitationService } from '../services/invitation.service';
+import Logger from '../utils/logger';
 
 export const createOrganization = async (req: Request, res: Response) => {
+    Logger.info("Creating organization", { userId: req.user?.id, name: req.body.name });
     try {
         const { name, website, invites } = req.body;
         const userId = req.user?.id;
@@ -69,7 +71,7 @@ export const createOrganization = async (req: Request, res: Response) => {
                         }
                     }
                 } catch (inviteError) {
-                    console.error('Error sending background invites:', inviteError);
+                    Logger.error('Error sending background invites', { error: inviteError });
                 }
             }
         };
@@ -101,6 +103,7 @@ export const createOrganization = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
+        Logger.error("Create Org Error", { error });
         handleError(res, error, 'Create Org Error');
     }
 };
@@ -157,6 +160,7 @@ export const getMyOrganization = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
+        Logger.error("Get Org Error", { error });
         handleError(res, error, 'Get Org Error');
     }
 };
@@ -242,6 +246,7 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
         res.json(formatPaginationResponse(members, totalCount, page, limit, 'members'));
 
     } catch (error) {
+        Logger.error("Get Members Error", { error });
         handleError(res, error, 'Get Members Error');
     }
 };
@@ -304,6 +309,7 @@ export const updateOrganization = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
+        Logger.error("Update Org Error", { error });
         handleError(res, error, 'Update Org Error');
     }
 };
@@ -379,7 +385,7 @@ export const removeMember = async (req: Request, res: Response) => {
         res.json({ message: 'Member removed successfully' });
 
     } catch (error) {
-        console.error('Remove Member Error:', error);
+        Logger.error('Remove Member Error', { error });
         res.status(500).json({ message: 'Server error removing member' });
     }
 };
@@ -458,7 +464,7 @@ export const updateMemberRole = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        console.error('Update Member Role Error:', error);
+        Logger.error('Update Member Role Error', { error });
         res.status(500).json({ message: 'Server error updating member role' });
     }
 };
@@ -535,7 +541,7 @@ export const transferOwnership = async (req: Request, res: Response) => {
         res.json({ message: 'Ownership transferred successfully' });
 
     } catch (error) {
-        console.error('Transfer Ownership Error:', error);
+        Logger.error('Transfer Ownership Error', { error });
         res.status(500).json({ message: 'Server error transferring ownership' });
     }
 };
@@ -585,7 +591,7 @@ export const deleteOrganization = async (req: Request, res: Response) => {
         res.json({ message: 'Organization deleted successfully' });
 
     } catch (error) {
-        console.error('Delete Organization Error:', error);
+        Logger.error('Delete Organization Error', { error });
         res.status(500).json({ message: 'Server error deleting organization' });
     }
 };

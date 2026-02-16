@@ -6,6 +6,7 @@ import sequelize from '../config/db';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
+import Logger from '../utils/logger';
 
 // ==========================
 // Feature Config Controllers
@@ -41,6 +42,7 @@ export const getFeatures = async (req: Request, res: Response) => {
 
         res.status(200).json(formatPaginationResponse(rows, count, page, limit, 'features'));
     } catch (error) {
+        Logger.error('Get Features Error', { error });
         handleError(res, error, 'Get Features Error');
     }
 };
@@ -58,11 +60,13 @@ export const getFeatureById = async (req: Request, res: Response) => {
 
         res.status(200).json(feature);
     } catch (error) {
+        Logger.error('Get Feature Error', { error });
         handleError(res, error, 'Get Feature Error');
     }
 };
 
 export const createFeature = async (req: Request, res: Response) => {
+    Logger.info('Creating feature', { ...req.body, userId: req.user?.id });
     try {
         const { tool_id, name, slug, description } = req.body;
 
@@ -95,6 +99,7 @@ export const createFeature = async (req: Request, res: Response) => {
 
         res.status(201).json(feature);
     } catch (error) {
+        Logger.error('Create Feature Error', { error });
         handleError(res, error, 'Create Feature Error');
     }
 };
@@ -103,6 +108,7 @@ export const updateFeature = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { name, slug, description } = req.body;
+        Logger.info('Updating feature', { id, name, slug, userId: req.user?.id });
 
         const updatedFeature = await sequelize.transaction(async (t) => {
             const feature = await Feature.findByPk(id, { transaction: t });
@@ -136,11 +142,14 @@ export const updateFeature = async (req: Request, res: Response) => {
 
         res.status(200).json(updatedFeature);
     } catch (error) {
+        Logger.error('Update Feature Error', { error });
         handleError(res, error, 'Update Feature Error');
     }
 };
 
 export const deleteFeature = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    Logger.info('Deleting feature', { id, userId: req.user?.id });
     try {
         const { id } = req.params;
 
@@ -165,6 +174,7 @@ export const deleteFeature = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Feature deleted successfully' });
     } catch (error) {
+        Logger.error('Delete Feature Error', { error });
         handleError(res, error, 'Delete Feature Error');
     }
 };

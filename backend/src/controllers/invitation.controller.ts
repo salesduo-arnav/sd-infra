@@ -8,8 +8,10 @@ import sequelize from '../config/db';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
 import { invitationService } from '../services/invitation.service';
+import Logger from '../utils/logger';
 
 export const inviteMember = async (req: Request, res: Response) => {
+    Logger.info('Inviting member', { email: req.body.email, role_id: req.body.role_id, userId: req.user?.id });
     try {
         const { email, role_id } = req.body;
         const userId = req.user?.id;
@@ -43,6 +45,7 @@ export const inviteMember = async (req: Request, res: Response) => {
         if (error instanceof Error && (error.message === 'User already invited' || error.message === 'User is already a member')) {
             return res.status(400).json({ message: error.message });
         }
+        Logger.error('Invite Error', { error });
         handleError(res, error, 'Invite Error');
     }
 };
@@ -67,6 +70,7 @@ export const getPendingInvitations = async (req: Request, res: Response) => {
 
         res.json(invitations);
     } catch (error) {
+        Logger.error('Get Invites Error', { error });
         handleError(res, error, 'Get Invites Error');
     }
 };
@@ -107,6 +111,7 @@ export const revokeInvitation = async (req: Request, res: Response) => {
         res.json({ message: 'Invitation revoked' });
 
     } catch (error) {
+        Logger.error('Revoke Error', { error });
         handleError(res, error, 'Revoke Error');
     }
 };
@@ -147,11 +152,13 @@ export const validateInvitation = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
+        Logger.error('Validate Invite Error', { error });
         handleError(res, error, 'Validate Invite Error');
     }
 };
 
 export const acceptInvitation = async (req: Request, res: Response) => {
+    Logger.info('Accepting invitation', { token: req.body.token, userId: req.user?.id });
     try {
         const { token } = req.body;
         const userId = req.user?.id;
@@ -200,6 +207,7 @@ export const acceptInvitation = async (req: Request, res: Response) => {
         res.json({ message: 'Invitation accepted' });
 
     } catch (error) {
+        Logger.error('Accept Invite Error', { error });
         handleError(res, error, 'Accept Invite Error');
     }
 };
@@ -223,6 +231,7 @@ export const getMyPendingInvitations = async (req: Request, res: Response) => {
 
         res.json(invitations);
     } catch (error) {
+        Logger.error('Get My Invites Error', { error });
         handleError(res, error, 'Get My Invites Error');
     }
 };
@@ -261,6 +270,7 @@ export const declineInvitation = async (req: Request, res: Response) => {
         res.json({ message: 'Invitation declined' });
 
     } catch (error) {
+        Logger.error('Decline Invite Error', { error });
         handleError(res, error, 'Decline Invite Error');
     }
 };

@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { mailService } from '../services/mail.service';
 import { Organization } from '../models/organization';
 import { Transaction } from 'sequelize';
+import Logger from '../utils/logger';
 
 class InvitationService {
     async sendInvitation(
@@ -85,9 +86,7 @@ class InvitationService {
                 `,
             });
         } catch (mailError) {
-            console.error('Mail Error:', mailError);
-            // Don't fail the transaction if email fails, but maybe log it better?
-            // Ideally we might want a background job for emails, but for now this is fine.
+            Logger.error('Mail Error during invitation:', { error: mailError });
         }
 
         return invitation;

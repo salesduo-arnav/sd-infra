@@ -4,6 +4,7 @@ import { GlobalIntegration, GlobalIntegrationStatus } from '../models/global_int
 import { OrganizationMember } from '../models/organization';
 import { handleError } from '../utils/error';
 import sequelize from '../config/db';
+import Logger from '../utils/logger';
 
 // ================================
 // Helpers
@@ -54,12 +55,14 @@ export const getIntegrationAccounts = async (req: Request, res: Response) => {
 
         res.status(200).json({ accounts });
     } catch (error) {
+        Logger.error('Get Integration Accounts Error', { error });
         handleError(res, error, 'Get Integration Accounts Error');
     }
 };
 
 /** POST /integrations/accounts */
 export const createIntegrationAccount = async (req: Request, res: Response) => {
+    Logger.info('Creating integration account', { ...req.body, userId: req.user?.id });
     try {
         const orgId = await getOrgId(req, res);
         if (!orgId) return;
@@ -110,6 +113,7 @@ export const createIntegrationAccount = async (req: Request, res: Response) => {
 
         res.status(201).json({ account });
     } catch (error) {
+        Logger.error('Create Integration Account Error', { error });
         handleError(res, error, 'Create Integration Account Error');
     }
 };
@@ -134,12 +138,15 @@ export const deleteIntegrationAccount = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Integration account deleted successfully' });
     } catch (error) {
+        Logger.error('Delete Integration Account Error', { error });
         handleError(res, error, 'Delete Integration Account Error');
     }
 };
 
 /** POST /integrations/accounts/:id/connect */
 export const connectIntegrationAccount = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    Logger.info('Connecting integration account', { id, userId: req.user?.id });
     try {
         const orgId = await getOrgId(req, res);
         if (!orgId) return;
@@ -163,12 +170,15 @@ export const connectIntegrationAccount = async (req: Request, res: Response) => 
 
         res.status(200).json({ account });
     } catch (error) {
+        Logger.error('Connect Integration Account Error', { error });
         handleError(res, error, 'Connect Integration Account Error');
     }
 };
 
 /** POST /integrations/accounts/:id/disconnect */
 export const disconnectIntegrationAccount = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    Logger.info('Disconnecting integration account', { id, userId: req.user?.id });
     try {
         const orgId = await getOrgId(req, res);
         if (!orgId) return;
@@ -190,6 +200,7 @@ export const disconnectIntegrationAccount = async (req: Request, res: Response) 
 
         res.status(200).json({ account });
     } catch (error) {
+        Logger.error('Disconnect Integration Account Error', { error });
         handleError(res, error, 'Disconnect Integration Account Error');
     }
 };
@@ -211,12 +222,14 @@ export const getGlobalIntegrations = async (req: Request, res: Response) => {
 
         res.status(200).json({ integrations });
     } catch (error) {
+        Logger.error('Get Global Integrations Error', { error });
         handleError(res, error, 'Get Global Integrations Error');
     }
 };
 
 /** POST /integrations/global */
 export const connectGlobalIntegration = async (req: Request, res: Response) => {
+    Logger.info('Connecting global integration', { service_name: req.body.service_name, userId: req.user?.id });
     try {
         const orgId = await getOrgId(req, res);
         if (!orgId) return;
@@ -262,12 +275,14 @@ export const connectGlobalIntegration = async (req: Request, res: Response) => {
 
         res.status(200).json({ integration });
     } catch (error) {
+        Logger.error('Connect Global Integration Error', { error });
         handleError(res, error, 'Connect Global Integration Error');
     }
 };
 
 /** DELETE /integrations/global/:id */
 export const disconnectGlobalIntegration = async (req: Request, res: Response) => {
+    Logger.info('Disconnecting global integration', { id: req.params.id, userId: req.user?.id });
     try {
         const orgId = await getOrgId(req, res);
         if (!orgId) return;
@@ -289,6 +304,7 @@ export const disconnectGlobalIntegration = async (req: Request, res: Response) =
 
         res.status(200).json({ message: 'Global integration disconnected successfully' });
     } catch (error) {
+        Logger.error('Disconnect Global Integration Error', { error });
         handleError(res, error, 'Disconnect Global Integration Error');
     }
 };

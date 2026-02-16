@@ -1,6 +1,7 @@
 import nodemailer, { Transporter, SendMailOptions } from 'nodemailer';
 import dotenv from 'dotenv';
 import path from 'path';
+import Logger from '../utils/logger';
 
 // Ensure env vars are loaded if this service is used locally outside of server context (in dev)
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -42,7 +43,7 @@ export class MailService {
                 attachments: options.attachments,
             });
         } catch (error) {
-            console.error('Error sending email:', error);
+            Logger.error('Error sending email:', { error, to: options.to, subject: options.subject });
             throw new Error('Failed to send email');
         }
     }

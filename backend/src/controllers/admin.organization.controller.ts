@@ -7,6 +7,7 @@ import sequelize from '../config/db';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
+import Logger from '../utils/logger';
 
 export const getOrganizations = async (req: Request, res: Response) => {
     try {
@@ -54,6 +55,7 @@ export const getOrganizations = async (req: Request, res: Response) => {
 
         res.status(200).json(formatPaginationResponse(organizationsWithCount, count, page, limit, 'organizations'));
     } catch (error) {
+        Logger.error('Get Organizations Error', { error });
         handleError(res, error, 'Get Organizations Error');
     }
 };
@@ -62,6 +64,7 @@ export const updateOrganization = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { name, slug, website, status } = req.body;
+        Logger.info('Updating organization', { id, ...req.body, userId: req.user?.id });
 
         const organization = await Organization.findByPk(id);
 
@@ -97,13 +100,15 @@ export const updateOrganization = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Organization updated successfully', organization });
     } catch (error) {
+        Logger.error('Update Organization Error', { error });
         handleError(res, error, 'Update Organization Error');
     }
 };
 
 export const deleteOrganization = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    Logger.info('Deleting organization', { id, userId: req.user?.id });
     try {
-        const { id } = req.params;
 
         // Early validation before starting transaction
         const organization = await Organization.findByPk(id);
@@ -131,6 +136,7 @@ export const deleteOrganization = async (req: Request, res: Response) => {
 
         res.status(200).json({ message: 'Organization deleted successfully' });
     } catch (error) {
+        Logger.error('Delete Organization Error', { error });
         handleError(res, error, 'Delete Organization Error');
     }
 };
@@ -221,6 +227,7 @@ export const getOrganizationDetails = async (req: Request, res: Response) => {
             }
         });
     } catch (error) {
+        Logger.error('Get Organization Details Error', { error });
         handleError(res, error, 'Get Organization Details Error');
     }
 };

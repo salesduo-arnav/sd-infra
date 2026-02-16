@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import redisClient from '../config/redis';
+import Logger from '../utils/logger';
 
 const OTP_LENGTH = 6;
 const OTP_TTL = 300; // 5 minutes
@@ -29,6 +30,7 @@ const generateOtp = (): string => {
 
 // Generate and store OTP for login
 export const createLoginOtp = async (email: string): Promise<string> => {
+    Logger.debug('Creating login OTP', { email });
     const otp = generateOtp();
     const key = `login_otp:${email.toLowerCase()}`;
 
@@ -44,6 +46,7 @@ export const createLoginOtp = async (email: string): Promise<string> => {
 
 // Verify OTP for login
 export const verifyLoginOtp = async (email: string, inputOtp: string): Promise<{ valid: boolean; message: string }> => {
+    Logger.debug('Verifying login OTP', { email });
     const key = `login_otp:${email.toLowerCase()}`;
     const storedData = await redisClient.get(key);
 
@@ -80,6 +83,7 @@ export const createSignupOtp = async (
     full_name: string,
     token?: string
 ): Promise<string> => {
+    Logger.debug('Creating signup OTP', { email });
     const otp = generateOtp();
     const key = `signup_otp:${email.toLowerCase()}`;
 
@@ -102,6 +106,7 @@ export const verifySignupOtp = async (
     email: string,
     inputOtp: string
 ): Promise<{ valid: boolean; message: string; userData?: Omit<SignupOtpData, 'otp' | 'attempts'> }> => {
+    Logger.debug('Verifying signup OTP', { email });
     const key = `signup_otp:${email.toLowerCase()}`;
     const storedData = await redisClient.get(key);
 
