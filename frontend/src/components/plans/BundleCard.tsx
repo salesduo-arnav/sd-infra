@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
@@ -6,6 +7,8 @@ import { Check, Star } from "lucide-react";
 import { Bundle, CartItem } from "./types";
 import { TierItem } from "./TierItem";
 import { Subscription } from "@/types/subscription";
+import { FeatureComparisonModal } from "./FeatureComparisonModal";
+import { useState } from "react";
 
 interface BundleCardProps {
   bundle: Bundle;
@@ -19,6 +22,7 @@ interface BundleCardProps {
 }
 
 export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isInCart, hasAnyTierInCart, compact, currentSubscription }: BundleCardProps) {
+  const [showDetails, setShowDetails] = useState(false);
   const hasTierSelected = hasAnyTierInCart(bundle.id);
 
   const currentPrice = currentSubscription?.bundle?.price ?? 0;
@@ -149,7 +153,7 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
             </CollapsibleContent>
         </Collapsible>
 
-        {/* Price Range Preview (Fade out when expanded) */}
+         {/* Price Range Preview (Fade out when expanded) */}
         <div className={cn("transition-opacity duration-300", isExpanded ? "opacity-0 h-0 overflow-hidden" : "opacity-100")}>
             {!isExpanded && bundle.tiers.length > 0 && (
             <div className="pt-2 border-t">
@@ -161,7 +165,31 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
             </div>
             )}
         </div>
+
+        {/* View Details Link */}
+        <div className="flex justify-center">
+            <Button 
+                variant="link" 
+                size="sm" 
+                className="text-muted-foreground h-auto p-0 text-xs hover:text-primary"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDetails(true);
+                }}
+            >
+                View details & compare features
+            </Button>
+        </div>
       </CardContent>
+
+      <FeatureComparisonModal
+        isOpen={showDetails}
+        onClose={() => setShowDetails(false)}
+        title={bundle.name}
+        description={bundle.description}
+        tiers={bundle.tiers}
+        apps={bundle.apps}
+      />
     </Card>
   );
 }
