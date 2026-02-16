@@ -257,17 +257,14 @@ export const createBundle = async (req: Request, res: Response) => {
         }
 
         const stripeProduct = await stripeService.createProduct(productName, description);
-        
-        let stripePriceMonthly;
-        let stripePriceYearly;
 
         // STRIPE EXPECTS AMOUNTS IN CENTS
         const PRICE_IN_CENTS = Math.round(price * 100);
         const monthlyAmount = interval === 'monthly' ? PRICE_IN_CENTS : Math.round(PRICE_IN_CENTS / 12);
         const yearlyAmount = interval === 'yearly' ? PRICE_IN_CENTS : PRICE_IN_CENTS * 12;
 
-        stripePriceMonthly = await stripeService.createPrice(stripeProduct.id, monthlyAmount, currency, 'month');
-        stripePriceYearly = await stripeService.createPrice(stripeProduct.id, yearlyAmount, currency, 'year');
+        const stripePriceMonthly = await stripeService.createPrice(stripeProduct.id, monthlyAmount, currency, 'month');
+        const stripePriceYearly = await stripeService.createPrice(stripeProduct.id, yearlyAmount, currency, 'year');
 
         const bundle = await sequelize.transaction(async (t) => {
             const existingBundle = await Bundle.findOne({ where: { slug }, transaction: t });
@@ -325,7 +322,7 @@ export const updateBundle = async (req: Request, res: Response) => {
                 }
             }
 
-            const updates: any = {
+            const updates = {
                 name: name ?? bundle.name,
                 slug: slug ?? bundle.slug,
                 price: price !== undefined ? price : bundle.price,
@@ -334,7 +331,9 @@ export const updateBundle = async (req: Request, res: Response) => {
                 description: description ?? bundle.description,
                 active: active ?? bundle.active,
                 bundle_group_id: bundle_group_id !== undefined ? bundle_group_id : bundle.bundle_group_id,
-                tier_label: tier_label !== undefined ? tier_label : bundle.tier_label
+                tier_label: tier_label !== undefined ? tier_label : bundle.tier_label,
+                stripe_price_id_monthly: bundle.stripe_price_id_monthly, // Initialize with current values
+                stripe_price_id_yearly: bundle.stripe_price_id_yearly
             };
 
             // Sync Stripe Product Name/Description

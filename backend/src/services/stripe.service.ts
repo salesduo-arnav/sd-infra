@@ -82,7 +82,7 @@ export class StripeService {
   }
 
   async scheduleDowngrade(subscriptionId: string, newPriceId: string) {
-      const subscription = await this.stripe.subscriptions.retrieve(subscriptionId) as any;
+      const subscription = await this.stripe.subscriptions.retrieve(subscriptionId) as Stripe.Subscription;
       
       let scheduleId = subscription.schedule;
 
@@ -95,7 +95,7 @@ export class StripeService {
       }
 
       // Retrieve the schedule to get the auto-populated current phase
-      const schedule = await this.stripe.subscriptionSchedules.retrieve(scheduleId) as any;
+      const schedule = await this.stripe.subscriptionSchedules.retrieve(scheduleId) as Stripe.SubscriptionSchedule;
       const currentPhase = schedule.phases[schedule.phases.length - 1];
 
       // Build phases: keep the current phase as-is, add the downgrade phase after it
@@ -103,8 +103,8 @@ export class StripeService {
           end_behavior: 'release',
           phases: [
               {
-                  items: currentPhase.items.map((item: any) => ({
-                      price: typeof item.price === 'string' ? item.price : item.price.id || item.price,
+                  items: currentPhase.items.map((item) => ({
+                      price: typeof item.price === 'string' ? item.price : item.price.id,
                       quantity: item.quantity,
                   })),
                   start_date: currentPhase.start_date,
@@ -119,7 +119,7 @@ export class StripeService {
   }
 
   async cancelScheduledDowngrade(subscriptionId: string) {
-      const subscription = await this.stripe.subscriptions.retrieve(subscriptionId) as any;
+      const subscription = await this.stripe.subscriptions.retrieve(subscriptionId) as Stripe.Subscription;
       const scheduleId = subscription.schedule;
 
       if (!scheduleId || typeof scheduleId !== 'string') {

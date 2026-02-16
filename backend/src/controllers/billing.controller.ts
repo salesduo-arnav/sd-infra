@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { stripeService } from '../services/stripe.service';
+import Stripe from 'stripe';
 import { Organization, OrganizationMember } from '../models/organization';
 import { Plan } from '../models/plan';
 import { Tool } from '../models/tool';
@@ -7,7 +8,6 @@ import { Bundle } from '../models/bundle';
 import { BundleGroup } from '../models/bundle_group';
 import { Subscription } from '../models/subscription';
 import { SubStatus } from '../models/enums';
-import { User } from '../models/user';
 import sequelize from '../config/db';
 import { Op } from 'sequelize';
 
@@ -23,7 +23,7 @@ class BillingController {
 
             // Validate intervals
             const firstInterval = items[0].interval;
-            if (items.some((item: any) => item.interval !== firstInterval)) {
+            if (items.some((item: { interval: string }) => item.interval !== firstInterval)) {
                 res.status(400).json({ message: 'All items must have the same billing interval' });
                 return;
             }
@@ -38,7 +38,7 @@ class BillingController {
 
             // 2. Resolve Price IDs
             const lineItems = [];
-            const metadataItems: any[] = [];
+            const metadataItems: { id: string; type: string }[] = [];
             let trialPeriodDays = 0;
             let hasPaidComponent = false;
 
@@ -80,7 +80,7 @@ class BillingController {
             if (lineItems.length === 0) { res.status(400).json({ message: 'No valid price IDs found for selected items' }); return; }
 
             // 3. Create Session
-            const sessionConfig: any = {
+            const sessionConfig: Stripe.Checkout.SessionCreateParams = {
                 customer: customerId,
                 mode: 'subscription',
                 payment_method_types: ['card'],
@@ -94,7 +94,11 @@ class BillingController {
             };
 
             if (trialPeriodDays > 0) {
+                if (!sessionConfig.subscription_data) {
+                    sessionConfig.subscription_data = {};
+                }
                 sessionConfig.subscription_data.trial_period_days = trialPeriodDays;
+
                 // Only auto-cancel free trials
                 if (!hasPaidComponent) {
                     sessionConfig.subscription_data.metadata = { ...sessionConfig.subscription_data.metadata, auto_cancel_trial: 'true' };
@@ -152,9 +156,9 @@ class BillingController {
             });
 
             // 2. Fetch Stripe Data for Payment Methods (if connected)
-            let stripePaymentMethodsMap: Record<string, any> = {};
-            let defaultPaymentMethod: any = null;
-
+            const stripePaymentMethodsMap: Record<string, Stripe.PaymentMethod | string> = {};
+            let defaultPaymentMethod: Stripe.PaymentMethod | string | null = null;
+            
             if (organization.stripe_customer_id) {
                 try {
                     const [customer, stripeSubs] = await Promise.all([
@@ -163,8 +167,8 @@ class BillingController {
                     ]);
 
                     // Get Default Customer PM
-                    if ((customer as any).invoice_settings?.default_payment_method) {
-                        const pmId = (customer as any).invoice_settings.default_payment_method;
+                    if ((customer as Stripe.Customer).invoice_settings?.default_payment_method) {
+                        const pmId = (customer as Stripe.Customer).invoice_settings.default_payment_method;
                         if (typeof pmId === 'string') {
                             const pm = await stripeService.getClient().paymentMethods.retrieve(pmId);
                             defaultPaymentMethod = pm;
@@ -189,7 +193,7 @@ class BillingController {
             // 3. Merge Data
             const enrichedSubscriptions = subscriptions.map((sub) => {
                 const subJson = sub.toJSON();
-                let paymentMethod = null;
+                let paymentMethod: Stripe.PaymentMethod | string | null = null;
 
                 if (sub.stripe_subscription_id) {
                     // Check for subscription-specific PM first
@@ -204,7 +208,7 @@ class BillingController {
 
                 return {
                     ...subJson,
-                    paymentMethodDetails: paymentMethod ? {
+                    paymentMethodDetails: (paymentMethod && typeof paymentMethod !== 'string') ? {
                         brand: paymentMethod.card?.brand,
                         last4: paymentMethod.card?.last4,
                         exp_month: paymentMethod.card?.exp_month,
@@ -342,9 +346,10 @@ class BillingController {
         try {
             // req.body must be raw buffer here
             event = stripeService.constructEvent(req.body, sig as string, endpointSecret);
-        } catch (err: any) {
-            console.error(`Webhook Error: ${err.message}`);
-            res.status(400).send(`Webhook Error: ${err.message}`);
+        } catch (err) {
+            const errorMessage = (err as Error).message;
+            console.error(`Webhook Error: ${errorMessage}`);
+            res.status(400).send(`Webhook Error: ${errorMessage}`);
             return;
         }
 
@@ -355,15 +360,16 @@ class BillingController {
                     await this.handleCheckoutSessionCompleted(event.data.object);
                     break;
                 case 'customer.subscription.updated':
-                case 'customer.subscription.created':
+                case 'customer.subscription.created': {
                     await this.handleSubscriptionUpdated(event.data.object);
                     // Check for auto-cancel metadata
-                    const sub = event.data.object as any;
+                    const sub = event.data.object as Stripe.Subscription;
                     if (sub.metadata?.auto_cancel_trial === 'true' && !sub.cancel_at_period_end && sub.status === 'trialing') {
                         console.log(`[BillingController] Auto-cancelling trial subscription ${sub.id} at period end.`);
                         await stripeService.cancelSubscriptionAtPeriodEnd(sub.id);
                     }
                     break;
+                }
                 case 'customer.subscription.deleted':
                     await this.handleSubscriptionDeleted(event.data.object);
                     break;
@@ -397,7 +403,7 @@ class BillingController {
             let updatedCount = 0;
 
             // Loop through stripe subscriptions and update local ones
-            for (const stripeSub of stripeSubs.data as any[]) {
+            for (const stripeSub of stripeSubs.data) {
                 const localSub = await Subscription.findOne({
                     where: { stripe_subscription_id: stripeSub.id, organization_id: organization.id }
                 });
@@ -407,8 +413,8 @@ class BillingController {
                     const isPaymentFailed = status === SubStatus.PAST_DUE || status === SubStatus.UNPAID;
 
                     const item = stripeSub.items?.data?.[0];
-                    const start = stripeSub.current_period_start || item?.current_period_start;
-                    const end = stripeSub.current_period_end || item?.current_period_end;
+                    const start = (stripeSub as unknown as { current_period_start?: number }).current_period_start || item?.current_period_start;
+                    const end = (stripeSub as unknown as { current_period_end?: number }).current_period_end || item?.current_period_end;
 
                     await localSub.update({
                         status: status,
@@ -441,7 +447,7 @@ class BillingController {
 
     // --- Webhook Handlers ---
 
-    private async handleCheckoutSessionCompleted(session: any) {
+    private async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
         console.log(`[BillingController] Checkout completed for Org ${session.metadata?.organizationId}, Sub ${session.subscription}`);
         const orgId = session.metadata?.organizationId;
         if (orgId && session.subscription) {
@@ -458,7 +464,7 @@ class BillingController {
         }
     }
 
-    private async handleSubscriptionUpdated(stripeSub: any) {
+    private async handleSubscriptionUpdated(stripeSub: Stripe.Subscription) {
         const orgId = stripeSub.metadata?.organizationId;
         if (!orgId) return;
 
@@ -466,8 +472,8 @@ class BillingController {
 
         const status = this.mapStripeStatus(stripeSub.status);
         const item = stripeSub.items?.data?.[0];
-        const start = stripeSub.current_period_start || item?.current_period_start;
-        const end = stripeSub.current_period_end || item?.current_period_end;
+        const start = (stripeSub as unknown as { current_period_start?: number }).current_period_start || item?.current_period_start;
+        const end = (stripeSub as unknown as { current_period_end?: number }).current_period_end || item?.current_period_end;
 
         // Resolve Plan/Bundle
         let finalPlanId: string | null = null;
@@ -528,8 +534,7 @@ class BillingController {
         }
     }
 
-    // Helper for Abuse Detection
-    private async checkAndEnforceTrialAbuse(subscription: any, stripeSub: any, planId: string | null | undefined, fingerprint: string | null) {
+    private async checkAndEnforceTrialAbuse(subscription: Subscription, stripeSub: Stripe.Subscription, planId: string | null | undefined, fingerprint: string | null) {
         if (fingerprint && (subscription.status === SubStatus.TRIALING || subscription.status === SubStatus.ACTIVE)) {
             try {
                 // Check for duplicates
@@ -572,7 +577,7 @@ class BillingController {
     }
 
 
-    private async handleSubscriptionDeleted(stripeSub: any) {
+    private async handleSubscriptionDeleted(stripeSub: Stripe.Subscription) {
         console.log('Subscription deleted', stripeSub.id);
         const subscriptions = await Subscription.findAll({ where: { stripe_subscription_id: stripeSub.id } });
         if (subscriptions && subscriptions.length > 0) {
@@ -582,13 +587,15 @@ class BillingController {
         }
     }
 
-    private async handleInvoicePaymentFailed(invoice: any) {
+    private async handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
         console.log('Invoice payment failed', invoice.id);
 
         // Resolve subscription ID (handle different invoice structures)
-        const subscriptionId = typeof invoice.subscription === 'string'
-            ? invoice.subscription
-            : invoice.parent?.subscription_details?.subscription;
+        // Resolve subscription ID (handle different invoice structures)
+        const inv = invoice as unknown as { subscription?: string | null; parent?: { subscription_details?: { subscription?: string } } };
+        const subscriptionId = typeof inv.subscription === 'string'
+            ? inv.subscription
+            : inv.parent?.subscription_details?.subscription;
 
         // Find the subscription associated with this invoice
         if (subscriptionId) {
@@ -610,13 +617,15 @@ class BillingController {
         }
     }
 
-    private async handleInvoicePaymentSucceeded(invoice: any) {
+    private async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
         console.log('Invoice payment succeeded', invoice.id);
 
         // Resolve subscription ID (handle different invoice structures)
-        const subscriptionId = typeof invoice.subscription === 'string'
-            ? invoice.subscription
-            : invoice.parent?.subscription_details?.subscription;
+        // Resolve subscription ID (handle different invoice structures)
+        const inv = invoice as unknown as { subscription?: string | null; parent?: { subscription_details?: { subscription?: string } } };
+        const subscriptionId = typeof inv.subscription === 'string'
+            ? inv.subscription
+            : inv.parent?.subscription_details?.subscription;
 
         if (subscriptionId) {
             const subscription = await Subscription.findOne({
@@ -931,7 +940,7 @@ class BillingController {
     }
 
     // Convert Stripe timestamp to Date
-    private toDateNullable(ts: any): Date | null {
+    private toDateNullable(ts: number | null | undefined): Date | null {
         return ts ? new Date(ts * 1000) : null;
     }
 
@@ -953,13 +962,15 @@ class BillingController {
     }
 
     // Fetch Card Fingerprint from Stripe Subscription
-    private async getCardFingerprint(stripeSub: any): Promise<string | null> {
+    private async getCardFingerprint(stripeSub: Stripe.Subscription): Promise<string | null> {
         try {
-            let pmId: any = stripeSub.default_payment_method;
+            let pmId: string | Stripe.PaymentMethod | null | undefined = stripeSub.default_payment_method;
             if (!pmId && stripeSub.customer) { 
                 const customerId = typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id;
-                const customer = await stripeService.getCustomer(customerId) as any;
-                pmId = customer.invoice_settings?.default_payment_method;
+                const customer = await stripeService.getCustomer(customerId) as Stripe.Customer;
+                if (!customer.deleted) {
+                     pmId = customer.invoice_settings?.default_payment_method;
+                }
             }
             if (typeof pmId === 'object' && pmId !== null) pmId = pmId.id;
             

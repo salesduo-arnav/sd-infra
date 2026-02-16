@@ -104,18 +104,14 @@ export const createPlan = async (req: Request, res: Response) => {
         // 1. Create Stripe Product & Prices
         const stripeProduct = await stripeService.createProduct(name, description);
         
-        let stripePriceMonthly;
-        let stripePriceYearly;
-
-        // Calculate amounts (simplified logic: if monthly plan, yearly = price * 12)
         // Calculate amounts (simplified logic: if monthly plan, yearly = price * 12)
         // STRIPE EXPECTS AMOUNTS IN CENTS
         const PRICE_IN_CENTS = Math.round(price * 100);
         const monthlyAmount = interval === 'monthly' ? PRICE_IN_CENTS : Math.round(PRICE_IN_CENTS / 12);
         const yearlyAmount = interval === 'yearly' ? PRICE_IN_CENTS : PRICE_IN_CENTS * 12;
 
-        stripePriceMonthly = await stripeService.createPrice(stripeProduct.id, monthlyAmount, currency, 'month');
-        stripePriceYearly = await stripeService.createPrice(stripeProduct.id, yearlyAmount, currency, 'year');
+        const stripePriceMonthly = await stripeService.createPrice(stripeProduct.id, monthlyAmount, currency, 'month');
+        const stripePriceYearly = await stripeService.createPrice(stripeProduct.id, yearlyAmount, currency, 'year');
 
         const plan = await sequelize.transaction(async (t) => {
             // Validate: Only one trial plan per tool

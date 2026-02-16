@@ -3,13 +3,11 @@ import { Organization, OrganizationMember } from '../models/organization';
 import { Role } from '../models/role';
 
 // Extend Request to include organization
-declare global {
-  namespace Express {
+declare module 'express-serve-static-core' {
     interface Request {
       organization?: Organization;
       membership?: OrganizationMember;
     }
-  }
 }
 
 export const resolveOrganization = async (req: Request, res: Response, next: NextFunction) => {
