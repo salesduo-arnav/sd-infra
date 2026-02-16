@@ -400,7 +400,7 @@ export default function AdminApps() {
                     {editingApp ? "Update the app details" : "Add a new application to the platform"}
                     </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+                <div className="space-y-4 max-h-[70vh] overflow-y-auto pb-10 px-4">
                     <div className="space-y-2">
                     <Label htmlFor="name">App Name</Label>
                     <Input
@@ -451,44 +451,44 @@ export default function AdminApps() {
                         <p className="text-xs text-muted-foreground">Number of days for free trial (0 to disable).</p>
                     </div>
                     {/* Required Integrations */}
-                            <div className="space-y-2">
-                                <Label>Required Integrations</Label>
-                                <p className="text-xs text-muted-foreground">Select which integrations this app requires during onboarding.</p>
-                                <div className="grid gap-2">
-                                    {INTEGRATION_TYPE_OPTIONS.map((opt) => {
-                                        const isSelected = formData.required_integrations.includes(opt.value);
-                                        return (
-                                            <button
-                                                key={opt.value}
-                                                type="button"
-                                                onClick={() => {
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        required_integrations: isSelected
-                                                            ? prev.required_integrations.filter(v => v !== opt.value)
-                                                            : [...prev.required_integrations, opt.value],
-                                                    }));
-                                                }}
-                                                className={`flex items-center gap-3 p-3 rounded-lg border text-left text-sm transition-all ${isSelected
-                                                    ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                                                    : "border-border hover:border-muted-foreground/30 hover:bg-muted/50"
-                                                    }`}
-                                            >
-                                                <opt.icon className="h-4 w-4 text-muted-foreground shrink-0" />
-                                                <span className="flex-1 font-medium">{opt.label}</span>
-                                                <div
-                                                    className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected
-                                                        ? "border-primary bg-primary text-primary-foreground"
-                                                        : "border-muted-foreground/30"
-                                                        }`}
-                                                >
-                                                    {isSelected && <Check className="h-3 w-3" />}
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
+                    <div className="space-y-2">
+                        <Label>Required Integrations</Label>
+                        <p className="text-xs text-muted-foreground">Select which integrations this app requires during onboarding.</p>
+                        <div className="grid gap-2">
+                            {INTEGRATION_TYPE_OPTIONS.map((opt) => {
+                                const isSelected = formData.required_integrations.includes(opt.value);
+                                return (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                required_integrations: isSelected
+                                                    ? prev.required_integrations.filter(v => v !== opt.value)
+                                                    : [...prev.required_integrations, opt.value],
+                                            }));
+                                        }}
+                                        className={`flex items-center gap-3 p-3 rounded-lg border text-left text-sm transition-all ${isSelected
+                                            ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                                            : "border-border hover:border-muted-foreground/30 hover:bg-muted/50"
+                                            }`}
+                                    >
+                                        <opt.icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                                        <span className="flex-1 font-medium">{opt.label}</span>
+                                        <div
+                                            className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected
+                                                ? "border-primary bg-primary text-primary-foreground"
+                                                : "border-muted-foreground/30"
+                                                }`}
+                                        >
+                                            {isSelected && <Check className="h-3 w-3" />}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
                     <div className="flex items-center space-x-2">
                     <Switch
                         id="is_active"
