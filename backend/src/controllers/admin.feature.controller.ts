@@ -6,6 +6,7 @@ import sequelize from '../config/db';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
+import Logger from '../utils/logger';
 
 // ==========================
 // Feature Config Controllers
@@ -63,6 +64,7 @@ export const getFeatureById = async (req: Request, res: Response) => {
 };
 
 export const createFeature = async (req: Request, res: Response) => {
+    Logger.info('Creating feature', { ...req.body, userId: req.user?.id });
     try {
         const { tool_id, name, slug, description } = req.body;
 
@@ -103,6 +105,7 @@ export const updateFeature = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { name, slug, description } = req.body;
+        Logger.info('Updating feature', { id, name, slug, userId: req.user?.id });
 
         const updatedFeature = await sequelize.transaction(async (t) => {
             const feature = await Feature.findByPk(id, { transaction: t });
@@ -141,6 +144,8 @@ export const updateFeature = async (req: Request, res: Response) => {
 };
 
 export const deleteFeature = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    Logger.info('Deleting feature', { id, userId: req.user?.id });
     try {
         const { id } = req.params;
 

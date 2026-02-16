@@ -13,6 +13,7 @@ import { getPaginationOptions, formatPaginationResponse } from '../utils/paginat
 import { handleError } from '../utils/error';
 import { SubStatus } from '../models/enums';
 import { AuditService } from '../services/audit.service';
+import Logger from '../utils/logger';
 
 // ==========================
 // Bundle Config Controllers
@@ -48,6 +49,7 @@ export const getBundleGroups = async (req: Request, res: Response) => {
 };
 
 export const createBundleGroup = async (req: Request, res: Response) => {
+    Logger.info('Creating bundle group', { ...req.body, userId: req.user?.id });
     try {
         const { name, slug, description, active } = req.body;
 
@@ -81,6 +83,7 @@ export const updateBundleGroup = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const updates = req.body;
+        Logger.info('Updating bundle group', { id, updates, userId: req.user?.id });
 
         const group = await BundleGroup.findByPk(id);
         if (!group) {
@@ -105,14 +108,16 @@ export const updateBundleGroup = async (req: Request, res: Response) => {
 };
 
 export const deleteBundleGroup = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    Logger.info('Deleting bundle group', { id, userId: req.user?.id });
     try {
         const { id } = req.params;
-        
+
         await sequelize.transaction(async (t) => {
             const group = await BundleGroup.findByPk(id, { transaction: t });
-            
+
             if (!group) {
-                 throw new Error('NOT_FOUND');
+                throw new Error('NOT_FOUND');
             }
 
             // Check if any bundles in this group have active subscriptions
@@ -125,7 +130,7 @@ export const deleteBundleGroup = async (req: Request, res: Response) => {
             const bundleIds = bundles.map(b => b.id);
 
             if (bundleIds.length > 0) {
-                 const activeSubscription = await import('../models/subscription').then(({ Subscription }) => 
+                const activeSubscription = await import('../models/subscription').then(({ Subscription }) =>
                     Subscription.findOne({
                         where: {
                             bundle_id: { [Op.in]: bundleIds },
@@ -145,12 +150,12 @@ export const deleteBundleGroup = async (req: Request, res: Response) => {
             const groupName = group.name;
 
             await AuditService.log({
-            actorId: req.user?.id,
-            action: 'DELETE_BUNDLE_GROUP',
-            entityType: 'BundleGroup',
-            entityId: groupId,
-            details: { deleted_group_name: groupName },
-            req
+                actorId: req.user?.id,
+                action: 'DELETE_BUNDLE_GROUP',
+                entityType: 'BundleGroup',
+                entityId: groupId,
+                details: { deleted_group_name: groupName },
+                req
             });
         });
 
@@ -158,8 +163,8 @@ export const deleteBundleGroup = async (req: Request, res: Response) => {
     } catch (error) {
         const err = error as Error;
         if (err.message === 'HAS_ACTIVE_SUBSCRIPTIONS') {
-             return res.status(400).json({ 
-                message: 'Cannot delete bundle group. There are active subscriptions associated with bundles in this group.' 
+            return res.status(400).json({
+                message: 'Cannot delete bundle group. There are active subscriptions associated with bundles in this group.'
             });
         }
         handleError(res, error, 'Delete Bundle Group Error');
@@ -228,6 +233,7 @@ export const getBundleById = async (req: Request, res: Response) => {
 };
 
 export const createBundle = async (req: Request, res: Response) => {
+    Logger.info('Creating bundle', { ...req.body, userId: req.user?.id });
     try {
         const { name, slug, price, currency, interval, description, active, bundle_group_id, tier_label } = req.body;
 
@@ -253,7 +259,7 @@ export const createBundle = async (req: Request, res: Response) => {
                 productName = `${group.name} (${tier_label || name})`;
             }
         } else if (tier_label) {
-             productName = `${name} (${tier_label})`;
+            productName = `${name} (${tier_label})`;
         }
 
         const stripeProduct = await stripeService.createProduct(productName, description);
@@ -307,6 +313,7 @@ export const updateBundle = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { name, slug, price, currency, interval, description, active, bundle_group_id, tier_label } = req.body;
+        Logger.info('Updating bundle', { id, ...req.body, userId: req.user?.id });
 
         const updatedBundle = await sequelize.transaction(async (t) => {
             const bundle = await Bundle.findByPk(id, { transaction: t });
@@ -338,23 +345,23 @@ export const updateBundle = async (req: Request, res: Response) => {
 
             // Sync Stripe Product Name/Description
             if (
-                name !== undefined || 
-                tier_label !== undefined || 
-                bundle_group_id !== undefined || 
+                name !== undefined ||
+                tier_label !== undefined ||
+                bundle_group_id !== undefined ||
                 description !== undefined
             ) {
                 const productId = bundle.stripe_product_id;
                 if (productId) {
                     let productName = updates.name;
                     const groupId = updates.bundle_group_id;
-                    
+
                     if (groupId) {
                         const group = await BundleGroup.findByPk(groupId, { transaction: t });
-                         if (group) {
+                        if (group) {
                             productName = `${group.name} (${updates.tier_label || updates.name})`;
                         }
                     } else if (updates.tier_label) {
-                         productName = `${updates.name} (${updates.tier_label})`;
+                        productName = `${updates.name} (${updates.tier_label})`;
                     }
 
                     await stripeService.updateProduct(productId, productName, updates.description);
@@ -362,28 +369,28 @@ export const updateBundle = async (req: Request, res: Response) => {
             }
 
             // Check if price-affecting fields are changed
-             if (
+            if (
                 (updates.price !== undefined && updates.price !== bundle.price) ||
                 (updates.currency && updates.currency !== bundle.currency) ||
                 (updates.interval && updates.interval !== bundle.interval)
             ) {
-                 const productId = bundle.stripe_product_id;
-                 if (productId) {
-                     const newPrice = updates.price;
-                     const newCurrency = updates.currency;
-                     const newInterval = updates.interval;
+                const productId = bundle.stripe_product_id;
+                if (productId) {
+                    const newPrice = updates.price;
+                    const newCurrency = updates.currency;
+                    const newInterval = updates.interval;
 
-                     // STRIPE EXPECTS AMOUNTS IN CENTS
-                     const PRICE_IN_CENTS = Math.round(newPrice * 100);
-                     const monthlyAmount = newInterval === 'monthly' ? PRICE_IN_CENTS : Math.round(PRICE_IN_CENTS / 12);
-                     const yearlyAmount = newInterval === 'yearly' ? PRICE_IN_CENTS : PRICE_IN_CENTS * 12;
+                    // STRIPE EXPECTS AMOUNTS IN CENTS
+                    const PRICE_IN_CENTS = Math.round(newPrice * 100);
+                    const monthlyAmount = newInterval === 'monthly' ? PRICE_IN_CENTS : Math.round(PRICE_IN_CENTS / 12);
+                    const yearlyAmount = newInterval === 'yearly' ? PRICE_IN_CENTS : PRICE_IN_CENTS * 12;
 
-                     const stripePriceMonthly = await stripeService.createPrice(productId, monthlyAmount, newCurrency, 'month');
-                     const stripePriceYearly = await stripeService.createPrice(productId, yearlyAmount, newCurrency, 'year');
-                     
-                     updates.stripe_price_id_monthly = stripePriceMonthly.id;
-                     updates.stripe_price_id_yearly = stripePriceYearly.id;
-                 }
+                    const stripePriceMonthly = await stripeService.createPrice(productId, monthlyAmount, newCurrency, 'month');
+                    const stripePriceYearly = await stripeService.createPrice(productId, yearlyAmount, newCurrency, 'year');
+
+                    updates.stripe_price_id_monthly = stripePriceMonthly.id;
+                    updates.stripe_price_id_yearly = stripePriceYearly.id;
+                }
             }
 
             return await bundle.update(updates, { transaction: t });
@@ -405,8 +412,9 @@ export const updateBundle = async (req: Request, res: Response) => {
 };
 
 export const deleteBundle = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    Logger.info('Deleting bundle', { id, userId: req.user?.id });
     try {
-        const { id } = req.params;
 
         await sequelize.transaction(async (t) => {
             const bundle = await Bundle.findByPk(id, { transaction: t });
@@ -416,7 +424,7 @@ export const deleteBundle = async (req: Request, res: Response) => {
             }
 
             // Check for active subscriptions for this bundle
-            const activeSubscription = await import('../models/subscription').then(({ Subscription }) => 
+            const activeSubscription = await import('../models/subscription').then(({ Subscription }) =>
                 Subscription.findOne({
                     where: {
                         bundle_id: id,
@@ -446,8 +454,8 @@ export const deleteBundle = async (req: Request, res: Response) => {
     } catch (error) {
         const err = error as Error;
         if (err.message === 'HAS_ACTIVE_SUBSCRIPTIONS') {
-             return res.status(400).json({ 
-                message: 'Cannot delete bundle. There are active subscriptions associated with this bundle.' 
+            return res.status(400).json({
+                message: 'Cannot delete bundle. There are active subscriptions associated with this bundle.'
             });
         }
         handleError(res, error, 'Delete Bundle Error');
@@ -462,6 +470,7 @@ export const addPlanToBundle = async (req: Request, res: Response) => {
     try {
         const { id } = req.params; // Bundle ID
         const { plan_id } = req.body;
+        Logger.info('Adding plan to bundle', { bundleId: id, planId: plan_id, userId: req.user?.id });
 
         if (!plan_id) {
             return res.status(400).json({ message: 'Plan ID is required' });
@@ -501,6 +510,7 @@ export const addPlanToBundle = async (req: Request, res: Response) => {
 export const removePlanFromBundle = async (req: Request, res: Response) => {
     try {
         const { id, planId } = req.params; // Bundle ID, Plan ID
+        Logger.info('Removing plan from bundle', { bundleId: id, planId, userId: req.user?.id });
 
         await sequelize.transaction(async (t) => {
             const bundle = await Bundle.findByPk(id, { transaction: t });

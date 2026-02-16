@@ -7,6 +7,7 @@ import sequelize from '../config/db';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
+import Logger from '../utils/logger';
 
 export const getOrganizations = async (req: Request, res: Response) => {
     try {
@@ -62,6 +63,7 @@ export const updateOrganization = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { name, slug, website, status } = req.body;
+        Logger.info('Updating organization', { id, ...req.body, userId: req.user?.id });
 
         const organization = await Organization.findByPk(id);
 
@@ -102,8 +104,9 @@ export const updateOrganization = async (req: Request, res: Response) => {
 };
 
 export const deleteOrganization = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    Logger.info('Deleting organization', { id, userId: req.user?.id });
     try {
-        const { id } = req.params;
 
         // Early validation before starting transaction
         const organization = await Organization.findByPk(id);

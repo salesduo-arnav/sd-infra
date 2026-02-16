@@ -4,6 +4,7 @@ import path from "path";
 import http from "http";
 import { closeDB, connectDB } from "./config/db";
 import { connectRedis, closeRedis } from "./config/redis";
+import Logger from "./utils/logger";
 
 dotenv.config({ path: path.join(__dirname, "../.env") });
 
@@ -12,51 +13,51 @@ const PORT = Number(process.env.PORT) || 3000;
 let server: http.Server;
 
 const shutdown = async (signal: string) => {
-    console.log(`\n[${signal}] Graceful shutdown started...`);
+    Logger.info(`\n[${signal}] Graceful shutdown started...`);
 
     const forceExit = setTimeout(() => {
-        console.error("⚠️ Force shutdown after 10s");
+        Logger.error("⚠️ Force shutdown after 10s");
         process.exit(1);
     }, 10000);
 
     try {
         if (server) {
-            console.log("Closing HTTP server...");
+            Logger.info("Closing HTTP server...");
             await new Promise<void>((resolve, reject) => {
                 server.close(err => (err ? reject(err) : resolve()));
             });
-            console.log("HTTP server closed.");
+            Logger.info("HTTP server closed.");
         }
 
-        console.log("Closing database...");
+        Logger.info("Closing database...");
         await closeDB();
-        console.log("Database closed.");
+        Logger.info("Database closed.");
 
-        console.log("Closing redis...");
+        Logger.info("Closing redis...");
         await closeRedis();
-        console.log("Redis closed.");
+        Logger.info("Redis closed.");
 
         clearTimeout(forceExit);
-        console.log("✅ Graceful shutdown complete.");
+        Logger.info("✅ Graceful shutdown complete.");
         process.exit(0);
     } catch (err) {
-        console.error("❌ Shutdown failed:", err);
+        Logger.error(`❌ Shutdown failed: ${err}`);
         process.exit(1);
     }
 };
 
 const startServer = async () => {
     try {
-        console.log("Initializing services...");
+        Logger.info("Initializing services...");
 
         await connectDB();
         await connectRedis();
 
         server = app.listen(PORT, () => {
-            console.log(`✅ Server running on port ${PORT}`);
+            Logger.info(`✅ Server running on port ${PORT}`);
         });
     } catch (err) {
-        console.error("❌ Failed to start server:", err);
+        Logger.error(`❌ Failed to start server: ${err}`);
         process.exit(1);
     }
 };

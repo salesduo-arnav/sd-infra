@@ -1,5 +1,6 @@
 import AuditLog from "../models/audit_log";
 import { Request } from 'express';
+import Logger from '../utils/logger';
 
 interface LogParams {
     actorId?: string;
@@ -35,7 +36,7 @@ export class AuditService {
                 ip_address: finalIp,
             });
         } catch (error) {
-            console.error("Failed to create audit log:", error);
+            Logger.error("Failed to create audit log:", { error });
             // We explicitly do NOT throw here to avoid failing the main business logic
             // just because logging failed.
         }

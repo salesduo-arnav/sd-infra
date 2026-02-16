@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import redisClient from '../config/redis';
 import User from '../models/user';
+import { handleError } from '../utils/error';
 
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -36,8 +37,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
         next();
     } catch (error) {
-        console.error('Auth Middleware Error:', error);
-        return res.status(500).json({ message: 'Internal server error' });
+        handleError(res, error, 'Auth Middleware Error');
     }
 };
 

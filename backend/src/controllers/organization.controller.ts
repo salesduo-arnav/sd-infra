@@ -7,8 +7,10 @@ import { handleError } from '../utils/error';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { AuditService } from '../services/audit.service';
 import { invitationService } from '../services/invitation.service';
+import Logger from '../utils/logger';
 
 export const createOrganization = async (req: Request, res: Response) => {
+    Logger.info("Creating organization", { userId: req.user?.id, name: req.body.name });
     try {
         const { name, website, invites } = req.body;
         const userId = req.user?.id;
@@ -69,7 +71,7 @@ export const createOrganization = async (req: Request, res: Response) => {
                         }
                     }
                 } catch (inviteError) {
-                    console.error('Error sending background invites:', inviteError);
+                    Logger.error('Error sending background invites', { error: inviteError });
                 }
             }
         };
@@ -379,8 +381,7 @@ export const removeMember = async (req: Request, res: Response) => {
         res.json({ message: 'Member removed successfully' });
 
     } catch (error) {
-        console.error('Remove Member Error:', error);
-        res.status(500).json({ message: 'Server error removing member' });
+        handleError(res, error, 'Remove Member Error');
     }
 };
 
@@ -458,8 +459,7 @@ export const updateMemberRole = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        console.error('Update Member Role Error:', error);
-        res.status(500).json({ message: 'Server error updating member role' });
+        handleError(res, error, 'Update Member Role Error');
     }
 };
 
@@ -535,8 +535,7 @@ export const transferOwnership = async (req: Request, res: Response) => {
         res.json({ message: 'Ownership transferred successfully' });
 
     } catch (error) {
-        console.error('Transfer Ownership Error:', error);
-        res.status(500).json({ message: 'Server error transferring ownership' });
+        handleError(res, error, 'Transfer Ownership Error');
     }
 };
 
@@ -585,7 +584,6 @@ export const deleteOrganization = async (req: Request, res: Response) => {
         res.json({ message: 'Organization deleted successfully' });
 
     } catch (error) {
-        console.error('Delete Organization Error:', error);
-        res.status(500).json({ message: 'Server error deleting organization' });
+        handleError(res, error, 'Delete Organization Error');
     }
 };

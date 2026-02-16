@@ -15,6 +15,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
+import Logger from '../utils/logger';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -55,6 +56,7 @@ const createSession = async (res: Response, user: User) => {
 };
 
 export const register = async (req: Request, res: Response) => {
+    Logger.info("Registering new user", { email: req.body.email });
     try {
         const { email, password, full_name, token } = req.body;
 
@@ -155,6 +157,7 @@ export const register = async (req: Request, res: Response) => {
 };
 
 export const login = async (req: Request, res: Response) => {
+    Logger.info("User login attempt", { email: req.body.email });
     try {
         const { email, password, token } = req.body;
 
@@ -249,6 +252,7 @@ export const login = async (req: Request, res: Response) => {
 };
 
 export const logout = async (req: Request, res: Response) => {
+    Logger.info("User logout", { userId: req.user?.id });
     const sessionId = req.cookies.session_id;
     const userId = req.user?.id;
 
@@ -305,6 +309,7 @@ export const getMe = async (req: Request, res: Response) => {
 };
 
 export const forgotPassword = async (req: Request, res: Response) => {
+    Logger.info("Forgot password request", { email: req.body.email });
     try {
         const { email } = req.body;
         const user = await User.findOne({ where: { email } });
@@ -363,6 +368,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
 };
 
 export const resetPassword = async (req: Request, res: Response) => {
+    Logger.info("Reset password attempt");
     try {
         const { token, newPassword } = req.body;
 
@@ -408,7 +414,7 @@ export const googleAuth = async (req: Request, res: Response) => {
         const { code, token } = req.body;
 
         if (!process.env.GOOGLE_CLIENT_SECRET) {
-            console.error('Missing GOOGLE_CLIENT_SECRET');
+            Logger.error('Missing GOOGLE_CLIENT_SECRET');
             return res.status(500).json({ message: 'Server configuration error' });
         }
 

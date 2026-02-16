@@ -4,6 +4,7 @@ import { GlobalIntegration, GlobalIntegrationStatus } from '../models/global_int
 import { OrganizationMember } from '../models/organization';
 import { handleError } from '../utils/error';
 import sequelize from '../config/db';
+import Logger from '../utils/logger';
 
 // ================================
 // Helpers
@@ -60,6 +61,7 @@ export const getIntegrationAccounts = async (req: Request, res: Response) => {
 
 /** POST /integrations/accounts */
 export const createIntegrationAccount = async (req: Request, res: Response) => {
+    Logger.info('Creating integration account', { ...req.body, userId: req.user?.id });
     try {
         const orgId = await getOrgId(req, res);
         if (!orgId) return;
@@ -140,6 +142,8 @@ export const deleteIntegrationAccount = async (req: Request, res: Response) => {
 
 /** POST /integrations/accounts/:id/connect */
 export const connectIntegrationAccount = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    Logger.info('Connecting integration account', { id, userId: req.user?.id });
     try {
         const orgId = await getOrgId(req, res);
         if (!orgId) return;
@@ -169,6 +173,8 @@ export const connectIntegrationAccount = async (req: Request, res: Response) => 
 
 /** POST /integrations/accounts/:id/disconnect */
 export const disconnectIntegrationAccount = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    Logger.info('Disconnecting integration account', { id, userId: req.user?.id });
     try {
         const orgId = await getOrgId(req, res);
         if (!orgId) return;
@@ -217,6 +223,7 @@ export const getGlobalIntegrations = async (req: Request, res: Response) => {
 
 /** POST /integrations/global */
 export const connectGlobalIntegration = async (req: Request, res: Response) => {
+    Logger.info('Connecting global integration', { service_name: req.body.service_name, userId: req.user?.id });
     try {
         const orgId = await getOrgId(req, res);
         if (!orgId) return;
@@ -268,6 +275,7 @@ export const connectGlobalIntegration = async (req: Request, res: Response) => {
 
 /** DELETE /integrations/global/:id */
 export const disconnectGlobalIntegration = async (req: Request, res: Response) => {
+    Logger.info('Disconnecting global integration', { id: req.params.id, userId: req.user?.id });
     try {
         const orgId = await getOrgId(req, res);
         if (!orgId) return;

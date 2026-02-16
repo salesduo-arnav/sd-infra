@@ -60,6 +60,7 @@ services:
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL}
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
+        VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY}
     container_name: core-frontend
     ports:
       - "5173:5173"
@@ -68,9 +69,51 @@ services:
     depends_on:
       - backend
 
+  # 6. Logging: Loki
+  loki:
+    image: grafana/loki:latest
+    container_name: logging-loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./config/loki-config.yaml:/etc/loki/local-config.yaml
+    networks:
+      - salesduo-net
+
+  # 7. Logging: Promtail
+  promtail:
+    image: grafana/promtail:latest
+    container_name: logging-promtail
+    volumes:
+      - ./config/promtail-config.yaml:/etc/promtail/config.yaml
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/config.yaml
+    networks:
+      - salesduo-net
+
+  # 8. Logging: Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: logging-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./config/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    networks:
+      - salesduo-net
+    depends_on:
+      - loki
+
 networks:
   salesduo-net:
     driver: bridge
 
 volumes:
   pgdata:
+  grafana-storage:

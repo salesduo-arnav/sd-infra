@@ -10,6 +10,7 @@ import { SubStatus } from '../models/enums';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
+import Logger from '../utils/logger';
 
 // ==========================
 // Tool Config Controllers
@@ -67,6 +68,7 @@ export const getToolById = async (req: Request, res: Response) => {
 };
 
 export const createTool = async (req: Request, res: Response) => {
+    Logger.info('Creating tool', { ...req.body, userId: req.user?.id });
     try {
         const { name, slug, description, tool_link, is_active, trial_card_required, trial_days, required_integrations } = req.body;
 
@@ -111,6 +113,7 @@ export const updateTool = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { name, slug, description, tool_link, is_active, trial_card_required, trial_days, required_integrations } = req.body;
+        Logger.info('Updating tool', { id, userId: req.user?.id });
 
         const updatedTool = await sequelize.transaction(async (t) => {
             const tool = await Tool.findByPk(id, { transaction: t });
@@ -154,6 +157,8 @@ export const updateTool = async (req: Request, res: Response) => {
 };
 
 export const deleteTool = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    Logger.info('Deleting tool', { id, userId: req.user?.id });
     try {
         const { id } = req.params;
 
@@ -189,11 +194,11 @@ export const deleteTool = async (req: Request, res: Response) => {
                     attributes: ['bundle_id'],
                     transaction: t
                 });
-                
+
                 const bundleIds = bundlePlans.map(bp => bp.bundle_id);
 
                 if (bundleIds.length > 0) {
-                     const activeBundleSubscription = await Subscription.findOne({
+                    const activeBundleSubscription = await Subscription.findOne({
                         where: {
                             bundle_id: { [Op.in]: bundleIds },
                             status: { [Op.in]: [SubStatus.ACTIVE, SubStatus.TRIALING, SubStatus.PAST_DUE] }

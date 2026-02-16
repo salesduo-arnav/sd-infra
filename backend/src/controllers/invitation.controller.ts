@@ -8,8 +8,10 @@ import sequelize from '../config/db';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
 import { invitationService } from '../services/invitation.service';
+import Logger from '../utils/logger';
 
 export const inviteMember = async (req: Request, res: Response) => {
+    Logger.info('Inviting member', { email: req.body.email, role_id: req.body.role_id, userId: req.user?.id });
     try {
         const { email, role_id } = req.body;
         const userId = req.user?.id;
@@ -152,6 +154,7 @@ export const validateInvitation = async (req: Request, res: Response) => {
 };
 
 export const acceptInvitation = async (req: Request, res: Response) => {
+    Logger.info('Accepting invitation', { token: req.body.token, userId: req.user?.id });
     try {
         const { token } = req.body;
         const userId = req.user?.id;

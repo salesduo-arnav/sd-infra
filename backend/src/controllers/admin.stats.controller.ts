@@ -5,8 +5,10 @@ import { User, Organization, Subscription, ToolUsage, OneTimePurchase, Tool, Pla
 import { SubStatus } from '../models/enums';
 import { handleError } from '../utils/error';
 import { getStartOfMonth, calculateGrowth, calculateMRR } from '../utils/stats';
+import Logger from '../utils/logger';
 
 export const getOverviewStats = async (req: Request, res: Response) => {
+    Logger.info('Fetching overview stats');
     try {
         const totalUsers = await User.count();
         const totalOrgs = await Organization.count();
