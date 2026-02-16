@@ -14,6 +14,7 @@ export interface BundleTier {
   period: string;
   limits: string;
   features?: FeatureItem[];
+  currency?: string;
 }
 
 export interface Bundle {
@@ -35,6 +36,7 @@ export interface AppTier {
   features?: FeatureItem[];
   isTrial?: boolean;
   trialDays?: number;
+  currency?: string;
 }
 
 export interface App {
@@ -69,4 +71,5 @@ export interface CartItem {
   currentPrice?: number;
   subscriptionId?: string;
   trialDays?: number;
+  currency?: string;
 }

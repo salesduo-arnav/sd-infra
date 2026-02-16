@@ -27,6 +27,15 @@ export function TierItem({
 
   const showTrialBadge = isTrialTier(tier);
 
+  const formatPrice = (price: number, currency = 'USD') => {
+      return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: currency,
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2
+      }).format(price);
+  };
+
   return (
     <div
       onClick={onSelect}
@@ -54,7 +63,7 @@ export function TierItem({
       </div>
       <div className="text-right whitespace-nowrap flex items-center gap-3">
         <p className="font-semibold text-foreground">
-          ${tier.price}
+          {formatPrice(tier.price, tier.currency)}
           <span className="text-xs text-muted-foreground">{tier.period}</span>
         </p>
 

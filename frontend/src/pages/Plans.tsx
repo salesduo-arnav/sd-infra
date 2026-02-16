@@ -189,7 +189,17 @@ export default function Plans() {
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + item.price, 0);
+  const cartCurrency = cart.length > 0 ? cart[0].currency || 'USD' : 'USD';
   const cartItemCount = cart.length;
+  
+  const formatPrice = (price: number, currency = 'USD') => {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+    }).format(price);
+  };
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
@@ -209,13 +219,21 @@ export default function Plans() {
         name: item.name,
         tier: item.tierName,
         features: item.features,
-        limits: item.limits
+        limits: item.limits,
+        currency: item.currency
     }));
     
     // Check mixed intervals
     const firstInterval = itemsToCheckout[0].interval;
     if (itemsToCheckout.some(i => i.interval !== firstInterval)) {
         toast.error("Please checkout monthly and yearly plans separately.");
+        return;
+    }
+
+    // Check mixed currencies
+    const firstCurrency = cart[0].currency || 'USD';
+    if (cart.some(item => (item.currency || 'USD') !== firstCurrency)) {
+        toast.error("Please checkout plans with the same currency together.");
         return;
     }
 
@@ -413,7 +431,7 @@ export default function Plans() {
                   {cartItemCount}
                 </Badge>
               )}
-              <span className="font-medium">${cartTotal.toFixed(2)}</span>
+              <span className="font-medium">{formatPrice(cartTotal, cartCurrency)}</span>
             </>
           )}
         </button>
@@ -479,7 +497,7 @@ export default function Plans() {
                   {hasSubscriptionChanges ? "New Price" : "Monthly Total"}
                 </span>
                 <span className="text-2xl font-bold tracking-tight">
-                  ${cartTotal.toFixed(2)}
+                  {formatPrice(cartTotal, cartCurrency)}
                 </span>
               </div>
 

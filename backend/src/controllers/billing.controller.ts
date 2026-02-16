@@ -538,7 +538,19 @@ class BillingController {
         if (fingerprint && (subscription.status === SubStatus.TRIALING || subscription.status === SubStatus.ACTIVE)) {
             try {
                 // Check for duplicates
-                const toolId = planId ? (await Plan.findByPk(planId))?.tool_id : null;
+                // Check if we should bypass for paid active plans
+                let toolId: string | undefined;
+
+                if (planId) {
+                    const plan = await Plan.findByPk(planId);
+                    if (plan) {
+                        // FIX: Allow Paid Active Subscriptions (Customer paid, so trial restrictions don't apply)
+                        if (subscription.status === SubStatus.ACTIVE && plan.price > 0) {
+                            return;
+                        }
+                        toolId = plan.tool_id;
+                    }
+                }
 
                 if (toolId) {
                     // Find all plans for this tool to check against

@@ -157,6 +157,13 @@ export default function Billing() {
   useEffect(() => {
     const init = async () => {
         const params = new URLSearchParams(window.location.search);
+        const isSuccess = params.get('success') === 'true';
+
+        // Clear the query param immediately to prevent double toasts in StrictMode
+        if (isSuccess) {
+            const newUrl = window.location.pathname;
+            window.history.replaceState({}, '', newUrl);
+        }
         
         // Sync status to handle potential race conditions
         await handleSyncSubscription(false);
@@ -164,7 +171,7 @@ export default function Billing() {
         const invoicePromise = fetchInvoices();
         let subPromise;
 
-        if (params.get('success') === 'true') {
+        if (isSuccess) {
             subPromise = (async () => {
                  try {
                     // Re-fetch to ensure we have the absolute latest state after sync

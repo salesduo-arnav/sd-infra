@@ -95,6 +95,16 @@ export default function CheckoutPage() {
   // Totals
   const total = cartItems?.reduce((sum: number, item: CartItem) => sum + (item.price || 0), 0) || 0;
   const billingInterval = cartItems?.[0]?.period || interval;
+  const currency = cartItems?.[0]?.currency || 'USD';
+
+  const formatPrice = (price: number, currencyCode = 'USD') => {
+      return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: currencyCode.toUpperCase(),
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2
+      }).format(price);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50/50 p-4 lg:p-8">
@@ -129,8 +139,8 @@ export default function CheckoutPage() {
                                                 </div>
                                             </div>
                                             <p className="font-bold text-lg">
-                                                ${item.price.toFixed(2)} 
-                                                <span className="text-sm text-muted-foreground font-normal">/{item.period === 'yearly' ? 'yr' : 'mo'}</span>
+                                                {formatPrice(item.price, item.currency)} 
+                                                <span className="text-sm text-muted-foreground font-normal"> {item.currency || 'USD'} /{item.period === 'yearly' ? 'yr' : 'mo'}</span>
                                             </p>
                                         </div>
                                         
@@ -147,7 +157,10 @@ export default function CheckoutPage() {
                 <div className="p-6 bg-muted/10 border-t mt-auto">
                     <div className="flex justify-between items-center mb-1">
                         <span className="text-muted-foreground">Subtotal</span>
-                        <span>${total.toFixed(2)}</span>
+                        <span>
+                            {formatPrice(total, currency)}
+                            <span className="text-xs text-muted-foreground font-normal ml-1">{currency.toUpperCase()}</span>
+                        </span>
                     </div>
                     <div className="flex justify-between items-center mb-4">
                         <span className="text-muted-foreground">Tax</span>
@@ -156,8 +169,8 @@ export default function CheckoutPage() {
                     <div className="flex justify-between items-center pt-4 border-t border-dashed">
                          <span className="text-lg font-bold">Total due today</span>
                          <span className="text-2xl font-bold text-primary">
-                             ${total.toFixed(2)}
-                             <span className="text-sm text-muted-foreground font-normal ml-1">USD</span>
+                             {formatPrice(total, currency)}
+                             <span className="text-sm text-muted-foreground font-normal ml-1">{currency.toUpperCase()}</span>
                          </span>
                     </div>
                 </div>

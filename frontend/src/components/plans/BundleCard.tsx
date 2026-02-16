@@ -23,6 +23,15 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
 
   const currentPrice = currentSubscription?.bundle?.price ?? 0;
 
+  const formatPrice = (price: number, currency = 'USD') => {
+      return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: currency,
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2
+      }).format(price);
+  };
+
   return (
     <Card
       data-card
@@ -146,7 +155,7 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
             <div className="pt-2 border-t">
                 <p className="text-xs text-muted-foreground">Price</p>
                 <p className="text-lg font-bold">
-                ${bundle.tiers[0].price}
+                {formatPrice(bundle.tiers[0].price, bundle.tiers[0].currency)}
                 <span className="text-sm font-normal text-muted-foreground">{bundle.tiers[0].period}</span>
                 </p>
             </div>

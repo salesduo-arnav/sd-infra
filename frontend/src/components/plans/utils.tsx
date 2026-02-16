@@ -35,6 +35,7 @@ export const transformBundles = (publicBundles: PublicBundleGroup[]): Bundle[] =
                 id: b.id,
                 name: b.tier_label || b.name, // Use label vs name fallback
                 price: b.price,
+                currency: b.currency,
                 period: "/" + b.interval,
                 limits: b.description || "Full access",
                 features: b.bundle_plans?.flatMap((bp: PublicBundlePlan) =>
@@ -90,6 +91,7 @@ export const transformPlansToApps = (publicPlans: PublicPlan[]): App[] => {
                     id: plan.id,
                     name: plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1), // Capitalize
                     price: plan.price,
+                    currency: plan.currency,
                     period: "/" + plan.interval,
                     limits: plan.description || "See details",
                     features: plan.limits?.map((limit: PlanLimit) => ({
@@ -108,6 +110,7 @@ export const transformPlansToApps = (publicPlans: PublicPlan[]): App[] => {
                 id: plan.id,
                 name: plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1), // Capitalize
                 price: plan.price,
+                currency: plan.currency,
                 period: "/" + plan.interval,
                 limits: plan.description || "See details",
                 features: plan.limits?.map((limit: PlanLimit) => ({

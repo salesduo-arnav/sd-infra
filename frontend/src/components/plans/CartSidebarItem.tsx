@@ -9,6 +9,15 @@ interface CartSidebarItemProps {
 }
 
 export function CartSidebarItem({ item, onRemove }: CartSidebarItemProps) {
+  const formatPrice = (price: number, currency = 'USD') => {
+      return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: currency,
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2
+      }).format(price);
+  };
+
   return (
     <div
       className="group flex flex-col gap-2 rounded-lg border bg-card px-3 py-2.5 transition-all duration-200 hover:border-primary/20"
@@ -39,7 +48,7 @@ export function CartSidebarItem({ item, onRemove }: CartSidebarItemProps) {
         </div>
         <div className="flex items-center gap-2">
           <p className="font-semibold text-sm whitespace-nowrap">
-            ${item.price.toFixed(2)}
+            {formatPrice(item.price, item.currency)}
             <span className="text-[10px] text-muted-foreground font-normal">{item.period}</span>
           </p>
           <Button
@@ -55,12 +64,12 @@ export function CartSidebarItem({ item, onRemove }: CartSidebarItemProps) {
       
       {item.isUpgrade && (
         <p className="text-[11px] text-green-600 bg-green-50 dark:bg-green-950/30 rounded px-2 py-1">
-          Pro-rated charge of ~${(item.price - (item.currentPrice ?? 0)).toFixed(2)} applies immediately
+          Pro-rated charge of ~{formatPrice((item.price - (item.currentPrice ?? 0)), item.currency)} applies immediately
         </p>
       )}
       {item.isDowngrade && (
         <p className="text-[11px] text-orange-600 bg-orange-50 dark:bg-orange-950/30 rounded px-2 py-1">
-          You'll be charged ${item.price.toFixed(2)}{item.period} from next billing cycle
+          You'll be charged {formatPrice(item.price, item.currency)}{item.period} from next billing cycle
         </p>
       )}
     </div>

@@ -25,6 +25,15 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
   const hasTierSelected = hasAnyTierInCart(app.id);
 
   const currentPrice = currentSubscription?.plan?.price ?? 0;
+  
+  const formatPrice = (price: number, currency = 'USD') => {
+      return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: currency,
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2
+      }).format(price);
+  };
 
   return (
     <Card
@@ -130,6 +139,7 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
                               name: app.name,
                               tierName: tier.name,
                               price: tier.price,
+                              currency: tier.currency || 'USD',
                               period: tier.period,
                               limits: tier.limits,
                               features: tier.features,
@@ -184,7 +194,7 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
             <div className="pt-2 border-t">
                 <p className="text-xs text-muted-foreground">Starting from</p>
                 <p className="text-lg font-bold">
-                ${app.tiers[0].price}
+                {formatPrice(app.tiers[0].price, app.tiers[0].currency)}
                 <span className="text-sm font-normal text-muted-foreground">{app.tiers[0].period}</span>
                 </p>
             </div>
