@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import api from "@/lib/api";
 import { toast } from "sonner";
 import * as BillingService from "@/services/billing.service";
 import { useAuth } from "@/contexts/AuthContext";
+import { Subscription, Invoice } from "@/types/subscription";
 import { ColumnDef, SortingState, PaginationState, ColumnFiltersState } from "@tanstack/react-table";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import { BillingAlert } from "@/components/billing/BillingAlert";
@@ -19,11 +20,11 @@ import { getSubscriptionColumns, invoiceColumns } from "@/components/billing/col
 
 export default function Billing() {
   const navigate = useNavigate();
-  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
 
-  const [invoices, setInvoices] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
 
@@ -38,6 +39,123 @@ export default function Billing() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const { activeOrganization } = useAuth();
+
+
+
+  const fetchSubscription = useCallback(async () => {
+    try {
+      const response = await api.get(`/billing`);
+      setSubscriptions(response.data.subscriptions);
+    } catch (error) {
+      console.error("Failed to fetch subscription", error);
+    }
+  }, []);
+
+  const fetchInvoices = useCallback(async () => {
+    try {
+      const response = await api.get(`/billing/invoices?limit=100`);
+      setInvoices(response.data.invoices || []);
+    } catch (error) {
+      console.error("Failed to fetch invoices", error);
+    }
+  }, []);
+
+  const handleCancelSubscription = useCallback(async (subId: string, stripeSubId: string) => {
+    if (!confirm("Are you sure you want to cancel? Your subscription will remain active until the end of the billing period.")) return;
+    setActionLoading(subId);
+    try {
+        await api.post(`/billing/subscription/${stripeSubId}/cancel`);
+        toast.success("Subscription cancelled successfully");
+        fetchSubscription();
+    } catch (error) {
+        console.error("Failed to cancel subscription", error);
+        toast.error("Failed to cancel subscription");
+    } finally {
+        setActionLoading(null);
+    }
+  }, [fetchSubscription]);
+
+  const handleResumeSubscription = useCallback(async (subId: string, stripeSubId: string) => {
+    setActionLoading(subId);
+    try {
+        await api.post(`/billing/subscription/${stripeSubId}/resume`);
+        toast.success("Subscription resumed successfully");
+        fetchSubscription();
+    } catch (error) {
+        console.error("Failed to resume subscription", error);
+        toast.error("Failed to resume subscription");
+    } finally {
+        setActionLoading(null);
+    }
+  }, [fetchSubscription]);
+
+  const handleCancelTrial = useCallback(async (subId: string) => {
+    if (!confirm("Are you sure you want to end your trial immediately? You will lose access to paid features.")) return;
+    setActionLoading(subId);
+    try {
+        await BillingService.cancelTrial(subId);
+        toast.success("Trial cancelled successfully");
+        fetchSubscription();
+    } catch (error) {
+        console.error("Failed to cancel trial", error);
+        toast.error("Failed to cancel trial");
+    } finally {
+        setActionLoading(null);
+    }
+  }, [fetchSubscription]);
+
+  const handleManageSubscription = useCallback(async () => {
+    setPortalLoading(true);
+    try {
+      const response = await api.post(`/billing/portal-session`);
+      if (response.data.url) {
+        window.location.href = response.data.url;
+      }
+    } catch (error) {
+      console.error("Failed to create portal session", error);
+      toast.error("Failed to open billing portal");
+    } finally {
+      setPortalLoading(false);
+    }
+  }, []);
+
+  // Removed separate useEffect for auto-sync to strictly order it in init()
+  // useEffect(() => {
+  //   handleSyncSubscription(false);
+  // }, []);
+
+  const handleSyncSubscription = useCallback(async (manual = true) => {
+    setSyncLoading(true);
+    try {
+        await api.post(`/billing/sync`);
+        if (manual) {
+            toast.success("Subscription status synced with Stripe");
+        }
+        await fetchSubscription();
+    } catch (error) {
+        console.error("Failed to sync subscription", error);
+        if (manual) {
+            toast.error("Failed to sync subscription status");
+        }
+    } finally {
+        setSyncLoading(false);
+    }
+  }, [fetchSubscription]);
+
+  const handleCancelDowngrade = useCallback(async (subId: string) => {
+    if (!confirm("Are you sure you want to cancel the scheduled downgrade? Your current plan will continue.")) return;
+    setActionLoading(subId);
+    try {
+        await BillingService.cancelDowngrade(subId);
+        toast.success("Scheduled downgrade cancelled successfully");
+        fetchSubscription();
+    } catch (error) {
+        console.error("Failed to cancel downgrade", error);
+        toast.error("Failed to cancel scheduled downgrade");
+    } finally {
+        setActionLoading(null);
+    }
+  }, [fetchSubscription]);
 
   useEffect(() => {
     const init = async () => {
@@ -94,122 +212,7 @@ export default function Billing() {
     if (activeOrganization) {
       init();
     }
-  }, [activeOrganization]);
-
-  const fetchSubscription = async () => {
-    try {
-      const response = await api.get(`/billing`);
-      setSubscriptions(response.data.subscriptions);
-    } catch (error) {
-      console.error("Failed to fetch subscription", error);
-    }
-  };
-
-  const fetchInvoices = async () => {
-    try {
-      const response = await api.get(`/billing/invoices?limit=100`);
-      setInvoices(response.data.invoices || []);
-    } catch (error) {
-      console.error("Failed to fetch invoices", error);
-    }
-  };
-
-  const handleCancelSubscription = async (subId: string, stripeSubId: string) => {
-    if (!confirm("Are you sure you want to cancel? Your subscription will remain active until the end of the billing period.")) return;
-    setActionLoading(subId);
-    try {
-        await api.post(`/billing/subscription/${stripeSubId}/cancel`);
-        toast.success("Subscription cancelled successfully");
-        fetchSubscription();
-    } catch (error) {
-        console.error("Failed to cancel subscription", error);
-        toast.error("Failed to cancel subscription");
-    } finally {
-        setActionLoading(null);
-    }
-  };
-
-  const handleResumeSubscription = async (subId: string, stripeSubId: string) => {
-    setActionLoading(subId);
-    try {
-        await api.post(`/billing/subscription/${stripeSubId}/resume`);
-        toast.success("Subscription resumed successfully");
-        fetchSubscription();
-    } catch (error) {
-        console.error("Failed to resume subscription", error);
-        toast.error("Failed to resume subscription");
-    } finally {
-        setActionLoading(null);
-    }
-  };
-
-  const handleCancelTrial = async (subId: string) => {
-    if (!confirm("Are you sure you want to end your trial immediately? You will lose access to paid features.")) return;
-    setActionLoading(subId);
-    try {
-        await BillingService.cancelTrial(subId);
-        toast.success("Trial cancelled successfully");
-        fetchSubscription();
-    } catch (error) {
-        console.error("Failed to cancel trial", error);
-        toast.error("Failed to cancel trial");
-    } finally {
-        setActionLoading(null);
-    }
-  };
-
-  const handleManageSubscription = async () => {
-    setPortalLoading(true);
-    try {
-      const response = await api.post(`/billing/portal-session`);
-      if (response.data.url) {
-        window.location.href = response.data.url;
-      }
-    } catch (error) {
-      console.error("Failed to create portal session", error);
-      toast.error("Failed to open billing portal");
-    } finally {
-      setPortalLoading(false);
-    }
-  };
-
-  // Removed separate useEffect for auto-sync to strictly order it in init()
-  // useEffect(() => {
-  //   handleSyncSubscription(false);
-  // }, []);
-
-  const handleSyncSubscription = async (manual = true) => {
-    setSyncLoading(true);
-    try {
-        await api.post(`/billing/sync`);
-        if (manual) {
-            toast.success("Subscription status synced with Stripe");
-        }
-        await fetchSubscription();
-    } catch (error) {
-        console.error("Failed to sync subscription", error);
-        if (manual) {
-            toast.error("Failed to sync subscription status");
-        }
-    } finally {
-        setSyncLoading(false);
-    }
-  };
-
-  const handleCancelDowngrade = async (subId: string) => {
-    if (!confirm("Are you sure you want to cancel the scheduled downgrade? Your current plan will continue.")) return;
-    setActionLoading(subId);
-    try {
-        await BillingService.cancelDowngrade(subId);
-        toast.success("Scheduled downgrade cancelled successfully");
-        fetchSubscription();
-    } catch (error) {
-        console.error("Failed to cancel downgrade", error);
-        toast.error("Failed to cancel scheduled downgrade");
-    } finally {
-        setActionLoading(null);
-    }
-  };
+  }, [activeOrganization, handleSyncSubscription, fetchInvoices]);
 
   // --- Subscriptions Table Logic ---
 
@@ -222,7 +225,7 @@ export default function Billing() {
       onCancelTrial: handleCancelTrial,
       onCancelDowngrade: handleCancelDowngrade,
       onNavigate: (path) => navigate(path)
-  }), [actionLoading, portalLoading, navigate]); // Removed handle functions from deps as they are stable or shouldn't trigger rebuild often
+  }), [actionLoading, portalLoading, navigate, handleManageSubscription, handleCancelSubscription, handleResumeSubscription, handleCancelTrial, handleCancelDowngrade]);
 
   const filteredSubscriptions = useMemo(() => {
     let result = [...subscriptions];

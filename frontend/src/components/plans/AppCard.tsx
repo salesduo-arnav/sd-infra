@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Check, Sparkles } from "lucide-react";
 import { App, CartItem } from "./types";
 import { TierItem } from "./TierItem";
+import { Subscription } from "@/types/subscription";
 
 interface AppCardProps {
   app: App;
@@ -14,7 +15,7 @@ interface AppCardProps {
   onToggleCartItem: (item: CartItem) => void;
   isInCart: (id: string, tierName: string) => boolean;
   hasAnyTierInCart: (id: string) => boolean;
-  currentSubscription?: any;
+  currentSubscription?: Subscription | null;
   onStartTrial?: (toolId: string) => void;
   isStartingTrial?: boolean;
 }

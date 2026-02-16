@@ -44,7 +44,6 @@ export function TierItem({
           <p className="font-medium truncate">{tier.name}</p>
           {showTrialBadge && (
             <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full dark:bg-indigo-900/30 dark:text-indigo-400 whitespace-nowrap">
-              {/* @ts-ignore */}
               {tier.trialDays} day free trial available
             </span>
           )}

@@ -269,9 +269,10 @@ export default function AdminPlans() {
       setIsPlanDialogOpen(false);
       fetchPlans();
       fetchBundleGroups(); // Update bundles if plan name changed
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to save plan", error);
-      const message = error.response?.data?.message || "Failed to save plan.";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const message = (error as any).response?.data?.message || "Failed to save plan.";
       toast.error(message);
     }
   }, [editingPlan, planFormData, fetchPlans, fetchBundleGroups]);

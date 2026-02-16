@@ -1,5 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
+import { Subscription, Invoice } from "@/types/subscription";
 import { Button } from "@/components/ui/button";
 import { DataTableColumnHeader } from "@/components/ui/data-table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -26,7 +27,7 @@ export const getSubscriptionColumns = ({
   onCancelTrial,
   onCancelDowngrade,
   onNavigate
-}: SubscriptionColumnsProps): ColumnDef<any>[] => [
+}: SubscriptionColumnsProps): ColumnDef<Subscription>[] => [
     {
         accessorKey: "plan_details",
         header: "Plan / Bundle",
@@ -154,7 +155,7 @@ export const getSubscriptionColumns = ({
       },
   ];
 
-export const invoiceColumns: ColumnDef<any>[] = [
+export const invoiceColumns: ColumnDef<Invoice>[] = [
     {
       accessorKey: "number",
       header: "Invoice",

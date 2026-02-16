@@ -1,33 +1,8 @@
 import api from '../lib/api';
 
-export interface Subscription {
-    id: string;
-    status: string;
-    current_period_end: string;
-    cancel_at_period_end: boolean;
-    trial_start?: string | null;
-    trial_end?: string | null;
-    plan?: {
-        id: string;
-        name: string;
-        price: number;
-        interval: string;
-    };
-    bundle?: {
-        id: string;
-        name: string;
-        price: number;
-        interval: string;
-    };
-    upcoming_plan?: {
-        id: string;
-        name: string;
-    };
-    upcoming_bundle?: {
-        id: string;
-        name: string;
-    };
-}
+import { Subscription } from '../types/subscription';
+
+export type { Subscription };
 
 export const getSubscriptions = async () => {
     const response = await api.get('/billing');

@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Lock } from 'lucide-react';
 import { CheckoutFeatureList } from '@/components/checkout/CheckoutFeatureList';
+import { CartItem } from '@/components/plans/types';
 import api from '@/lib/api';
 import { loadStripe } from '@stripe/stripe-js';
 import {
@@ -32,17 +33,7 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
 
-  useEffect(() => {
-    if ((!planId && !bundleId && (!cartItems || cartItems.length === 0))) {
-      setError('No items selected for checkout');
-      return;
-    }
-    
-    // Auto-initialize checkout session
-    initializeCheckout();
-  }, [planId, bundleId, cartItems]);
-
-  const initializeCheckout = async () => {
+  const initializeCheckout = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -66,13 +57,24 @@ export default function CheckoutPage() {
       } else {
          setError('Failed to initialize checkout session');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.response?.data?.message || 'An error occurred during checkout initialization');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setError((err as any).response?.data?.message || 'An error occurred during checkout initialization');
     } finally {
       setLoading(false);
     }
-  };
+  }, [cartItems, planId, bundleId, interval]);
+
+  useEffect(() => {
+    if ((!planId && !bundleId && (!cartItems || cartItems.length === 0))) {
+      setError('No items selected for checkout');
+      return;
+    }
+    
+    // Auto-initialize checkout session
+    initializeCheckout();
+  }, [planId, bundleId, cartItems, initializeCheckout]);
 
   if (error) {
     return (
@@ -91,8 +93,8 @@ export default function CheckoutPage() {
   }
 
   // Calculate totals for summary
-  const total = cartItems?.reduce((sum: number, item: any) => sum + (item.price || 0), 0) || 0;
-  const billingInterval = cartItems?.[0]?.interval || interval;
+  const total = cartItems?.reduce((sum: number, item: CartItem) => sum + (item.price || 0), 0) || 0;
+  const billingInterval = cartItems?.[0]?.period || interval;
 
   return (
     <div className="min-h-screen bg-gray-50/50 p-4 lg:p-8">
@@ -116,19 +118,19 @@ export default function CheckoutPage() {
                     <CardContent className="p-6 space-y-6">
                         {cartItems ? (
                              <div className="space-y-4">
-                                {cartItems.map((item: any, idx: number) => (
+                                {cartItems.map((item: CartItem, idx: number) => (
                                     <div key={idx} className="space-y-3 pb-4 border-b last:border-0">
                                         <div className="flex justify-between items-start">
                                             <div>
-                                                <h3 className="font-semibold text-lg">{item.name} {item.tier ? `(${item.tier})` : ''}</h3>
+                                                <h3 className="font-semibold text-lg">{item.name} {item.tierName ? `(${item.tierName})` : ''}</h3>
                                                 <div className="flex gap-2 mt-1">
                                                     <Badge variant="outline" className="capitalize">{item.type}</Badge>
-                                                    <Badge variant="secondary" className="capitalize">{item.interval}</Badge>
+                                                    <Badge variant="secondary" className="capitalize">{item.period}</Badge>
                                                 </div>
                                             </div>
                                             <p className="font-bold text-lg">
                                                 ${item.price.toFixed(2)} 
-                                                <span className="text-sm text-muted-foreground font-normal">/{item.interval === 'yearly' ? 'yr' : 'mo'}</span>
+                                                <span className="text-sm text-muted-foreground font-normal">/{item.period === 'yearly' ? 'yr' : 'mo'}</span>
                                             </p>
                                         </div>
                                         

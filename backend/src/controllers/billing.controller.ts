@@ -528,8 +528,8 @@ class BillingController {
         }
     }
 
-  // Helper for Abuse Detection
-  private async checkAndEnforceTrialAbuse(subscription: any, stripeSub: any, planId: string | null | undefined, fingerprint: string | null) {
+    // Helper for Abuse Detection
+    private async checkAndEnforceTrialAbuse(subscription: any, stripeSub: any, planId: string | null | undefined, fingerprint: string | null) {
         if (fingerprint && (subscription.status === SubStatus.TRIALING || subscription.status === SubStatus.ACTIVE)) {
             try {
                 // Check for duplicates

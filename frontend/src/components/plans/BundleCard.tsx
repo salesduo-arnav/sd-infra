@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Check, Star } from "lucide-react";
 import { Bundle, CartItem } from "./types";
 import { TierItem } from "./TierItem";
+import { Subscription } from "@/types/subscription";
 
 interface BundleCardProps {
   bundle: Bundle;
@@ -14,7 +15,7 @@ interface BundleCardProps {
   isInCart: (id: string, tierName: string) => boolean;
   hasAnyTierInCart: (id: string) => boolean;
   compact?: boolean;
-  currentSubscription?: any;
+  currentSubscription?: Subscription | null;
 }
 
 export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isInCart, hasAnyTierInCart, compact, currentSubscription }: BundleCardProps) {

@@ -1,5 +1,6 @@
 import { Package, Star, Zap, Crown, Sparkles, FileText, ImageIcon, BarChart, TrendingUp } from "lucide-react";
-import { PublicBundleGroup, PublicBundlePlan, PublicPlan } from "@/services/public.service";
+import { PublicBundleGroup, PublicBundlePlan, PublicPlan, PublicBundle } from "@/services/public.service";
+import { PlanLimit } from "@/services/admin.service";
 import { App, Bundle } from "./types";
 
 // Icons mapping helper
@@ -30,15 +31,14 @@ export const transformBundles = (publicBundles: PublicBundleGroup[]): Bundle[] =
             name: group.name,
             description: group.description,
             apps: apps,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            tiers: group.bundles.map((b: any) => ({
+            tiers: group.bundles.map((b: PublicBundle) => ({
                 id: b.id,
                 name: b.tier_label || b.name, // Use label vs name fallback
                 price: b.price,
                 period: "/" + b.interval,
                 limits: b.description || "Full access",
-                features: b.bundle_plans?.flatMap((bp: any) =>
-                    bp.plan?.limits?.map((limit: any) => ({
+                features: b.bundle_plans?.flatMap((bp: PublicBundlePlan) =>
+                    bp.plan?.limits?.map((limit: PlanLimit) => ({
                         name: limit.feature?.name || "Unknown Feature",
                         limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
                         isEnabled: limit.is_enabled,
@@ -92,7 +92,7 @@ export const transformPlansToApps = (publicPlans: PublicPlan[]): App[] => {
                     price: plan.price,
                     period: "/" + plan.interval,
                     limits: plan.description || "See details",
-                    features: plan.limits?.map((limit: any) => ({
+                    features: plan.limits?.map((limit: PlanLimit) => ({
                         name: limit.feature?.name || "Unknown Feature",
                         limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
                         isEnabled: limit.is_enabled,
@@ -110,7 +110,7 @@ export const transformPlansToApps = (publicPlans: PublicPlan[]): App[] => {
                 price: plan.price,
                 period: "/" + plan.interval,
                 limits: plan.description || "See details",
-                features: plan.limits?.map((limit: any) => ({
+                features: plan.limits?.map((limit: PlanLimit) => ({
                     name: limit.feature?.name || "Unknown Feature",
                     limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
                     isEnabled: limit.is_enabled,

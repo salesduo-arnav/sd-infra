@@ -16,6 +16,7 @@ import { PublicBundleGroup, PublicBundlePlan } from "@/services/public.service";
 import { useNavigate } from "react-router-dom";
 import * as BillingService from "@/services/billing.service";
 import { transformBundles, transformPlansToApps, enrichAppsWithEligibility } from "@/components/plans/utils";
+import { Subscription } from '@/types/subscription';
 
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -27,7 +28,7 @@ export default function Plans() {
   const [expandedBundle, setExpandedBundle] = useState<string | null>(null);
   const [expandedApp, setExpandedApp] = useState<string | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [currentSubscriptions, setCurrentSubscriptions] = useState<any[]>([]);
+  const [currentSubscriptions, setCurrentSubscriptions] = useState<Subscription[]>([]);
   const [changingSubId, setChangingSubId] = useState<string | null>(null);
   const [trialEligibility, setTrialEligibility] = useState<Record<string, { eligible: boolean; trialDays: number }>>({}); 
   const [startingTrialToolId, setStartingTrialToolId] = useState<string | null>(null);
@@ -143,8 +144,9 @@ export default function Plans() {
         ...prev,
         [toolId]: { ...prev[toolId], eligible: false }
       }));
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to start trial');
+    } catch (error: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      toast.error((error as any)?.response?.data?.message || 'Failed to start trial');
     } finally {
       setStartingTrialToolId(null);
     }
@@ -328,10 +330,9 @@ export default function Plans() {
                 </div>
                 <div className={cn("grid gap-6", isCartOpen ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3")}>
                   {allBundles.map((bundle) => {
-                      // Only consider active, trialing, or past_due subscriptions as "active" for the UI
                       const activeSub = currentSubscriptions.find(s => 
                         ['active', 'trialing', 'past_due'].includes(s.status) &&
-                        (s.bundle?.bundle_group_id === bundle.id || s.upcoming_bundle?.bundle_group_id === bundle.id)
+                        (s.bundle?.group?.id === bundle.id || s.upcoming_bundle?.group?.id === bundle.id)
                       );
                       return (
                         <BundleCard
@@ -369,7 +370,7 @@ export default function Plans() {
                     // Only consider active, trialing, or past_due subscriptions as "active" for the UI
                     const activeSub = currentSubscriptions.find(s => 
                         ['active', 'trialing', 'past_due'].includes(s.status) &&
-                        (s.plan?.tool_id === app.id || s.upcoming_plan?.tool_id === app.id)
+                        (s.plan?.tool?.id === app.id || s.upcoming_plan?.tool?.id === app.id)
                     );
                     return (
                       <AppCard
