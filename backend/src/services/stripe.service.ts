@@ -68,7 +68,7 @@ export class StripeService {
     });
   }
 
-  async updateSubscription(subscriptionId: string, priceId: string) {
+  async updateSubscription(subscriptionId: string, priceId: string, metadata?: Record<string, string>) {
       const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
       const itemId = subscription.items.data[0].id;
 
@@ -78,6 +78,7 @@ export class StripeService {
               id: itemId,
               price: priceId,
           }],
+          metadata: metadata || undefined,
       });
   }
 
