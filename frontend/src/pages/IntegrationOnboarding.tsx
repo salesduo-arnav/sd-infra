@@ -30,13 +30,14 @@ import { toast } from "sonner";
 import {
     createIntegrationAccount,
     connectIntegrationAccount,
+    getIntegrationAccounts,
 } from "@/services/integration.service";
 import { getToolBySlug } from "@/services/tool.service";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
 
-/* ------------------------------------------------------------------ */
-/*  Data                                                               */
-/* ------------------------------------------------------------------ */
+// ------------------------------------------------------------------
+// Data                                                               
+// ------------------------------------------------------------------ 
 
 const MARKETPLACES = [
     { id: "us", name: "United States", flag: "🇺🇸" },
@@ -52,9 +53,9 @@ const MARKETPLACES = [
 // Default: require everything when no tool is specified
 const ALL_INTEGRATIONS = ["sp_api", "ads_api"];
 
-/* ------------------------------------------------------------------ */
-/*  Component                                                          */
-/* ------------------------------------------------------------------ */
+// ------------------------------------------------------------------
+// Component                                                          
+// ------------------------------------------------------------------ 
 
 export default function IntegrationOnboarding() {
     const [searchParams] = useSearchParams();
@@ -105,13 +106,72 @@ export default function IntegrationOnboarding() {
         }
     }, [appId]);
 
+    const refreshIntegrations = useCallback(async () => {
+        if (!orgId) return;
+        try {
+            const accounts = await getIntegrationAccounts(orgId);
+
+            // Only check status for accounts created in THIS session
+            const sellerId = createdAccountIds['sp_api_sc'];
+            const vendorId = createdAccountIds['sp_api_vc'];
+            const adsId = createdAccountIds['ads_api'];
+
+            if (sellerId) {
+                const acc = accounts.find(a => a.id === sellerId);
+                if (acc?.status === 'connected') setIsSellerConnected(true);
+            }
+            if (vendorId) {
+                const acc = accounts.find(a => a.id === vendorId);
+                if (acc?.status === 'connected') setIsVendorConnected(true);
+            }
+            if (adsId) {
+                const acc = accounts.find(a => a.id === adsId);
+                if (acc?.status === 'connected') setIsAdsConnected(true);
+            }
+
+        } catch (error) {
+            console.error("Failed to refresh integrations", error);
+        }
+    }, [orgId, createdAccountIds]);
+
     useEffect(() => {
         fetchRequirements();
-    }, [fetchRequirements]);
+        refreshIntegrations();
+    }, [fetchRequirements, refreshIntegrations]);
+
+    // Global Message Listener for OAuth Popups
+    useEffect(() => {
+        const handler = (event: MessageEvent) => {
+            const type = event.data?.type;
+            if (typeof type !== 'string') return;
+
+            // Handle any auth success (ADS_AUTH_SUCCESS, SP_API_AUTH_SUCCESS, etc.)
+            if (type.endsWith('_AUTH_SUCCESS')) {
+                console.log("[Frontend] Auth Success detected:", type);
+                toast.success("Integration connected successfully!");
+                refreshIntegrations();
+                setConnecting(null);
+            }
+
+            // Handle any auth error
+            if (type.endsWith('_AUTH_ERROR')) {
+                console.error("[Frontend] Auth Error detected:", event.data.message);
+                toast.error(event.data.message || "Failed to connect integration");
+                setConnecting(null);
+            }
+        };
+
+        window.addEventListener("message", handler);
+        return () => window.removeEventListener("message", handler);
+    }, [refreshIntegrations]);
 
     // Derive UI visibility flags from requirements
     const isSpApiRequired = requiredIntegrations.some(r => ["sp_api", "sp_api_sc", "sp_api_vc"].includes(r));
     const isAdsApiRequired = requiredIntegrations.includes("ads_api");
+
+    // Lock form if we have already created/connected an account in this session or found one on server
+    const hasCreatedAccounts = Object.keys(createdAccountIds).length > 0;
+    const isFormLocked = !!connecting || hasCreatedAccounts;
 
     // UI Helpers
     const isSellerCentralRequired = requiredIntegrations.includes("sp_api_sc");
@@ -143,8 +203,7 @@ export default function IntegrationOnboarding() {
         ? isAccountNameFilled && isMarketplaceSelected && allRequirementsMet
         : true;
 
-    /* ------------- handlers ------------- */
-
+    // Handlers
     const handleConnect = async (type: "seller" | "vendor" | "ads") => {
         if (!accountName.trim() || !marketplace) {
             toast.error("Please fill in Account Name and select a Marketplace first.");
@@ -176,62 +235,118 @@ export default function IntegrationOnboarding() {
                 setCreatedAccountIds((prev) => ({ ...prev, [integrationTypeKey]: accountId }));
             }
 
-            // Simulate OAuth Popup
-            const width = 600;
-            const height = 700;
-            const left = window.screen.width / 2 - width / 2;
-            const top = window.screen.height / 2 - height / 2;
+            if (type === "ads" && accountId && orgId) {
+                // --- Real OAuth Flow for Ads ---
+                const { getAdsAuthUrl } = await import("@/services/integration.service");
+                const url = await getAdsAuthUrl(orgId, accountId);
 
-            const popup = window.open(
-                "",
-                "Connect Integration",
-                `width=${width},height=${height},top=${top},left=${left}`
-            );
+                const width = 600;
+                const height = 700;
+                const left = window.screen.width / 2 - width / 2;
+                const top = window.screen.height / 2 - height / 2;
 
-            if (popup) {
-                popup.document.write(`
-                    <html>
-                    <head>
-                        <title>Connecting...</title>
-                        <style>
-                            body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f9fafb; color: #111; }
-                            .loader { border: 4px solid #f3f3f3; border-top: 4px solid #ff9900; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
-                            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="loader"></div>
-                        <h2>Connecting...</h2>
-                        <p>Please wait while we verify your credentials.</p>
-                    </body>
-                    </html>
-                `);
+                const popup = window.open(
+                    url,
+                    "Connect Amazon Ads",
+                    `width=${width},height=${height},top=${top},left=${left}`
+                );
 
-                // Simulate success after delay
-                setTimeout(async () => {
-                    if (!popup.closed) popup.close();
-
-                    // Connect via API
-                    if (accountId && orgId) {
-                        try {
-                            await connectIntegrationAccount(orgId, accountId, {
-                                simulated: true,
-                                connected_via: "oauth_popup_onboarding",
-                            });
-                        } catch {
-                            console.error("Failed to mark account connected");
-                        }
-                    }
-
+                if (!popup) {
+                    toast.error("Please allow popups to connect integrations.");
                     setConnecting(null);
-                    if (type === "seller") setIsSellerConnected(true);
-                    if (type === "vendor") setIsVendorConnected(true);
-                    if (type === "ads") setIsAdsConnected(true);
-                }, 2500);
+                    return;
+                }
+
+                // POLLING MECHANISM: Robust fallback for when postMessage fails
+                const pollInterval = setInterval(async () => {
+                    if (!orgId) return;
+                    try {
+                        const accounts = await getIntegrationAccounts(orgId);
+                        const account = accounts.find(a => a.id === accountId);
+
+                        if (account?.status === 'connected') {
+                            clearInterval(pollInterval);
+                            if (!popup.closed) popup.close();
+
+                            toast.success("Integration connected successfully!");
+                            // Update state manually because refreshIntegrations might have a stale closure
+                            setIsAdsConnected(true);
+                            setConnecting(null);
+                        } else if (account?.status === 'error') {
+                            clearInterval(pollInterval);
+                            if (!popup.closed) popup.close();
+
+                            toast.error("Failed to connect integration");
+                            setConnecting(null);
+                        }
+                    } catch (e) {
+                        // ignore errors during polling
+                    }
+                }, 2000);
+
+                // Stop polling after 2 minutes to prevent infinite loops
+                setTimeout(() => {
+                    clearInterval(pollInterval);
+                    if (connecting === 'ads') setConnecting(null);
+                }, 120000);
+
+                // Monitor popup closure to reset loading state (cancelled by user)
+                const checkPopup = setInterval(() => {
+                    if (popup.closed) {
+                        clearInterval(checkPopup);
+                        setTimeout(() => {
+                            // If we are still connecting after popup closes and short delay, 
+                            // it likely means we didn't get a success.
+                            setConnecting(prev => prev === 'ads' ? null : prev);
+                            clearInterval(pollInterval);
+                        }, 3000);
+                    }
+                }, 1000);
+
             } else {
-                toast.error("Please allow popups to connect integrations.");
-                setConnecting(null);
+                // --- Simulated OAuth Flow for SP-API ---
+                // In a real app, this would redirect to Amazon Seller Central
+                const width = 600;
+                const height = 700;
+                const left = window.screen.width / 2 - width / 2;
+                const top = window.screen.height / 2 - height / 2;
+
+                const popup = window.open(
+                    "",
+                    "Connect Integration",
+                    `width=${width},height=${height},top=${top},left=${left}`
+                );
+
+                if (popup) {
+                    popup.document.write(SIMULATED_POPUP_CONTENT);
+
+                    // Simulate success after delay
+                    setTimeout(async () => {
+                        if (!popup.closed) popup.close();
+
+                        // Connect via API
+                        if (accountId && orgId) {
+                            try {
+                                await connectIntegrationAccount(orgId, accountId, {
+                                    simulated: true,
+                                    connected_via: "oauth_popup_onboarding",
+                                });
+                                // Manual update state
+                                if (type === 'seller') setIsSellerConnected(true);
+                                if (type === 'vendor') setIsVendorConnected(true);
+                            } catch {
+                                console.error("Failed to mark account connected");
+                            }
+                        }
+
+                        setConnecting(null);
+                    }, 2500);
+                } else {
+                    toast.error("Please allow popups to connect integrations.");
+                    setConnecting(null);
+                }
             }
+
         } catch (error: unknown) {
             const err = error as { response?: { data?: { message?: string } } };
             toast.error(err.response?.data?.message || "Failed to create integration account");
@@ -291,9 +406,25 @@ export default function IntegrationOnboarding() {
         );
     };
 
-    /* ------------------------------------------------------------------ */
-    /*  Render                                                             */
-    /* ------------------------------------------------------------------ */
+    // ------------------------------------------------------------------------
+    // Sub Components
+    // ------------------------------------------------------------------------
+    const RequirementBadge = ({ sellerRequired, sellerSatisfied, vendorRequired, vendorSatisfied }: { sellerRequired: boolean, sellerSatisfied: boolean, vendorRequired: boolean, vendorSatisfied: boolean }) => {
+        if (sellerRequired && !sellerSatisfied && vendorRequired && !vendorSatisfied) {
+            return <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Both Required</Badge>;
+        }
+        if (sellerRequired && !sellerSatisfied) {
+            return <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Required</Badge>;
+        }
+        if (vendorRequired && !vendorSatisfied) {
+            return <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Required</Badge>;
+        }
+        return <Badge variant="secondary" className="text-[10px]">Connect at least one</Badge>;
+    };
+
+    // ------------------------------------------------------------------------
+    // Render
+    // ------------------------------------------------------------------------
 
     const leftContent = (
         <div className="relative z-10 space-y-6">
@@ -390,6 +521,7 @@ export default function IntegrationOnboarding() {
                                 value={accountName}
                                 onChange={(e) => setAccountName(e.target.value)}
                                 className="h-11"
+                                disabled={isFormLocked}
                             />
                         </div>
 
@@ -398,7 +530,11 @@ export default function IntegrationOnboarding() {
                             <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                                 2. Select Region
                             </label>
-                            <Select value={marketplace} onValueChange={setMarketplace}>
+                            <Select
+                                value={marketplace}
+                                onValueChange={setMarketplace}
+                                disabled={isFormLocked}
+                            >
                                 <SelectTrigger className="w-full h-11">
                                     <SelectValue placeholder="Choose a region..." />
                                 </SelectTrigger>
@@ -434,14 +570,13 @@ export default function IntegrationOnboarding() {
                                                             <h3 className="font-medium">Amazon Selling Partner API</h3>
                                                             {isSpApiMet ? (
                                                                 <Badge className="bg-green-100 text-green-600 text-[10px]">Connected</Badge>
-                                                            ) : (isSellerCentralRequired && !satisfiedMap['sp_api_sc'] && isVendorCentralRequired && !satisfiedMap['sp_api_vc']) ? (
-                                                                <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Both Required</Badge>
-                                                            ) : (isSellerCentralRequired && !satisfiedMap['sp_api_sc']) ? (
-                                                                <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Required</Badge>
-                                                            ) : (isVendorCentralRequired && !satisfiedMap['sp_api_vc']) ? (
-                                                                <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Required</Badge>
                                                             ) : (
-                                                                <Badge variant="secondary" className="text-[10px]">Connect at least one</Badge>
+                                                                <RequirementBadge
+                                                                    sellerRequired={isSellerCentralRequired}
+                                                                    sellerSatisfied={!!satisfiedMap['sp_api_sc']}
+                                                                    vendorRequired={isVendorCentralRequired}
+                                                                    vendorSatisfied={!!satisfiedMap['sp_api_vc']}
+                                                                />
                                                             )}
                                                         </div>
                                                         <p className="text-sm text-muted-foreground mt-1">
@@ -553,3 +688,21 @@ export default function IntegrationOnboarding() {
         </SplitScreenLayout>
     );
 }
+
+const SIMULATED_POPUP_CONTENT = `
+<html>
+<head>
+    <title>Connecting...</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f9fafb; color: #111; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #ff9900; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="loader"></div>
+    <h2>Connecting...</h2>
+    <p>Please wait while we verify your credentials.</p>
+</body>
+</html>
+`;

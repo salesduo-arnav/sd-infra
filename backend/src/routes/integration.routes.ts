@@ -25,4 +25,9 @@ router.get('/global', authenticate, getGlobalIntegrations);
 router.post('/global', authenticate, connectGlobalIntegration);
 router.delete('/global/:id', authenticate, disconnectGlobalIntegration);
 
+// Amazon Ads
+import { getAdsAuthUrl, handleAdsCallback } from '../controllers/ads.controller';
+router.get('/amazon-ads/auth-url', authenticate, getAdsAuthUrl);
+router.get('/amazon-ads/callback', handleAdsCallback); // Callback might not have auth header?
+
 export default router;

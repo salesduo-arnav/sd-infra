@@ -20,6 +20,7 @@ export enum IntegrationStatus {
     CONNECTED = 'connected',
     DISCONNECTED = 'disconnected',
     ERROR = 'error',
+    CONNECTING = 'connecting',
 }
 
 export interface IntegrationAccountAttributes {
@@ -30,6 +31,7 @@ export interface IntegrationAccountAttributes {
     region: string;
     integration_type: IntegrationType;
     status: IntegrationStatus;
+    oauth_state?: string | null;
     credentials?: Record<string, unknown> | null;
     connected_at?: Date | null;
     deleted_at?: Date | null;
@@ -52,6 +54,7 @@ export class IntegrationAccount
     public region!: string;
     public integration_type!: IntegrationType;
     public status!: IntegrationStatus;
+    public oauth_state!: string | null;
     public credentials!: Record<string, unknown> | null;
     public connected_at!: Date | null;
     public readonly deleted_at!: Date | null;
@@ -96,6 +99,10 @@ IntegrationAccount.init(
         status: {
             type: DataTypes.ENUM(...Object.values(IntegrationStatus)),
             defaultValue: IntegrationStatus.DISCONNECTED,
+        },
+        oauth_state: {
+            type: DataTypes.STRING,
+            allowNull: true,
         },
         credentials: {
             type: DataTypes.JSONB,
