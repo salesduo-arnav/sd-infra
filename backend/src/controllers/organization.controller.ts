@@ -9,6 +9,8 @@ import { AuditService } from '../services/audit.service';
 import { invitationService } from '../services/invitation.service';
 import Logger from '../utils/logger';
 
+import { SystemConfig } from '../models/system_config';
+
 export const createOrganization = async (req: Request, res: Response) => {
     Logger.info("Creating organization", { userId: req.user?.id, name: req.body.name });
     try {
@@ -17,6 +19,18 @@ export const createOrganization = async (req: Request, res: Response) => {
 
         if (!userId) {
             return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        // Check User Org Limit
+        const userOrgLimitConfig = await SystemConfig.findByPk('user_org_limit');
+        const limit = userOrgLimitConfig ? parseInt(userOrgLimitConfig.value, 10) : 5; // Default 5
+        
+        const currentOrgCount = await OrganizationMember.count({
+            where: { user_id: userId }
+        });
+
+        if (currentOrgCount >= limit) {
+             return res.status(403).json({ message: `You have reached the limit of ${limit} organizations.` });
         }
 
         const result = await sequelize.transaction(async (t) => {

@@ -10,6 +10,9 @@ router.use(authenticate);
 router.use(resolveOrganization);
 router.use(requireOrganization);
 
+// Get public/user-accessible config
+router.get('/config', billingController.getConfig.bind(billingController));
+
 // Get current subscription
 router.get('/', billingController.getSubscription);
 
