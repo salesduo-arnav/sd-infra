@@ -16,6 +16,7 @@ import { ToolUsage } from './tool_usage';
 import { IntegrationAccount, IntegrationType, IntegrationStatus } from './integration_account';
 import { GlobalIntegration, GlobalIntegrationStatus } from './global_integration';
 import { PriceInterval, TierType, SubStatus, FeatureType, FeatureResetPeriod } from './enums';
+import { SystemConfig } from './system_config';
 
 // =====================
 // Associations
@@ -216,4 +217,5 @@ export {
   SubStatus,
   FeatureType,
   FeatureResetPeriod,
+  SystemConfig,
 };

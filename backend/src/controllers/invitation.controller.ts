@@ -7,6 +7,7 @@ import { Organization } from '../models/organization';
 import sequelize from '../config/db';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
+import { SystemConfig } from '../models/system_config';
 import { invitationService } from '../services/invitation.service';
 import Logger from '../utils/logger';
 
@@ -27,6 +28,17 @@ export const inviteMember = async (req: Request, res: Response) => {
         }
 
         const orgId = membership.organization_id;
+
+        // Check Org Max Capacity
+        const orgMaxCapacityConfig = await SystemConfig.findByPk('org_max_capacity');
+        const maxCapacity = orgMaxCapacityConfig ? parseInt(orgMaxCapacityConfig.value, 10) : 50; // Default 50
+
+        const currentMemberCount = await OrganizationMember.count({ where: { organization_id: orgId } });
+        const pendingInviteCount = await Invitation.count({ where: { organization_id: orgId, status: InvitationStatus.PENDING } });
+
+        if ((currentMemberCount + pendingInviteCount) >= maxCapacity) {
+             return res.status(403).json({ message: `Organization has reached its maximum capacity of ${maxCapacity} members (including pending invites).` });
+        }
 
         const invitation = await invitationService.sendInvitation(orgId, email, role_id, userId);
 
@@ -172,7 +184,13 @@ export const acceptInvitation = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Invitation expired' });
         }
 
-        // Idempotency check
+        // Check User Org Limit (Reuse logic or keep inline for now)
+        const userOrgLimitConfig = await SystemConfig.findByPk('user_org_limit');
+        const limit = userOrgLimitConfig ? parseInt(userOrgLimitConfig.value, 10) : 5; // Default 5
+        
+        const currentOrgCount = await OrganizationMember.count({
+            where: { user_id: userId }
+        });
         const existingMember = await OrganizationMember.findOne({
             where: { user_id: userId, organization_id: invitation.organization_id }
         });
@@ -182,6 +200,11 @@ export const acceptInvitation = async (req: Request, res: Response) => {
             invitation.status = InvitationStatus.ACCEPTED;
             await invitation.save();
             return res.json({ message: 'Already a member' });
+        }
+
+        // NOW check limit since they are NOT a member yet
+        if (currentOrgCount >= limit) {
+             return res.status(403).json({ message: `You have reached the limit of ${limit} organizations.` });
         }
 
         // Add user to organization

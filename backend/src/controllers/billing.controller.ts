@@ -11,8 +11,20 @@ import { SubStatus } from '../models/enums';
 import sequelize from '../config/db';
 import { Op } from 'sequelize';
 import { AuditService } from '../services/audit.service';
+import { SystemConfig } from '../models/system_config';
 
 class BillingController {
+    // Get public/user-accessible config
+    async getConfig(req: Request, res: Response, next: NextFunction) {
+        try {
+            const config = await SystemConfig.findByPk('payment_grace_period_days');
+            const gracePeriodDays = config ? parseInt(config.value, 10) : 3; // Default to 3
+            res.status(200).json({ gracePeriodDays });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async createCheckoutSession(req: Request, res: Response, next: NextFunction) {
         try {
             const { items, ui_mode = 'hosted' } = req.body;
