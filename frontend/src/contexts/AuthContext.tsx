@@ -24,6 +24,7 @@ export interface User {
   email: string;
   full_name: string;
   is_superuser?: boolean;
+  has_password?: boolean;
   memberships?: OrganizationMember[];
 }
 
@@ -108,9 +109,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const switchOrganization = (orgId: string, org?: Organization) => {
     if (org) {
-        setActiveOrganization(org);
-        localStorage.setItem("activeOrganizationId", org.id);
-        return;
+      setActiveOrganization(org);
+      localStorage.setItem("activeOrganizationId", org.id);
+      return;
     }
 
     if (!user || !user.memberships) return;
