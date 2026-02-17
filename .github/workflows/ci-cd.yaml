@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, dev ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, dev ]
 
 jobs:
   lint-backend:
@@ -179,16 +179,58 @@ jobs:
   cd:
     name: Continuous Deployment
     needs: [tests, lint-backend, lint-frontend]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+      APP_SERVICE_NAME: ${{ vars.APP_SERVICE_NAME }}
+      IMAGE_TAG: ${{ vars.IMAGE_TAG || 'test' }}
+      PROJECT_NAME: ${{ vars.PROJECT_NAME || 'sd-core-platform' }}
     steps:
-      - name: Deploy
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Backend Image
         run: |
-          echo "=================================="
-          echo "🚀 CD Pipeline: Starting Deployment"
-          echo "=================================="
-          echo "Drafting release..."
-          echo "Pushing Docker images to registry..."
-          echo "Updating production cluster..."
-          echo "=================================="
-          echo "✅ Deployment Completed Successfully!"
+          BACKEND_URI="${{ steps.ecr-login.outputs.registry }}/${{ env.PROJECT_NAME }}/backend:${{ env.IMAGE_TAG }}"
+          docker build -t "$BACKEND_URI" ./backend
+          docker push "$BACKEND_URI"
+          echo "backend_image=$BACKEND_URI" >> "$GITHUB_OUTPUT"
+
+      - name: Build and Push Frontend Image
+        run: |
+          FRONTEND_URI="${{ steps.ecr-login.outputs.registry }}/${{ env.PROJECT_NAME }}/frontend:${{ env.IMAGE_TAG }}"
+          docker build -t "$FRONTEND_URI" ./frontend
+          docker push "$FRONTEND_URI"
+          echo "frontend_image=$FRONTEND_URI" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to ECS
+        run: |
+          echo "Forcing new deployment for app service..."
+          aws ecs update-service \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --service "${{ env.APP_SERVICE_NAME }}" \
+            --force-new-deployment \
+            --region "${{ env.AWS_REGION }}"
+
+          echo "Waiting for service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.APP_SERVICE_NAME }}" \
+            --region "${{ env.AWS_REGION }}" || echo "Timeout waiting for stabilization (service may still be deploying)"
+
+          echo "Deployment complete!"

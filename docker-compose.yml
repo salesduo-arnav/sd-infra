@@ -63,7 +63,7 @@ services:
         VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY}
     container_name: core-frontend
     ports:
-      - "5173:5173"
+      - "5173:8080"
     networks:
       - salesduo-net
     depends_on:
