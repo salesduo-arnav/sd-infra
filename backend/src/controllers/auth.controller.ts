@@ -302,7 +302,10 @@ export const getMe = async (req: Request, res: Response) => {
             return res.status(401).json({ message: 'User not found' });
         }
 
-        res.json(userWithOrg);
+        res.json({
+            ...userWithOrg.toJSON(),
+            has_password: !!userWithOrg.password_hash
+        });
     } catch (error) {
         handleError(res, error, 'GetMe Error');
     }

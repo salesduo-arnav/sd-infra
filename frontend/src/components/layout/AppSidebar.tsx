@@ -287,12 +287,6 @@ export function AppSidebar() {
                 Profile
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild className="cursor-pointer">
-              <Link to="/organisation" className="flex items-center gap-2 p-2.5">
-                <Settings className="h-4 w-4 text-muted-foreground" />
-                Settings
-              </Link>
-            </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-border/50" />
             <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive focus:bg-destructive/10 p-2.5 cursor-pointer">
               <LogOut className="h-4 w-4 mr-2" />
