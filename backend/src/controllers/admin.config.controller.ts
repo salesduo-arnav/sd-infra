@@ -16,7 +16,7 @@ export const updateConfig = async (req: Request, res: Response) => {
     const { key } = req.params;
     const { value, description, category } = req.body;
 
-    const [config, created] = await SystemConfig.upsert({
+    const [config] = await SystemConfig.upsert({
       key,
       value,
       description,
