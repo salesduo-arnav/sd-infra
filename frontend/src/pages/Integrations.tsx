@@ -38,6 +38,7 @@ import {
   Store,
   Building2,
   BarChart3,
+  CheckCircle2,
   Trash2,
   Link2Off,
   Loader2,
@@ -55,13 +56,15 @@ import {
   getGlobalIntegrations,
   connectGlobalIntegration,
   disconnectGlobalIntegration,
+  getAdsAuthUrl,
   type IntegrationAccount,
   type GlobalIntegration,
 } from "@/services/integration.service";
+import { ManageIntegrationDialog } from "@/components/integrations/ManageIntegrationDialog";
 
-/* ------------------------------------------------------------------ */
-/*  Constants                                                          */
-/* ------------------------------------------------------------------ */
+// ------------------------------------------------------------------------
+// Constants
+// ------------------------------------------------------------------------
 
 const REGIONS = [
   { id: "us", name: "United States", flag: "🇺🇸" },
@@ -111,9 +114,9 @@ const GLOBAL_SERVICES = [
 const getRegion = (id: string) => REGIONS.find((r) => r.id === id);
 const getIntegrationType = (id: string) => INTEGRATION_TYPES.find((t) => t.value === id);
 
-/* ------------------------------------------------------------------ */
-/*  Component                                                          */
-/* ------------------------------------------------------------------ */
+// ------------------------------------------------------------------------
+// Component
+// ------------------------------------------------------------------------
 
 export default function Integrations() {
   const { activeOrganization } = useAuth();
@@ -133,6 +136,14 @@ export default function Integrations() {
   const [newRegion, setNewRegion] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [isCreating, setIsCreating] = useState(false);
+
+  // Manage Dialog State
+  const [manageGroup, setManageGroup] = useState<{
+    name: string;
+    region: string;
+    flag: string;
+    accounts: IntegrationAccount[];
+  } | null>(null);
 
   // Action loading states
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -215,6 +226,102 @@ export default function Integrations() {
     });
   };
 
+  // Helper for Real Ads Auth
+  const connectAdsAccount = (account: IntegrationAccount): Promise<boolean> => {
+    return new Promise((resolve) => {
+      (async () => {
+        try {
+          const url = await getAdsAuthUrl(orgId, account.id);
+          const width = 600;
+          const height = 700;
+          const left = window.screen.width / 2 - width / 2;
+          const top = window.screen.height / 2 - height / 2;
+
+          const popup = window.open(
+            url,
+            "Connect Amazon Ads",
+            `width=${width},height=${height},top=${top},left=${left}`
+          );
+
+          if (!popup) {
+            toast.error("Please allow popups to connect integrations.");
+            resolve(false);
+            return;
+          }
+
+          // Listener for postMessage (Immediate feedback)
+          const handleMessage = (event: MessageEvent) => {
+            if (event.data?.type === "ADS_AUTH_SUCCESS") {
+              console.log("[Frontend] Auth Success:", event.data);
+              cleanup();
+              resolve(true);
+            } else if (event.data?.type === "ADS_AUTH_ERROR") {
+              console.error("[Frontend] Auth Error:", event.data);
+              cleanup();
+              toast.error(event.data?.message || "Failed to connect Amazon Ads");
+              resolve(false);
+            }
+          };
+
+          window.addEventListener("message", handleMessage);
+
+          // Polling fallback (Robustness)
+          const pollInterval = setInterval(async () => {
+            if (!orgId) return;
+            try {
+              // We could optimize by fetching single account if API supports it, 
+              // but getIntegrationAccounts is cached/fast enough for now.
+              const accounts = await getIntegrationAccounts(orgId);
+              const updatedAccount = accounts.find(a => a.id === account.id);
+
+              if (updatedAccount?.status === 'connected') {
+                cleanup();
+                if (!popup.closed) popup.close();
+                resolve(true); // Success!
+              } else if (updatedAccount?.status === 'error') {
+                cleanup();
+                if (!popup.closed) popup.close();
+                toast.error("Failed to connect Amazon Ads");
+                resolve(false);
+              }
+            } catch (e) {
+              // ignore errors during polling
+            }
+          }, 2000);
+
+          // Timeout (2 minutes)
+          const timeout = setTimeout(() => {
+            cleanup();
+            resolve(false);
+          }, 120000);
+
+          // Popup Closed Monitor
+          const checkPopup = setInterval(() => {
+            if (popup.closed) {
+              // Give a small grace period for final poll or message
+              setTimeout(() => {
+                cleanup();
+                resolve(false); // User closed window, likely cancelled
+              }, 2000);
+            }
+          }, 1000);
+
+          function cleanup() {
+            window.removeEventListener("message", handleMessage);
+            clearInterval(pollInterval);
+            clearInterval(checkPopup);
+            clearTimeout(timeout);
+          }
+
+        } catch (error) {
+          console.error(error);
+          toast.error("Failed to initiate Ads connection");
+          resolve(false);
+        }
+      })();
+    });
+  };
+
   /* ------------- Account-level handlers ------------- */
 
   const handleAddAccount = async () => {
@@ -235,32 +342,16 @@ export default function Integrations() {
 
     try {
       // Create an account row for each selected type
-      const createdAccounts: IntegrationAccount[] = [];
-
       for (const type of selectedTypes) {
-        const account = await createIntegrationAccount(orgId, {
+        await createIntegrationAccount(orgId, {
           account_name: newAccountName.trim(),
           marketplace: 'amazon',
           region: newRegion,
           integration_type: type,
         });
-        createdAccounts.push(account);
       }
 
-      // Now open OAuth popups sequentially for each type
-      for (const account of createdAccounts) {
-        const typeInfo = getIntegrationType(account.integration_type);
-        const success = await simulateOAuth(typeInfo?.label || account.integration_type);
-
-        if (success) {
-          await connectIntegrationAccount(orgId, account.id, {
-            simulated: true,
-            connected_via: "oauth_popup",
-          });
-        }
-      }
-
-      toast.success("Integration account(s) created and connected!");
+      toast.success("Integration account(s) created successfully");
       resetDialog();
       fetchAccounts();
     } catch (error: unknown) {
@@ -300,15 +391,31 @@ export default function Integrations() {
   const handleReconnectAccount = async (account: IntegrationAccount) => {
     setActionLoading(`reconnect-${account.id}`);
     try {
-      const typeInfo = getIntegrationType(account.integration_type);
-      const success = await simulateOAuth(typeInfo?.label || account.integration_type);
+      let success = false;
+
+      if (account.integration_type === 'ads_api') {
+        success = await connectAdsAccount(account);
+        // Backend updates status on callback, so we just need to refresh or fetch updated account
+        if (success) {
+          // We can re-fetch or assume success sends us back to list. 
+          // Ideally we should re-fetch single account status or just fetchAccounts()
+          await fetchAccounts();
+          // Use fetchAccounts to be sure we get the credentials tokens etc if needed
+        }
+      } else {
+        const typeInfo = getIntegrationType(account.integration_type);
+        success = await simulateOAuth(typeInfo?.label || account.integration_type);
+
+        if (success) {
+          const updated = await connectIntegrationAccount(orgId, account.id, {
+            simulated: true,
+            connected_via: "oauth_popup",
+          });
+          setAccounts((prev) => prev.map((a) => (a.id === account.id ? updated : a)));
+        }
+      }
 
       if (success) {
-        const updated = await connectIntegrationAccount(orgId, account.id, {
-          simulated: true,
-          connected_via: "oauth_popup",
-        });
-        setAccounts((prev) => prev.map((a) => (a.id === account.id ? updated : a)));
         toast.success("Integration reconnected!");
       }
     } catch {
@@ -357,6 +464,101 @@ export default function Integrations() {
       toast.error("Failed to disconnect");
     } finally {
       setActionLoading(null);
+    }
+  };
+
+
+  /* ------------- Manage Dialog Handlers ------------- */
+
+  const handleAddIntegration = async (type: string) => {
+    if (!manageGroup) return;
+    try {
+      await createIntegrationAccount(orgId, {
+        account_name: manageGroup.name,
+        marketplace: "amazon", // default
+        region: manageGroup.region,
+        integration_type: type,
+      });
+      toast.success("Integration account created");
+      await fetchAccounts(); // Refresh list
+
+      // Update local managed group state
+      const updatedAccounts = await getIntegrationAccounts(orgId);
+      const newGroupAccounts = updatedAccounts.filter(
+        a => a.account_name === manageGroup.name && a.region === manageGroup.region
+      );
+      setManageGroup(prev => prev ? { ...prev, accounts: newGroupAccounts } : null);
+
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message || "Failed to create integration");
+    }
+  };
+
+  const handleConnectIntegration = async (account: IntegrationAccount): Promise<boolean> => {
+    try {
+      let success = false;
+      if (account.integration_type === 'ads_api') {
+        success = await connectAdsAccount(account);
+      } else {
+        const typeInfo = getIntegrationType(account.integration_type);
+        success = await simulateOAuth(typeInfo?.label || account.integration_type);
+
+        if (success) {
+          await connectIntegrationAccount(orgId, account.id, {
+            simulated: true,
+            connected_via: "oauth_popup",
+          });
+        }
+      }
+
+      if (success) {
+        toast.success("Integration connected!");
+        await fetchAccounts();
+
+        // Update local state
+        const updatedAccounts = await getIntegrationAccounts(orgId);
+        const newGroupAccounts = updatedAccounts.filter(
+          a => a.account_name === manageGroup?.name && a.region === manageGroup?.region
+        );
+        setManageGroup(prev => prev ? { ...prev, accounts: newGroupAccounts } : null);
+      }
+      return success;
+    } catch {
+      toast.error("Failed to connect");
+      return false;
+    }
+  };
+
+  const handleDisconnectIntegration = async (account: IntegrationAccount) => {
+    try {
+      await disconnectIntegrationAccount(orgId, account.id);
+      toast.success("Disconnected successfully");
+      await fetchAccounts();
+      // Update local state
+      const updatedAccounts = await getIntegrationAccounts(orgId);
+      const newGroupAccounts = updatedAccounts.filter(
+        a => a.account_name === manageGroup?.name && a.region === manageGroup?.region
+      );
+      setManageGroup(prev => prev ? { ...prev, accounts: newGroupAccounts } : null);
+    } catch {
+      toast.error("Failed to disconnect");
+    }
+  };
+
+  const handleDeleteIntegration = async (account: IntegrationAccount) => {
+    try {
+      await deleteIntegrationAccount(orgId, account.id);
+      toast.success("Integration deleted");
+      await fetchAccounts();
+      // Update local state
+      const updatedAccounts = await getIntegrationAccounts(orgId);
+      const newGroupAccounts = updatedAccounts.filter(
+        a => a.account_name === manageGroup?.name && a.region === manageGroup?.region
+      );
+      setManageGroup(prev => prev ? { ...prev, accounts: newGroupAccounts } : null);
+    } catch {
+      toast.error("Failed to delete");
     }
   };
 
@@ -490,91 +692,94 @@ export default function Integrations() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {Object.entries(groupedAccounts).map(([, groupAccounts]) =>
-                      groupAccounts.map((account, idx) => {
-                        const region = getRegion(account.region);
-                        const typeInfo = getIntegrationType(account.integration_type);
+                    {Object.entries(groupedAccounts).map(([key, groupAccounts]) => {
+                      const firstAccount = groupAccounts[0];
+                      const region = getRegion(firstAccount.region);
+                      const hasError = groupAccounts.some((a) => a.status === "error");
+                      const allConnected = groupAccounts.every((a) => a.status === "connected");
 
-                        return (
-                          <TableRow key={account.id}>
-                            {idx === 0 && (
-                              <>
-                                <TableCell
-                                  className="font-medium"
-                                  rowSpan={groupAccounts.length}
-                                >
-                                  {account.account_name}
-                                </TableCell>
-                                <TableCell rowSpan={groupAccounts.length}>
-                                  <Badge variant="outline" className="capitalize">
-                                    {account.marketplace || 'amazon'}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell rowSpan={groupAccounts.length}>
-                                  <span className="flex items-center gap-2">
-                                    <span className="text-lg">{region?.flag || "🌍"}</span>
-                                    <span>{region?.name || account.region}</span>
-                                  </span>
-                                </TableCell>
-                              </>
+                      const typeMap = groupAccounts.reduce((acc, curr) => {
+                        acc[curr.integration_type] = curr;
+                        return acc;
+                      }, {} as Record<string, IntegrationAccount>);
+
+                      return (
+                        <TableRow key={key}>
+                          <TableCell className="font-medium">
+                            {firstAccount.account_name}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">
+                              {firstAccount.marketplace || "amazon"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <span className="flex items-center gap-2">
+                              <span className="text-lg">{region?.flag || "🌍"}</span>
+                              <span>{region?.name || firstAccount.region}</span>
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              {[
+                                { key: "sp_api_sc", icon: Store, label: "Seller" },
+                                { key: "sp_api_vc", icon: Building2, label: "Vendor" },
+                                { key: "ads_api", icon: BarChart3, label: "Ads" },
+                              ].map(({ key, icon: Icon, label }) => {
+                                const account = typeMap[key];
+                                const isConnected = account?.status === "connected";
+                                const isError = account?.status === "error";
+
+                                return (
+                                  <div
+                                    key={key}
+                                    className={`flex items-center justify-center h-8 w-8 rounded-full border ${account
+                                      ? isConnected
+                                        ? "bg-green-50 border-green-200 text-green-600"
+                                        : isError
+                                          ? "bg-red-50 border-red-200 text-red-600"
+                                          : "bg-orange-50 border-orange-200 text-orange-600"
+                                      : "bg-muted/30 border-dashed text-muted-foreground/30"
+                                      }`}
+                                    title={`${label}: ${account ? account.status : "Not Setup"}`}
+                                  >
+                                    <Icon className="h-4 w-4" />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {hasError ? (
+                              <Badge variant="destructive">Error</Badge>
+                            ) : allConnected ? (
+                              <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">
+                                <Check className="h-3 w-3 mr-1" />
+                                Connected
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary">Partially Connected</Badge>
                             )}
-                            <TableCell>
-                              {typeInfo && (
-                                <Badge variant="outline" className="gap-1.5">
-                                  <typeInfo.icon className="h-3 w-3" />
-                                  {typeInfo.label}
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell>{getStatusBadge(account.status)}</TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                {account.status === "connected" ? (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDisconnectAccount(account.id)}
-                                    disabled={actionLoading === `disconnect-${account.id}`}
-                                  >
-                                    {actionLoading === `disconnect-${account.id}` ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <Link2Off className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleReconnectAccount(account)}
-                                    disabled={actionLoading === `reconnect-${account.id}`}
-                                  >
-                                    {actionLoading === `reconnect-${account.id}` ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <Plug className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                )}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-destructive hover:text-destructive"
-                                  onClick={() => handleDeleteAccount(account.id)}
-                                  disabled={actionLoading === account.id}
-                                >
-                                  {actionLoading === account.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setManageGroup({
+                                  name: firstAccount.account_name,
+                                  region: firstAccount.region,
+                                  flag: region?.flag || "🌍",
+                                  accounts: groupAccounts,
+                                });
+                              }}
+                            >
+                              Manage
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </Card>
@@ -707,45 +912,36 @@ export default function Integrations() {
                 </Select>
               </div>
 
-              {/* Integration Type Cards */}
-              <div className="space-y-2">
+              {/* Integration Types */}
+              <div className="space-y-3">
                 <Label>Integration Types</Label>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Select one or more integration types to connect.
-                </p>
                 <div className="grid gap-3">
                   {INTEGRATION_TYPES.map((type) => {
                     const isSelected = selectedTypes.has(type.value);
                     return (
-                      <button
+                      <div
                         key={type.value}
-                        type="button"
-                        onClick={() => toggleType(type.value)}
-                        className={`flex items-center gap-4 p-4 rounded-lg border-2 text-left transition-all ${isSelected
-                          ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                          : "border-border hover:border-muted-foreground/30 hover:bg-muted/50"
+                        className={`flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer hover:border-primary ${isSelected ? "border-primary bg-primary/5" : "border-input"
                           }`}
+                        onClick={() => toggleType(type.value)}
                       >
                         <div
-                          className={`p-2.5 rounded-lg shrink-0 ${type.color}`}
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${type.color}`}
                         >
                           <type.icon className="h-5 w-5" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm">{type.label}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {type.description}
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium leading-none">{type.label}</p>
+                            {isSelected && (
+                              <CheckCircle2 className="h-4 w-4 text-primary" />
+                            )}
                           </div>
+                          <p className="text-sm text-muted-foreground">
+                            {type.description}
+                          </p>
                         </div>
-                        <div
-                          className={`h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${isSelected
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-muted-foreground/30"
-                            }`}
-                        >
-                          {isSelected && <Check className="h-3 w-3" />}
-                        </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -753,33 +949,32 @@ export default function Integrations() {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={resetDialog} disabled={isCreating}>
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button
-                onClick={handleAddAccount}
-                disabled={
-                  isCreating ||
-                  !newAccountName.trim() ||
-                  !newRegion ||
-                  selectedTypes.size === 0
-                }
-              >
-                {isCreating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Connecting...
-                  </>
-                ) : (
-                  <>
-                    <Plug className="h-4 w-4 mr-2" />
-                    Connect Account
-                  </>
-                )}
+              <Button onClick={handleAddAccount} disabled={isCreating}>
+                {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Create Account(s)
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* ============ Manage Dialog ============ */}
+        {manageGroup && (
+          <ManageIntegrationDialog
+            isOpen={!!manageGroup}
+            onClose={() => setManageGroup(null)}
+            groupName={manageGroup.name}
+            regionName={getRegion(manageGroup.region)?.name || manageGroup.region}
+            regionFlag={manageGroup.flag}
+            accounts={manageGroup.accounts}
+            onAddAccount={handleAddIntegration}
+            onConnect={handleConnectIntegration}
+            onDisconnect={handleDisconnectIntegration}
+            onDelete={handleDeleteIntegration}
+          />
+        )}
       </div>
     </Layout>
   );
