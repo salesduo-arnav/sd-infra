@@ -57,8 +57,8 @@ export default function Profile() {
       toast.success('Profile updated successfully');
       // Refresh user context to show new name in sidebar/header
       if (refreshUser) await refreshUser();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error(error.message || 'Failed to update profile');
     }
   };
 
@@ -87,8 +87,8 @@ export default function Profile() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error(error.message || 'Failed to update password');
     }
   };
 
@@ -116,8 +116,8 @@ export default function Profile() {
       toast.success('Password created successfully');
       setNewPassword("");
       setConfirmPassword("");
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error(error.message || 'Failed to create password');
     }
   };
 

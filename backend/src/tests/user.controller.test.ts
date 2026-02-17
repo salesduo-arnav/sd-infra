@@ -3,14 +3,12 @@ import request from 'supertest';
 import app from '../app';
 import User from '../models/user';
 import { Organization, OrganizationMember } from '../models/organization';
-import { Role } from '../models/role';
 import { closeDB, connectDB } from '../config/db';
 import { closeRedis, connectRedis } from '../config/redis';
 import bcrypt from 'bcryptjs';
 
 let user: User;
 let token: string;
-let organization: Organization;
 
 beforeAll(async () => {
     await connectDB();
