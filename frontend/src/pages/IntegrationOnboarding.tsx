@@ -31,6 +31,7 @@ import {
     createIntegrationAccount,
     connectIntegrationAccount,
     getIntegrationAccounts,
+    IntegrationAccount,
 } from "@/services/integration.service";
 import { getToolBySlug } from "@/services/tool.service";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
@@ -82,6 +83,9 @@ export default function IntegrationOnboarding() {
     // key of the item currently connecting (to show spinner)
     const [connecting, setConnecting] = useState<string | null>(null);
 
+    const [resumeAccount, setResumeAccount] = useState<IntegrationAccount | null>(null);
+    const [accounts, setAccounts] = useState<IntegrationAccount[]>([]);
+
     // Fetch required integrations from backend based on app slug
     const fetchRequirements = useCallback(async () => {
         if (!appId) {
@@ -109,25 +113,25 @@ export default function IntegrationOnboarding() {
     const refreshIntegrations = useCallback(async () => {
         if (!orgId) return;
         try {
-            const accounts = await getIntegrationAccounts(orgId);
+            const fetchedAccounts = await getIntegrationAccounts(orgId);
+            setAccounts(fetchedAccounts);
 
-            // Only check status for accounts created in THIS session
+            // 1. Update Connection Status from Session IDs
             const sellerId = createdAccountIds['sp_api_sc'];
             const vendorId = createdAccountIds['sp_api_vc'];
             const adsId = createdAccountIds['ads_api'];
 
-            if (sellerId) {
-                const acc = accounts.find(a => a.id === sellerId);
-                if (acc?.status === 'connected') setIsSellerConnected(true);
-            }
-            if (vendorId) {
-                const acc = accounts.find(a => a.id === vendorId);
-                if (acc?.status === 'connected') setIsVendorConnected(true);
-            }
-            if (adsId) {
-                const acc = accounts.find(a => a.id === adsId);
-                if (acc?.status === 'connected') setIsAdsConnected(true);
-            }
+            // Helper to find if an account type is connected
+            const isConnected = (type: string) => {
+                if (createdAccountIds[type]) {
+                    return fetchedAccounts.find((a: IntegrationAccount) => a.id === createdAccountIds[type])?.status === 'connected';
+                }
+                return false;
+            };
+
+            if (isConnected('sp_api_sc')) setIsSellerConnected(true);
+            if (isConnected('sp_api_vc')) setIsVendorConnected(true);
+            if (isConnected('ads_api')) setIsAdsConnected(true);
 
         } catch (error) {
             console.error("Failed to refresh integrations", error);
@@ -138,6 +142,64 @@ export default function IntegrationOnboarding() {
         fetchRequirements();
         refreshIntegrations();
     }, [fetchRequirements, refreshIntegrations]);
+
+    // Check for existing account when user types Name + Region
+    useEffect(() => {
+        if (accountName && marketplace && accounts.length > 0) {
+            // Check if we already have this in our current session (don't prompt to resume what we just made)
+            const alreadyInSession = Object.values(createdAccountIds).some(id =>
+                accounts.find(a => a.id === id && a.account_name === accountName && a.region === marketplace)
+            );
+
+            if (alreadyInSession) {
+                setResumeAccount(null);
+                return;
+            }
+
+            // Find a match in the backend list
+            const match = accounts.find(a =>
+                a.account_name.toLowerCase() === accountName.trim().toLowerCase() &&
+                a.region === marketplace
+            );
+
+            if (match) {
+                setResumeAccount(match);
+            } else {
+                setResumeAccount(null);
+            }
+        } else {
+            setResumeAccount(null);
+        }
+    }, [accountName, marketplace, accounts, createdAccountIds]);
+
+    const handleResume = () => {
+        if (!resumeAccount) return;
+
+        // Populate local session state with the IDs from the found account group
+        const group = accounts.filter(a =>
+            a.account_name === resumeAccount.account_name &&
+            a.region === resumeAccount.region
+        );
+
+        const newIds: Record<string, string> = {};
+        let resumedAny = false;
+
+        group.forEach(a => {
+            newIds[a.integration_type] = a.id;
+            if (a.status === 'connected') {
+                if (a.integration_type === 'sp_api_sc') setIsSellerConnected(true);
+                if (a.integration_type === 'sp_api_vc') setIsVendorConnected(true);
+                if (a.integration_type === 'ads_api') setIsAdsConnected(true);
+            }
+            resumedAny = true;
+        });
+
+        if (resumedAny) {
+            setCreatedAccountIds(prev => ({ ...prev, ...newIds }));
+            toast.success(`Resumed setup for "${resumeAccount.account_name}"`);
+            setResumeAccount(null); // Dismiss after resuming
+        }
+    };
 
     // Global Message Listener for OAuth Popups
     useEffect(() => {
@@ -573,6 +635,27 @@ export default function IntegrationOnboarding() {
                         </div>
 
                         {/* 3. Connect Services */}
+                        {resumeAccount && (
+                            <Card className="mb-6 bg-blue-50/50 border-blue-200">
+                                <CardContent className="p-4 flex items-center justify-between">
+                                    <div className="flex gap-3">
+                                        <div className="p-2 bg-blue-100 rounded-full h-8 w-8 flex items-center justify-center text-blue-600">
+                                            <Package className="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-medium text-sm text-blue-900">Existing Account Found</h4>
+                                            <p className="text-xs text-blue-700">
+                                                An account matching <strong>"{resumeAccount.account_name}"</strong> in this region already exists.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <Button size="sm" onClick={handleResume} className="bg-blue-600 hover:bg-blue-700 text-white border-none whitespace-nowrap ml-4">
+                                        Sync Status
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        )}
+
                         <div className="space-y-3">
                             <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                                 3. Connect Services

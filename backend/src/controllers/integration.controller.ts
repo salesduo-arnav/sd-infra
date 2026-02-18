@@ -95,7 +95,8 @@ export const createIntegrationAccount = async (req: Request, res: Response) => {
             });
 
             if (existing) {
-                throw new Error('ALREADY_EXISTS');
+                // Idempotent behavior: Return existing account instead of error
+                return existing;
             }
 
             return await IntegrationAccount.create(
