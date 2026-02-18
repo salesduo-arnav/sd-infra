@@ -52,6 +52,11 @@ export const getAdsAuthUrl = async (orgId: string, accountId: string): Promise<s
     return data.url;
 };
 
+export const getSpAuthUrl = async (orgId: string, accountId: string): Promise<string> => {
+    const { data } = await api.get(`/integrations/sp-api/auth-url?accountId=${accountId}`, orgHeaders(orgId));
+    return data.url;
+};
+
 export const createIntegrationAccount = async (
     orgId: string,
     payload: { account_name: string; marketplace?: string; region: string; integration_type: string }
