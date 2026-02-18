@@ -10,13 +10,14 @@
                  |   Application Load  |
                  |   Balancer (ALB)    |
                  |                     |
-                 |   :80 (HTTP)        |
+                 |   :80  → frontend   |
+                 |   :4000 → backend   |
                  |   :443 (HTTPS, opt) |
                  +---------+-----------+
                            |
-              path-based routing:
-              /api/*  --> backend:4000
-              /*      --> frontend:8080
+              port-based routing:
+              :80    --> frontend:8080
+              :4000  --> backend:4000
                            |
             +--------------+--------------+
             |     ECS Cluster (EC2)       |
@@ -46,7 +47,7 @@
 **Key points:**
 - **ECS on EC2** (not Fargate) with **awsvpc** networking — each task gets its own ENI
 - **Single ECS task** runs 3 containers: backend + frontend + redis (sidecar)
-- **ALB path-based routing** on port 80: `/api/*` goes to backend:4000, everything else to frontend:8080
+- **ALB port-based routing:** port 80 → frontend:8080, port 4000 → backend:4000
 - **RDS** is only accessible from the ECS security group (not public)
 
 ---
@@ -60,13 +61,14 @@ Every issue we hit during the initial sd-core-platform deployment, and the fix:
 | 1 | Backend can't connect to DB | Task def uses `DB_HOST` but code reads `PGHOST` | Use `PG*` env var names (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`) |
 | 2 | Migration hangs forever | `sequelize-cli` in devDependencies, `npx` tries to download, no internet in awsvpc | Move `sequelize-cli` to `dependencies` in `package.json` |
 | 3 | `no pg_hba.conf entry... no encryption` | RDS requires SSL, app doesn't enable it | Add `dialectOptions.ssl` for production in `db.ts` and `sequelize.config.js` |
-| 4 | Backend 502, health checks fail | ALB checks `/api/health` but app only has `/health` | Add `/api/health` endpoint in the Express app |
+| 4 | Backend 502, health checks fail | ALB health check path didn't match app route | Ensure backend TG health check path is `/health` (matches Express route) |
 | 5 | Backend crashes on startup | `STRIPE_SECRET_KEY`, `JWT_SECRET`, etc. missing from task def | Add all required env vars and secrets to the task definition |
 | 6 | Frontend Stripe error (empty key) | `VITE_STRIPE_PUBLISHABLE_KEY` not passed as Docker build arg | Pass `--build-arg VITE_STRIPE_PUBLISHABLE_KEY=...` during `docker build` |
 | 7 | RDS creation fails | DB name `sd-core-platformdb` contains hyphens | Strip hyphens from DB name (PostgreSQL doesn't allow them) |
 | 8 | Task stuck in PROVISIONING | t3.medium ENI limit with awsvpc — too many tasks for available ENIs | Account for ENI limits when sizing instances (t3.medium = 3 ENIs = 2 tasks max) |
 | 9 | Docker build OOM on macOS | `tsc` SIGKILL'd during cross-compilation (amd64 on ARM via QEMU) | Build via CI/CD (GitHub Actions), not locally on Apple Silicon |
 | 10 | Frontend port mismatch | docker-compose maps `5173:5173` but nginx listens on 8080 | Use `5173:8080` in docker-compose for local dev |
+| 11 | Frontend API calls return HTML | `VITE_API_BASE_URL=""` makes requests go to `/auth/me` on port 80 (frontend), not the backend | Set `VITE_API_BASE_URL` to the backend URL (`http://ALB_DNS:4000`) so Axios calls the backend directly |
 
 ---
 
@@ -76,7 +78,7 @@ Before deploying a new app to this infrastructure, verify:
 
 - [ ] `sequelize-cli` is in **`dependencies`** (not devDependencies) — npx can't download packages in awsvpc without a NAT gateway
 - [ ] `db.ts` and `sequelize.config.js` enable **SSL when `NODE_ENV=production`** — RDS requires SSL connections
-- [ ] App has an **`/api/health` endpoint** — ALB health checks hit this path
+- [ ] App has a **`/health` endpoint** — ALB health checks hit this path
 - [ ] **All `process.env.*` vars** are listed in the ECS task definition (environment or secrets block)
 - [ ] Frontend **`VITE_*` vars** are passed as `--build-arg` at Docker build time (they're baked into the JS bundle)
 - [ ] **DB name has no hyphens** — PostgreSQL rejects them; `setup.sh` now strips them automatically
@@ -141,6 +143,7 @@ Set these in **Settings > Secrets and variables > Actions > Variables**:
 |--------|------------|
 | `OIDC_ROLE_ARN` | ARN of the GitHub deploy role (from setup output) |
 | `VITE_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key for frontend build arg |
+| `VITE_API_BASE_URL` | Backend URL for frontend API calls (e.g., `http://ALB_DNS:4000`) |
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID for frontend build arg |
 
 ### Frontend Build Args
@@ -151,12 +154,12 @@ Set these in **Settings > Secrets and variables > Actions > Variables**:
 docker build --platform linux/amd64 \
   --build-arg VITE_STRIPE_PUBLISHABLE_KEY="$VITE_STRIPE_PUBLISHABLE_KEY" \
   --build-arg VITE_GOOGLE_CLIENT_ID="$VITE_GOOGLE_CLIENT_ID" \
-  --build-arg VITE_API_BASE_URL="" \
+  --build-arg VITE_API_BASE_URL="http://ALB_DNS:4000" \
   -t $IMAGE_URI \
   ./frontend
 ```
 
-Setting `VITE_API_BASE_URL=""` makes the frontend use relative URLs, which work with ALB path-based routing (`/api/*`).
+Setting `VITE_API_BASE_URL` to the backend's URL (ALB on port 4000) makes the frontend call the backend directly. The ALB has a dedicated listener on port 4000 that forwards to the backend target group, so no `/api` prefix is needed — backend routes work as-is (`/auth/me`, `/health`, etc.).
 
 ---
 
@@ -253,7 +256,7 @@ sd-core-platform supports cross-tool authentication via a shared `session_id` co
 ### How it works
 
 1. User logs in on the core platform (`app.example.com`), which sets a `session_id` cookie scoped to `.example.com` (via `COOKIE_DOMAIN`)
-2. When the user visits a tool (`tool1.example.com`), the tool's frontend calls `GET https://api.example.com/api/auth/me` with `credentials: 'include'`
+2. When the user visits a tool (`tool1.example.com`), the tool's frontend calls `GET https://api.example.com/auth/me` with `credentials: 'include'`
 3. The browser sends the `session_id` cookie (shared across subdomains via `COOKIE_DOMAIN`)
 4. The core backend validates the session in its own Redis and returns user data (id, email, name, org memberships, roles)
 5. If the response is `401`, the tool redirects to `https://app.example.com/login?redirect=https://tool1.example.com`
@@ -266,7 +269,7 @@ tool1.example.com          app.example.com          api.example.com
      |                          |                        |
 tool1 frontend             core frontend            core backend
      |                                                   |
-     +--- GET /api/auth/me (with cookie) --------------->|
+     +--- GET /auth/me (with cookie) ------------------->|
      |<-- 200 { user data } or 401 ----------------------|
 ```
 
@@ -285,7 +288,7 @@ tool1 frontend             core frontend            core backend
      --force-new-deployment \
      --region us-east-1
    ```
-4. **In tool1's frontend:** Call `GET https://api.example.com/api/auth/me` with `credentials: 'include'` on page load
+4. **In tool1's frontend:** Call `GET https://api.example.com/auth/me` with `credentials: 'include'` on page load
 5. **Handle 401:** Redirect to `https://app.example.com/login?redirect=https://tool1.example.com`
 
 ### Requirements
