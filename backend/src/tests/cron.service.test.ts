@@ -35,8 +35,9 @@ describe('CronService', () => {
         // Ensure DB connection
         try {
             await sequelize.authenticate();
-        } catch (e) {
+        } catch (_e) {
             // Already connected or error
+            console.log('DB already connected or error:', _e);
         }
         await sequelize.sync({ force: true });
         if (!redisClient.isOpen) {
@@ -66,7 +67,7 @@ describe('CronService', () => {
             name: 'Test Org',
             slug: `test-org-${Date.now()}`,
             // owner_id not strictly required by model definition unless constraints say so
-        } as any);
+        });
 
         tool = await Tool.create({
             id: uuidv4(),
@@ -77,7 +78,7 @@ describe('CronService', () => {
             trial_card_required: false,
             trial_days: 14,
             required_integrations: []
-        } as any);
+        });
 
         plan = await Plan.create({
             id: uuidv4(),
@@ -88,7 +89,7 @@ describe('CronService', () => {
             currency: 'usd',
             interval: PriceInterval.MONTHLY,
             active: true
-        } as any);
+        });
     });
 
     it('should cancel subscriptions that are past_due and older than grace period', async () => {
@@ -112,7 +113,7 @@ describe('CronService', () => {
             last_payment_failure_at: pastDate,
             current_period_start: pastDate,
             current_period_end: new Date()
-        } as any);
+        });
 
         // 3. Run Cron
         await cronService.checkAndCancelPastDueSubscriptions();
@@ -153,7 +154,7 @@ describe('CronService', () => {
             last_payment_failure_at: recentDate,
             current_period_start: recentDate,
             current_period_end: new Date()
-        } as any);
+        });
 
         // 3. Run Cron
         await cronService.checkAndCancelPastDueSubscriptions();
@@ -182,7 +183,7 @@ describe('CronService', () => {
             last_payment_failure_at: null, // No failure
             current_period_start: new Date(),
             current_period_end: new Date()
-        } as any);
+        });
 
         // 3. Run Cron
         await cronService.checkAndCancelPastDueSubscriptions();
