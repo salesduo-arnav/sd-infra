@@ -309,7 +309,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        isAuthenticated: !!user,
+        isAuthenticated: !!user?.id,
         isAdmin,
         activeOrganization,
         switchOrganization,
