@@ -304,47 +304,70 @@ export default function IntegrationOnboarding() {
                 }, 1000);
 
             } else {
-                // --- Simulated OAuth Flow for SP-API ---
-                // In a real app, this would redirect to Amazon Seller Central
-                const width = 600;
-                const height = 700;
-                const left = window.screen.width / 2 - width / 2;
-                const top = window.screen.height / 2 - height / 2;
+                // --- Real OAuth Flow for SP-API (SC & VC) ---
+                const { getSpAuthUrl } = await import("@/services/integration.service");
+                const url = await getSpAuthUrl(orgId, accountId);
+
+                const width = window.screen.width;
+                const height = window.screen.height;
+                const left = 0;
+                const top = 0;
 
                 const popup = window.open(
-                    "",
-                    "Connect Integration",
+                    url,
+                    "Connect Amazon SP-API",
                     `width=${width},height=${height},top=${top},left=${left}`
                 );
 
-                if (popup) {
-                    popup.document.write(SIMULATED_POPUP_CONTENT);
-
-                    // Simulate success after delay
-                    setTimeout(async () => {
-                        if (!popup.closed) popup.close();
-
-                        // Connect via API
-                        if (accountId && orgId) {
-                            try {
-                                await connectIntegrationAccount(orgId, accountId, {
-                                    simulated: true,
-                                    connected_via: "oauth_popup_onboarding",
-                                });
-                                // Manual update state
-                                if (type === 'seller') setIsSellerConnected(true);
-                                if (type === 'vendor') setIsVendorConnected(true);
-                            } catch {
-                                console.error("Failed to mark account connected");
-                            }
-                        }
-
-                        setConnecting(null);
-                    }, 2500);
-                } else {
+                if (!popup) {
                     toast.error("Please allow popups to connect integrations.");
                     setConnecting(null);
+                    return;
                 }
+
+                // POLLING MECHANISM
+                const pollInterval = setInterval(async () => {
+                    if (!orgId) return;
+                    try {
+                        const accounts = await getIntegrationAccounts(orgId);
+                        const account = accounts.find(a => a.id === accountId);
+
+                        if (account?.status === 'connected') {
+                            clearInterval(pollInterval);
+                            if (!popup.closed) popup.close();
+
+                            toast.success("Integration connected successfully!");
+                            if (type === 'seller') setIsSellerConnected(true);
+                            if (type === 'vendor') setIsVendorConnected(true);
+                            setConnecting(null);
+                        } else if (account?.status === 'error') {
+                            clearInterval(pollInterval);
+                            if (!popup.closed) popup.close();
+
+                            toast.error("Failed to connect integration");
+                            setConnecting(null);
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                }, 2000);
+
+                setTimeout(() => {
+                    clearInterval(pollInterval);
+                    if (connecting === type) setConnecting(null);
+                }, 120000);
+
+                const checkPopup = setInterval(() => {
+                    if (popup.closed) {
+                        clearInterval(checkPopup);
+                        setTimeout(() => {
+                            if (connecting === type) {
+                                setConnecting(null);
+                                clearInterval(pollInterval);
+                            }
+                        }, 3000);
+                    }
+                }, 1000);
             }
 
         } catch (error: unknown) {
@@ -689,20 +712,4 @@ export default function IntegrationOnboarding() {
     );
 }
 
-const SIMULATED_POPUP_CONTENT = `
-<html>
-<head>
-    <title>Connecting...</title>
-    <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f9fafb; color: #111; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #ff9900; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-</head>
-<body>
-    <div class="loader"></div>
-    <h2>Connecting...</h2>
-    <p>Please wait while we verify your credentials.</p>
-</body>
-</html>
-`;
+

@@ -57,6 +57,7 @@ import {
   connectGlobalIntegration,
   disconnectGlobalIntegration,
   getAdsAuthUrl,
+  getSpAuthUrl,
   type IntegrationAccount,
   type GlobalIntegration,
 } from "@/services/integration.service";
@@ -183,8 +184,102 @@ export default function Integrations() {
 
   /* ------------- OAuth popup simulation ------------- */
 
+  // Helper for Real SP-API Auth (SC & VC)
+  const connectSpAccount = (account: IntegrationAccount): Promise<boolean> => {
+    return new Promise((resolve) => {
+      (async () => {
+        try {
+          // Dynamic import to avoid circular dependencies if any, though not strictly needed here
+          const { getSpAuthUrl } = await import("@/services/integration.service");
+          const url = await getSpAuthUrl(orgId, account.id);
+          const width = window.screen.width;
+          const height = window.screen.height;
+          const left = 0;
+          const top = 0;
+
+          const popup = window.open(
+            url,
+            "Connect Amazon SP-API",
+            `width=${width},height=${height},top=${top},left=${left}`
+          );
+
+          if (!popup) {
+            toast.error("Please allow popups to connect integrations.");
+            resolve(false);
+            return;
+          }
+
+          // Listener for postMessage
+          const handleMessage = (event: MessageEvent) => {
+            if (event.data?.type === "SP_AUTH_SUCCESS") {
+              console.log("[Frontend] SP Auth Success:", event.data);
+              cleanup();
+              resolve(true);
+            } else if (event.data?.type === "SP_AUTH_ERROR") {
+              console.error("[Frontend] SP Auth Error:", event.data);
+              cleanup();
+              toast.error(event.data?.message || "Failed to connect Amazon SP-API");
+              resolve(false);
+            }
+          };
+
+          window.addEventListener("message", handleMessage);
+
+          // Polling fallback
+          const pollInterval = setInterval(async () => {
+            if (!orgId) return;
+            try {
+              const accounts = await getIntegrationAccounts(orgId);
+              const updatedAccount = accounts.find(a => a.id === account.id);
+
+              if (updatedAccount?.status === 'connected') {
+                cleanup();
+                if (!popup.closed) popup.close();
+                resolve(true);
+              } else if (updatedAccount?.status === 'error') {
+                cleanup();
+                if (!popup.closed) popup.close();
+                toast.error("Failed to connect Amazon SP-API");
+                resolve(false);
+              }
+            } catch (e) {
+              // ignore
+            }
+          }, 2000);
+
+          const timeout = setTimeout(() => {
+            cleanup();
+            resolve(false);
+          }, 120000);
+
+          const checkPopup = setInterval(() => {
+            if (popup.closed) {
+              setTimeout(() => {
+                cleanup();
+                resolve(false);
+              }, 2000);
+            }
+          }, 1000);
+
+          function cleanup() {
+            window.removeEventListener("message", handleMessage);
+            clearInterval(pollInterval);
+            clearInterval(checkPopup);
+            clearTimeout(timeout);
+          }
+
+        } catch (error) {
+          console.error(error);
+          toast.error("Failed to initiate SP-API connection");
+          resolve(false);
+        }
+      })();
+    });
+  };
+
   const simulateOAuth = (typeName: string): Promise<boolean> => {
     return new Promise((resolve) => {
+      // Keep simulateOAuth for Global Integrations or others if needed
       const width = 600;
       const height = 700;
       const left = window.screen.width / 2 - width / 2;
@@ -402,6 +497,9 @@ export default function Integrations() {
           await fetchAccounts();
           // Use fetchAccounts to be sure we get the credentials tokens etc if needed
         }
+      } else if (account.integration_type === 'sp_api_sc' || account.integration_type === 'sp_api_vc') {
+        success = await connectSpAccount(account);
+        if (success) await fetchAccounts();
       } else {
         const typeInfo = getIntegrationType(account.integration_type);
         success = await simulateOAuth(typeInfo?.label || account.integration_type);
@@ -500,6 +598,8 @@ export default function Integrations() {
       let success = false;
       if (account.integration_type === 'ads_api') {
         success = await connectAdsAccount(account);
+      } else if (account.integration_type === 'sp_api_sc' || account.integration_type === 'sp_api_vc') {
+        success = await connectSpAccount(account);
       } else {
         const typeInfo = getIntegrationType(account.integration_type);
         success = await simulateOAuth(typeInfo?.label || account.integration_type);
@@ -697,6 +797,7 @@ export default function Integrations() {
                       const region = getRegion(firstAccount.region);
                       const hasError = groupAccounts.some((a) => a.status === "error");
                       const allConnected = groupAccounts.every((a) => a.status === "connected");
+                      const noneConnected = groupAccounts.every((a) => a.status === "disconnected");
 
                       const typeMap = groupAccounts.reduce((acc, curr) => {
                         acc[curr.integration_type] = curr;
@@ -757,6 +858,8 @@ export default function Integrations() {
                                 <Check className="h-3 w-3 mr-1" />
                                 Connected
                               </Badge>
+                            ) : noneConnected ? (
+                              <Badge variant="secondary">Disconnected</Badge>
                             ) : (
                               <Badge variant="secondary">Partially Connected</Badge>
                             )}
