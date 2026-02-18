@@ -797,6 +797,7 @@ export default function Integrations() {
                       const region = getRegion(firstAccount.region);
                       const hasError = groupAccounts.some((a) => a.status === "error");
                       const allConnected = groupAccounts.every((a) => a.status === "connected");
+                      const noneConnected = groupAccounts.every((a) => a.status === "disconnected");
 
                       const typeMap = groupAccounts.reduce((acc, curr) => {
                         acc[curr.integration_type] = curr;
@@ -857,6 +858,8 @@ export default function Integrations() {
                                 <Check className="h-3 w-3 mr-1" />
                                 Connected
                               </Badge>
+                            ) : noneConnected ? (
+                              <Badge variant="secondary">Disconnected</Badge>
                             ) : (
                               <Badge variant="secondary">Partially Connected</Badge>
                             )}

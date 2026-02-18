@@ -53,8 +53,7 @@ export const getSpAuthUrl = async (req: Request, res: Response) => {
         const state = crypto.randomBytes(16).toString('hex');
 
         await account.update({
-            oauth_state: state,
-            status: IntegrationStatus.CONNECTING
+            oauth_state: state
         });
 
         const statePayload = `${accountId}##${state}`; // accountId##state

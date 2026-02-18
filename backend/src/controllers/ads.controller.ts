@@ -32,8 +32,7 @@ export const getAdsAuthUrl = async (req: Request, res: Response) => {
         }
 
         await account.update({
-            oauth_state: state,
-            status: IntegrationStatus.CONNECTING
+            oauth_state: state
         });
 
         const statePayload = `${accountId}##${state}`; // accountId##state
