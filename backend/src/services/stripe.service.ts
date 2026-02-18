@@ -198,6 +198,18 @@ export class StripeService {
     });
   }
 
+  // Grace Period Configuration
+  async updateGracePeriod(days: number) {
+    // Note: Stripe's API does not support updating "Smart Retries" or specific "Retry Rules" (grace period) 
+    // for standard accounts programmatically via the SDK easily. 
+    // This is often a Dashboard setting. created here for future extensibility or if using custom subscription schedules.
+    console.log(`[StripeService] Requested update for grace period to ${days} days.`);
+    
+    // Potentially we could update a metadata field on the account to track this sync
+    // return this.stripe.accounts.update(process.env.STRIPE_ACCOUNT_ID, { metadata: { grace_period_days: days.toString() } });
+    return Promise.resolve(true); 
+  }
+
   // Helper to get client (for rare cases)
   getClient() {
     return this.stripe;

@@ -234,6 +234,18 @@ export function AppSidebar() {
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive("/admin/configs")}
+                      className="gap-3 px-3 py-2"
+                    >
+                      <Link to="/admin/configs">
+                        <Settings className="h-4 w-4 opacity-70" />
+                        <span>Configs</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -273,12 +285,6 @@ export function AppSidebar() {
               <Link to="/profile" className="flex items-center gap-2 p-2.5">
                 <User className="h-4 w-4 text-muted-foreground" />
                 Profile
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild className="cursor-pointer">
-              <Link to="/organisation" className="flex items-center gap-2 p-2.5">
-                <Settings className="h-4 w-4 text-muted-foreground" />
-                Settings
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-border/50" />

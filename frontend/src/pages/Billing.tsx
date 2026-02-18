@@ -39,6 +39,13 @@ export default function Billing() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const { activeOrganization } = useAuth();
+  const [gracePeriodDays, setGracePeriodDays] = useState(3);
+
+  useEffect(() => {
+     api.get('/billing/config').then(res => {
+         if (res.data.gracePeriodDays) setGracePeriodDays(res.data.gracePeriodDays);
+     }).catch(err => console.error("Failed to fetch billing config", err));
+  }, []);
 
 
 
@@ -326,6 +333,7 @@ export default function Billing() {
                 onCancel={handleCancelSubscription}
                 isLoading={portalLoading}
                 actionLoading={actionLoading === subscriptions.find(s => s.status === 'past_due')?.id}
+                gracePeriodDays={gracePeriodDays}
             />
         )}
 

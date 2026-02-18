@@ -76,4 +76,9 @@ router.get('/stats/revenue', StatsController.getRevenueChart);
 router.get('/stats/users', StatsController.getUserGrowthChart);
 router.get('/stats/tools', StatsController.getToolUsageChart);
 
+// System Configs
+import * as ConfigController from '../controllers/admin.config.controller';
+router.get('/configs', ConfigController.getConfigs);
+router.put('/configs/:key', ConfigController.updateConfig);
+
 export default router;
