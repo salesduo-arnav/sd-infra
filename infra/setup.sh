@@ -46,6 +46,7 @@ ASG_DESIRED=""
 
 # ── HTTPS (optional) ─────────────────────────────────
 DOMAIN=""                    # e.g. "myapp.example.com" — leave blank to skip HTTPS
+COOKIE_DOMAIN=""             # e.g. ".example.com" — for cross-tool auth (auto-derived from DOMAIN if blank)
 
 # ── Monitoring ────────────────────────────────────────
 ALARMS_ENABLED="true"        # create CloudWatch alarms
@@ -170,6 +171,7 @@ if [[ "$NEEDS_PROMPT" == "true" ]]; then
   echo ""
   echo -e "${CYAN}── Optional ──${NC}"
   prompt_optional  DOMAIN       "Domain for HTTPS (blank to skip)"         ""
+  prompt_optional  COOKIE_DOMAIN "Cookie domain for cross-tool auth (e.g. .example.com)" ""
   prompt_optional  GITHUB_REPO  "GitHub repo for OIDC CI/CD (owner/repo)" ""
   prompt_optional  ALARM_EMAIL  "Email for CloudWatch alerts (blank to skip)" ""
   prompt_optional  GRAFANA_ADMIN_PASSWORD "Grafana admin password (blank to auto-generate)" ""
@@ -183,8 +185,15 @@ ENV="${ENV:-prod}"
 REGION="${REGION:-us-east-1}"
 BACKEND_TYPE="${BACKEND_TYPE:-node}"
 DB_NAME="${DB_NAME:-${PROJECT}db}"
+# PostgreSQL doesn't allow hyphens in database names — strip them
+DB_NAME=$(echo "$DB_NAME" | tr -d '-')
 DB_USER="${DB_USER:-dbadmin}"
 INSTANCE_TYPE="${INSTANCE_TYPE:-t3.medium}"
+
+# Auto-derive COOKIE_DOMAIN from DOMAIN if not explicitly set
+if [[ -n "$DOMAIN" && -z "$COOKIE_DOMAIN" ]]; then
+  COOKIE_DOMAIN=".${DOMAIN}"
+fi
 
 RESOURCES_FILE="$SCRIPT_DIR/${PROJECT}-${ENV}-resources.json"
 
@@ -970,6 +979,9 @@ else
   API_URL="http://${ALB_DNS}"
 fi
 save_resource "api_url" "$API_URL"
+if [[ -n "$COOKIE_DOMAIN" ]]; then
+  save_resource "cookie_domain" "$COOKIE_DOMAIN"
+fi
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Step 10: Store Grafana admin password in Secrets Manager
@@ -991,6 +1003,51 @@ else
 fi
 save_resource "grafana_secret_arn" "$GRAFANA_SECRET_ARN"
 save_resource "grafana_secret_name" "$GRAFANA_SECRET_NAME"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Step 10b: Create backend environment secret
+# ══════════════════════════════════════════════════════════════════════════════
+step "Step 10b: Creating backend environment secret"
+
+BACKEND_SECRET_NAME="${PROJECT}-${ENV}-backend-env"
+BACKEND_SECRET_ARN=""
+
+if aws secretsmanager describe-secret --secret-id "$BACKEND_SECRET_NAME" --region "$REGION" &>/dev/null; then
+  BACKEND_SECRET_ARN=$(aws secretsmanager describe-secret --secret-id "$BACKEND_SECRET_NAME" \
+    --query "ARN" --output text --region "$REGION")
+  log "Backend env secret already exists: $BACKEND_SECRET_NAME"
+else
+  # Auto-generate JWT_SECRET
+  AUTO_JWT_SECRET=$(openssl rand -base64 32 | tr -d '/+=')
+
+  info "Creating backend environment secret with placeholder values."
+  info "You MUST update these values after setup completes:"
+  info "  aws secretsmanager put-secret-value --secret-id $BACKEND_SECRET_NAME --region $REGION --secret-string '<json>'"
+
+  BACKEND_SECRET_JSON=$(cat <<SECJSON
+{
+  "JWT_SECRET": "$AUTO_JWT_SECRET",
+  "STRIPE_SECRET_KEY": "REPLACE_ME",
+  "STRIPE_WEBHOOK_SECRET": "REPLACE_ME",
+  "GOOGLE_CLIENT_ID": "REPLACE_ME",
+  "GOOGLE_CLIENT_SECRET": "REPLACE_ME",
+  "SMTP_USER": "REPLACE_ME",
+  "SMTP_PASS": "REPLACE_ME",
+  "SMTP_FROM": "REPLACE_ME",
+  "SUPERUSER_EMAILS": "REPLACE_ME"
+}
+SECJSON
+)
+
+  BACKEND_SECRET_ARN=$(aws secretsmanager create-secret \
+    --name "$BACKEND_SECRET_NAME" \
+    --secret-string "$BACKEND_SECRET_JSON" \
+    --query "ARN" --output text --region "$REGION")
+  log "Created backend env secret: $BACKEND_SECRET_NAME (JWT_SECRET auto-generated)"
+  warn "Update the REPLACE_ME values in Secrets Manager before deploying!"
+fi
+save_resource "backend_secret_arn" "$BACKEND_SECRET_ARN"
+save_resource "backend_secret_name" "$BACKEND_SECRET_NAME"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Step 11: Create Cloud Map namespace
@@ -1092,6 +1149,21 @@ PROMTAIL_TASK_DEF_FILE="$SCRIPT_DIR/${PROJECT}-${ENV}-promtail-task-def.json"
 
 NODE_ENV_VALUE="production"
 
+# Domain-aware CORS and cookie settings
+if [[ -n "$DOMAIN" ]]; then
+  CORS_VALUE="https://app.${DOMAIN},https://${DOMAIN}"
+  FRONTEND_URL_VALUE="https://app.${DOMAIN}"
+else
+  CORS_VALUE="http://${ALB_DNS}"
+  FRONTEND_URL_VALUE="http://${ALB_DNS}"
+fi
+
+COOKIE_DOMAIN_ENV=""
+if [[ -n "$COOKIE_DOMAIN" ]]; then
+  COOKIE_DOMAIN_ENV=',
+        { "name": "COOKIE_DOMAIN", "value": "'"$COOKIE_DOMAIN"'" }'
+fi
+
 # App task definition (backend + frontend + redis)
 cat > "$APP_TASK_DEF_FILE" <<EOF
 {
@@ -1112,17 +1184,56 @@ cat > "$APP_TASK_DEF_FILE" <<EOF
       "environment": [
         { "name": "NODE_ENV", "value": "$NODE_ENV_VALUE" },
         { "name": "PORT", "value": "$API_PORT" },
-        { "name": "DB_HOST", "value": "$DB_HOST" },
-        { "name": "DB_PORT", "value": "5432" },
-        { "name": "DB_NAME", "value": "$DB_NAME" },
-        { "name": "DB_USER", "value": "$DB_USER" },
-        { "name": "REDIS_HOST", "value": "localhost" },
-        { "name": "REDIS_PORT", "value": "6379" }
+        { "name": "PGHOST", "value": "$DB_HOST" },
+        { "name": "PGPORT", "value": "5432" },
+        { "name": "PGDATABASE", "value": "$DB_NAME" },
+        { "name": "PGUSER", "value": "$DB_USER" },
+        { "name": "REDIS_URL", "value": "redis://localhost:6379" },
+        { "name": "CORS_ORIGINS", "value": "$CORS_VALUE" },
+        { "name": "FRONTEND_URL", "value": "$FRONTEND_URL_VALUE" },
+        { "name": "SMTP_HOST", "value": "smtp.gmail.com" },
+        { "name": "SMTP_PORT", "value": "465" }$COOKIE_DOMAIN_ENV
       ],
       "secrets": [
         {
-          "name": "DB_PASSWORD",
+          "name": "PGPASSWORD",
           "valueFrom": "$DB_SECRET_ARN"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "${BACKEND_SECRET_ARN}:JWT_SECRET::"
+        },
+        {
+          "name": "STRIPE_SECRET_KEY",
+          "valueFrom": "${BACKEND_SECRET_ARN}:STRIPE_SECRET_KEY::"
+        },
+        {
+          "name": "STRIPE_WEBHOOK_SECRET",
+          "valueFrom": "${BACKEND_SECRET_ARN}:STRIPE_WEBHOOK_SECRET::"
+        },
+        {
+          "name": "GOOGLE_CLIENT_ID",
+          "valueFrom": "${BACKEND_SECRET_ARN}:GOOGLE_CLIENT_ID::"
+        },
+        {
+          "name": "GOOGLE_CLIENT_SECRET",
+          "valueFrom": "${BACKEND_SECRET_ARN}:GOOGLE_CLIENT_SECRET::"
+        },
+        {
+          "name": "SMTP_USER",
+          "valueFrom": "${BACKEND_SECRET_ARN}:SMTP_USER::"
+        },
+        {
+          "name": "SMTP_PASS",
+          "valueFrom": "${BACKEND_SECRET_ARN}:SMTP_PASS::"
+        },
+        {
+          "name": "SMTP_FROM",
+          "valueFrom": "${BACKEND_SECRET_ARN}:SMTP_FROM::"
+        },
+        {
+          "name": "SUPERUSER_EMAILS",
+          "valueFrom": "${BACKEND_SECRET_ARN}:SUPERUSER_EMAILS::"
         }
       ],
       "logConfiguration": {
