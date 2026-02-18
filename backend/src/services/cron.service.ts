@@ -13,7 +13,7 @@ export class CronService {
         Logger.info('Initializing Cron Jobs...');
 
         // Run every day at 00:00
-        cron.schedule('49 11 * * *', async () => {
+        cron.schedule('0 0 * * *', async () => {
             Logger.info('[Cron] Starting check for past_due subscriptions...');
             await this.checkAndCancelPastDueSubscriptions();
         });
