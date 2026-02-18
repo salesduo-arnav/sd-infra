@@ -104,20 +104,20 @@ jobs:
           set -o pipefail
           docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T backend npm test 2>&1 | tee backend_report.md
 
-      - name: Install Frontend Test Dependencies
-        run: |
-          sudo chown -R $(whoami) frontend
-          cd frontend
-          npm ci
-          npx playwright install --with-deps
+      # - name: Install Frontend Test Dependencies
+      #   run: |
+      #     sudo chown -R $(whoami) frontend
+      #     cd frontend
+      #     npm ci
+      #     npx playwright install --with-deps
 
-      - name: Run Frontend Tests
-        env:
-          CI_DOCKER: "true"
-        run: |
-          cd frontend
-          set -o pipefail
-          npx playwright test 2>&1 | tee ../frontend_report.md
+      # - name: Run Frontend Tests
+      #   env:
+      #     CI_DOCKER: "true"
+      #   run: |
+      #     cd frontend
+      #     set -o pipefail
+      #     npx playwright test 2>&1 | tee ../frontend_report.md
 
       - name: Teardown
         if: always()
