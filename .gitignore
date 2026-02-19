@@ -54,3 +54,9 @@ playwright-report/
 blob-report/
 
 .scripts/
+
+# =========================
+# Infrastructure (generated)
+# =========================
+infra/*-resources.json
+infra/*-task-def.json

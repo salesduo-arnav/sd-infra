@@ -73,7 +73,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, activeOrganization } = useAuth();
+  const { isAuthenticated, user, activeOrganization } = useAuth();
   const location = useLocation();
 
   if (isAuthenticated) {
@@ -91,7 +91,12 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
       return <Navigate to="/apps" replace />;
     }
 
-    // No active org — go to org selection
+    // No memberships at all — need to create an org first
+    if (!user?.memberships || user.memberships.length === 0) {
+      return <Navigate to={`/create-organisation${location.search}`} replace />;
+    }
+
+    // Has memberships but no active org — go to org selection
     return <Navigate to={`/choose-organisation${location.search}`} replace />;
   }
   return <>{children}</>;
@@ -304,8 +309,8 @@ function AppRoutes() {
         }
       />
 
-      {/* Redirect root to dashboard or login */}
-      <Route path="/" element={<Navigate to="/apps" replace />} />
+      {/* Redirect root to login (PublicRoute will bounce authenticated users to /apps) */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
 
       {/* 404 */}
       <Route path="*" element={<NotFound />} />

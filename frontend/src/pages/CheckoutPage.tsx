@@ -14,8 +14,9 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-// Initialize Stripe
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
+// Initialize Stripe (lazy to avoid error when key is not yet configured)
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
 export default function CheckoutPage() {
   const [searchParams] = useSearchParams();
@@ -75,6 +76,22 @@ export default function CheckoutPage() {
     // Auto-initialize checkout session
     initializeCheckout();
   }, [planId, bundleId, cartItems, initializeCheckout]);
+
+  if (!stripePromise) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50/50">
+        <Card className="w-[400px] border-destructive/20 shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-destructive">Configuration Error</CardTitle>
+            <CardDescription>Stripe is not configured. Please set VITE_STRIPE_PUBLISHABLE_KEY.</CardDescription>
+          </CardHeader>
+          <CardContent>
+             <Button variant="outline" className="w-full" onClick={() => navigate('/plans')}>Return to Plans</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (error) {
     return (

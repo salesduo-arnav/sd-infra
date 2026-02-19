@@ -5,6 +5,8 @@ import Logger from '../utils/logger';
 
 dotenv.config({ path: path.join(__dirname, '../../.env') }); // ensure .env is valid
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 const sequelize = new Sequelize({
     dialect: 'postgres',
     host: process.env.PGHOST,
@@ -13,6 +15,14 @@ const sequelize = new Sequelize({
     password: process.env.PGPASSWORD,
     database: process.env.PGDATABASE,
     logging: false,
+    ...(isProduction && {
+        dialectOptions: {
+            ssl: {
+                require: true,
+                rejectUnauthorized: false,
+            },
+        },
+    }),
 });
 
 export const connectDB = async () => {

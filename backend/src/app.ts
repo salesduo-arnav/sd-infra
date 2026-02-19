@@ -45,6 +45,7 @@ app.use('/users', userRoutes);
 
 // Standard Health Check
 app.get('/health', (req, res) => res.status(200).send('OK'));
+app.get('/api/health', (req, res) => res.status(200).send('OK'));
 
 app.use(errorHandler);
 
