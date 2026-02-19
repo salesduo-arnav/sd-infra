@@ -1,6 +1,6 @@
 # sd-infra
 
-Welcome to `sd-infra`! This repository contains the source code for the SalesDuo base platform infrastructure, including the frontend application and backend services.
+Welcome to `sd-infra`! This repository contains the source code for the SalesDuo base / core platform infrastructure, including the frontend application and backend services.
 
 ## Project Overview
 
