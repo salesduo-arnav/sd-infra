@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Building2, Sparkles, Users, Shield, ArrowRight, ArrowLeft } from "lucide-react";
-import { API_URL } from "@/lib/api";
+import api from "@/lib/api";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
 import { Link } from "react-router-dom";
 
@@ -49,19 +49,7 @@ export default function CreateOrganisation() {
     setError("");
 
     try {
-      const res = await fetch(`${API_URL}/organizations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ name, website, invites }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Failed to create organization");
-      }
-
-      const data = await res.json();
+      const { data } = await api.post('/organizations', { name, website, invites });
 
       if (data.organization?.id) {
         localStorage.setItem("activeOrganizationId", data.organization.id);
