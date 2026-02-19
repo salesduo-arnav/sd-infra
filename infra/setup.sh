@@ -3,7 +3,7 @@ set -euo pipefail
 
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  AWS ECS on EC2 — Full Infrastructure Setup                                ║
-# ║  Creates: VPC/Subnets, ECR, IAM, SGs, RDS, ALB (path-based routing),      ║
+# ║  Creates: VPC/Subnets, ECR, IAM, SGs, RDS, ALB (host-based routing),      ║
 # ║           Cloud Map, EC2 Launch Template, ASG, ECS Cluster + Services      ║
 # ║           (App + Monitoring + Promtail), Auto-scaling, CloudWatch          ║
 # ║  Safe to re-run — all creates are idempotent                               ║
@@ -195,6 +195,18 @@ if [[ -n "$DOMAIN" && -z "$COOKIE_DOMAIN" ]]; then
   COOKIE_DOMAIN=".${DOMAIN}"
 fi
 
+# Compute subdomain prefixes for host-based ALB routing
+# prod: app.domain / api.domain — other envs: app-ENV.domain / api-ENV.domain
+if [[ -n "$DOMAIN" ]]; then
+  if [[ "$ENV" == "prod" ]]; then
+    APP_SUBDOMAIN="app.${DOMAIN}"
+    API_SUBDOMAIN="api.${DOMAIN}"
+  else
+    APP_SUBDOMAIN="app-${ENV}.${DOMAIN}"
+    API_SUBDOMAIN="api-${ENV}.${DOMAIN}"
+  fi
+fi
+
 RESOURCES_FILE="$SCRIPT_DIR/${PROJECT}-${ENV}-resources.json"
 
 # AWS ALB and target group names have a 32-character limit.
@@ -355,6 +367,132 @@ for SUBNET in "$SUBNET1" "$SUBNET2"; do
   fi
 done
 log "Subnets have internet gateway routes"
+
+# ── Step 3b: Create private subnets + NAT gateway for ECS task internet access ──
+# ECS tasks using awsvpc get a private IP only. Without NAT they have zero
+# outbound internet (breaks SMTP, Stripe, Google OAuth, Amazon Ads, etc.).
+# EC2 instances stay in the public subnets — only task ENIs move to private.
+step "Step 3b: Setting up private subnets and NAT gateway"
+
+VPC_CIDR_PREFIX=$(aws ec2 describe-vpcs --vpc-ids "$VPC_ID" \
+  --query "Vpcs[0].CidrBlock" --output text --region "$REGION" | cut -d'.' -f1-2)
+
+PRIVATE_SUBNET1_CIDR="${VPC_CIDR_PREFIX}.96.0/24"
+PRIVATE_SUBNET2_CIDR="${VPC_CIDR_PREFIX}.97.0/24"
+
+# Create private subnet 1 (same AZ as SUBNET1)
+PRIVATE_SUBNET1=$(aws ec2 describe-subnets \
+  --filters "Name=vpc-id,Values=$VPC_ID" "Name=cidr-block,Values=$PRIVATE_SUBNET1_CIDR" \
+  --query "Subnets[0].SubnetId" --output text --region "$REGION" 2>/dev/null || echo "None")
+
+if [[ "$PRIVATE_SUBNET1" == "None" || -z "$PRIVATE_SUBNET1" ]]; then
+  PRIVATE_SUBNET1=$(aws ec2 create-subnet \
+    --vpc-id "$VPC_ID" \
+    --cidr-block "$PRIVATE_SUBNET1_CIDR" \
+    --availability-zone "$SUBNET1_AZ" \
+    --query "Subnet.SubnetId" --output text --region "$REGION")
+  aws ec2 create-tags --resources "$PRIVATE_SUBNET1" \
+    --tags "Key=Name,Value=${PROJECT}-${ENV}-private-${SUBNET1_AZ}" --region "$REGION"
+  log "Created private subnet: $PRIVATE_SUBNET1 ($SUBNET1_AZ)"
+else
+  log "Private subnet 1 already exists: $PRIVATE_SUBNET1"
+fi
+
+# Create private subnet 2 (same AZ as SUBNET2)
+PRIVATE_SUBNET2=$(aws ec2 describe-subnets \
+  --filters "Name=vpc-id,Values=$VPC_ID" "Name=cidr-block,Values=$PRIVATE_SUBNET2_CIDR" \
+  --query "Subnets[0].SubnetId" --output text --region "$REGION" 2>/dev/null || echo "None")
+
+if [[ "$PRIVATE_SUBNET2" == "None" || -z "$PRIVATE_SUBNET2" ]]; then
+  PRIVATE_SUBNET2=$(aws ec2 create-subnet \
+    --vpc-id "$VPC_ID" \
+    --cidr-block "$PRIVATE_SUBNET2_CIDR" \
+    --availability-zone "$SUBNET2_AZ" \
+    --query "Subnet.SubnetId" --output text --region "$REGION")
+  aws ec2 create-tags --resources "$PRIVATE_SUBNET2" \
+    --tags "Key=Name,Value=${PROJECT}-${ENV}-private-${SUBNET2_AZ}" --region "$REGION"
+  log "Created private subnet: $PRIVATE_SUBNET2 ($SUBNET2_AZ)"
+else
+  log "Private subnet 2 already exists: $PRIVATE_SUBNET2"
+fi
+
+save_resource "private_subnet1" "$PRIVATE_SUBNET1"
+save_resource "private_subnet2" "$PRIVATE_SUBNET2"
+
+# Allocate Elastic IP for NAT gateway (check for existing one first)
+NAT_EIP_ALLOC=$(aws ec2 describe-addresses \
+  --filters "Name=tag:Name,Values=${PROJECT}-${ENV}-nat-eip" \
+  --query "Addresses[0].AllocationId" --output text --region "$REGION" 2>/dev/null || echo "None")
+
+if [[ "$NAT_EIP_ALLOC" == "None" || -z "$NAT_EIP_ALLOC" ]]; then
+  NAT_EIP_ALLOC=$(aws ec2 allocate-address --domain vpc \
+    --query "AllocationId" --output text --region "$REGION")
+  aws ec2 create-tags --resources "$NAT_EIP_ALLOC" \
+    --tags "Key=Name,Value=${PROJECT}-${ENV}-nat-eip" --region "$REGION"
+  log "Allocated Elastic IP: $NAT_EIP_ALLOC"
+else
+  log "Elastic IP already exists: $NAT_EIP_ALLOC"
+fi
+save_resource "nat_eip_alloc" "$NAT_EIP_ALLOC"
+
+# Create NAT gateway in the first public subnet
+NAT_GW_ID=$(aws ec2 describe-nat-gateways \
+  --filter "Name=tag:Name,Values=${PROJECT}-${ENV}-nat-gw" "Name=state,Values=available,pending" \
+  --query "NatGateways[0].NatGatewayId" --output text --region "$REGION" 2>/dev/null || echo "None")
+
+if [[ "$NAT_GW_ID" == "None" || -z "$NAT_GW_ID" ]]; then
+  NAT_GW_ID=$(aws ec2 create-nat-gateway \
+    --subnet-id "$SUBNET1" \
+    --allocation-id "$NAT_EIP_ALLOC" \
+    --query "NatGateway.NatGatewayId" --output text --region "$REGION")
+  aws ec2 create-tags --resources "$NAT_GW_ID" \
+    --tags "Key=Name,Value=${PROJECT}-${ENV}-nat-gw" --region "$REGION"
+  log "Created NAT gateway: $NAT_GW_ID (waiting for it to become available...)"
+  aws ec2 wait nat-gateway-available --nat-gateway-ids "$NAT_GW_ID" --region "$REGION"
+  log "NAT gateway is available"
+else
+  log "NAT gateway already exists: $NAT_GW_ID"
+fi
+save_resource "nat_gateway_id" "$NAT_GW_ID"
+
+# Create route table for private subnets
+PRIVATE_RT_ID=$(aws ec2 describe-route-tables \
+  --filters "Name=tag:Name,Values=${PROJECT}-${ENV}-private-rt" \
+  --query "RouteTables[0].RouteTableId" --output text --region "$REGION" 2>/dev/null || echo "None")
+
+if [[ "$PRIVATE_RT_ID" == "None" || -z "$PRIVATE_RT_ID" ]]; then
+  PRIVATE_RT_ID=$(aws ec2 create-route-table \
+    --vpc-id "$VPC_ID" \
+    --query "RouteTable.RouteTableId" --output text --region "$REGION")
+  aws ec2 create-tags --resources "$PRIVATE_RT_ID" \
+    --tags "Key=Name,Value=${PROJECT}-${ENV}-private-rt" --region "$REGION"
+  aws ec2 create-route \
+    --route-table-id "$PRIVATE_RT_ID" \
+    --destination-cidr-block "0.0.0.0/0" \
+    --nat-gateway-id "$NAT_GW_ID" \
+    --region "$REGION" >/dev/null
+  log "Created private route table: $PRIVATE_RT_ID with NAT gateway route"
+else
+  log "Private route table already exists: $PRIVATE_RT_ID"
+fi
+save_resource "private_route_table" "$PRIVATE_RT_ID"
+
+# Associate route table with private subnets (idempotent — skip if already associated)
+for PSUB in "$PRIVATE_SUBNET1" "$PRIVATE_SUBNET2"; do
+  EXISTING_ASSOC=$(aws ec2 describe-route-tables \
+    --route-table-ids "$PRIVATE_RT_ID" \
+    --query "RouteTables[0].Associations[?SubnetId=='$PSUB'].RouteTableAssociationId | [0]" \
+    --output text --region "$REGION" 2>/dev/null || echo "None")
+  if [[ "$EXISTING_ASSOC" == "None" || -z "$EXISTING_ASSOC" ]]; then
+    aws ec2 associate-route-table \
+      --route-table-id "$PRIVATE_RT_ID" \
+      --subnet-id "$PSUB" \
+      --region "$REGION" >/dev/null
+    log "Associated $PSUB with private route table"
+  fi
+done
+
+log "Private subnets and NAT gateway ready"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Step 4: Create ECR repositories
@@ -738,18 +876,18 @@ save_resource "db_host" "$DB_HOST"
 # ══════════════════════════════════════════════════════════════════════════════
 CERT_ARN=""
 if [[ -n "$DOMAIN" ]]; then
-  step "Step 8: Creating ACM certificate for $DOMAIN"
+  step "Step 8: Creating ACM wildcard certificate for *.$DOMAIN"
 
   CERT_ARN=$(aws acm list-certificates \
-    --query "CertificateSummaryList[?DomainName=='$DOMAIN'].CertificateArn | [0]" \
+    --query "CertificateSummaryList[?DomainName=='*.$DOMAIN'].CertificateArn | [0]" \
     --output text --region "$REGION" 2>/dev/null)
 
   if [[ "$CERT_ARN" == "None" || -z "$CERT_ARN" ]]; then
     CERT_ARN=$(aws acm request-certificate \
-      --domain-name "$DOMAIN" \
+      --domain-name "*.$DOMAIN" \
       --validation-method DNS \
       --query "CertificateArn" --output text --region "$REGION")
-    log "Requested ACM certificate: $CERT_ARN"
+    log "Requested ACM wildcard certificate: $CERT_ARN"
 
     sleep 5
     VALIDATION_RECORD=$(aws acm describe-certificate \
@@ -779,7 +917,7 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Step 9: Create ALB + Target Groups + Listeners (path-based routing)
+# Step 9: Create ALB + Target Groups + Listeners (host-based routing)
 # ══════════════════════════════════════════════════════════════════════════════
 step "Step 9: Creating ALB and target groups"
 
@@ -888,7 +1026,7 @@ log "ALB DNS: $ALB_DNS"
 save_resource "alb_dns" "$ALB_DNS"
 save_resource "alb_name" "$ALB_NAME"
 
-# --- HTTP Listener (port 80) with path-based routing ---
+# --- HTTP Listener (port 80) — redirects to HTTPS when DOMAIN set, path-based fallback otherwise ---
 HTTP_LISTENER_ARN=$(aws elbv2 describe-listeners \
   --load-balancer-arn "$ALB_ARN" \
   --query "Listeners[?Port==\`80\`].ListenerArn | [0]" --output text --region "$REGION" 2>/dev/null)
@@ -941,14 +1079,14 @@ if [[ -n "$DOMAIN" && -n "$CERT_ARN" ]]; then
       --query "Listeners[0].ListenerArn" --output text --region "$REGION")
     log "Created HTTPS listener (default → frontend)"
 
-    # Add /api/* rule
+    # Add host-based rule: api subdomain → backend TG
     aws elbv2 create-rule \
       --listener-arn "$HTTPS_LISTENER_ARN" \
       --priority 10 \
-      --conditions "Field=path-pattern,Values=/api/*" \
+      --conditions "Field=host-header,Values=$API_SUBDOMAIN" \
       --actions "Type=forward,TargetGroupArn=$BACKEND_TG_ARN" \
       --region "$REGION" --output text >/dev/null 2>&1 || true
-    log "Added /api/* path rule → backend TG (HTTPS)"
+    log "Added host-based rule: $API_SUBDOMAIN → backend TG (HTTPS)"
   else
     log "HTTPS listener already exists"
   fi
@@ -974,7 +1112,7 @@ save_resource "monitoring_listener_arn" "$MONITORING_LISTENER_ARN"
 
 # Determine URLs
 if [[ -n "$DOMAIN" && -n "$CERT_ARN" ]]; then
-  API_URL="https://${DOMAIN}"
+  API_URL="https://${API_SUBDOMAIN}"
 else
   API_URL="http://${ALB_DNS}"
 fi
@@ -1151,8 +1289,8 @@ NODE_ENV_VALUE="production"
 
 # Domain-aware CORS and cookie settings
 if [[ -n "$DOMAIN" ]]; then
-  CORS_VALUE="https://app.${DOMAIN},https://${DOMAIN}"
-  FRONTEND_URL_VALUE="https://app.${DOMAIN}"
+  CORS_VALUE="https://${APP_SUBDOMAIN}"
+  FRONTEND_URL_VALUE="https://${APP_SUBDOMAIN}"
 else
   CORS_VALUE="http://${ALB_DNS}"
   FRONTEND_URL_VALUE="http://${ALB_DNS}"
@@ -1537,7 +1675,7 @@ compactor:
 LOKICONF
 
 # Write Promtail config
-cat > /opt/ecs/config/promtail/config.yaml <<'PROMCONF'
+cat > /opt/ecs/config/promtail/config.yaml <<PROMCONF
 server:
   http_listen_port: 9080
   grpc_listen_port: 0
@@ -1546,7 +1684,7 @@ positions:
   filename: /tmp/positions.yaml
 
 clients:
-  - url: http://localhost:3100/loki/api/v1/push
+  - url: http://monitoring.${NAMESPACE_NAME}:3100/loki/api/v1/push
 
 scrape_configs:
   - job_name: docker
@@ -1795,7 +1933,7 @@ if [[ "$APP_SVC_STATUS" == "None" || -z "$APP_SVC_STATUS" ]]; then
     --task-definition "${PROJECT}-${ENV}-app" \
     --desired-count "$DESIRED_COUNT" \
     --capacity-provider-strategy "capacityProvider=$CAPACITY_PROVIDER_NAME,weight=1" \
-    --network-configuration "awsvpcConfiguration={subnets=[$SUBNET1,$SUBNET2],securityGroups=[$ECS_SG_ID]}" \
+    --network-configuration "awsvpcConfiguration={subnets=[$PRIVATE_SUBNET1,$PRIVATE_SUBNET2],securityGroups=[$ECS_SG_ID]}" \
     --load-balancers "targetGroupArn=$BACKEND_TG_ARN,containerName=backend,containerPort=$API_PORT" "targetGroupArn=$FRONTEND_TG_ARN,containerName=frontend,containerPort=8080" \
     --deployment-configuration "$DEPLOY_CONFIG" \
     --health-check-grace-period-seconds 120 \
@@ -1825,7 +1963,7 @@ if [[ "$MONITORING_SVC_STATUS" == "None" || -z "$MONITORING_SVC_STATUS" ]]; then
     --task-definition "${PROJECT}-${ENV}-monitoring" \
     --desired-count 1 \
     --capacity-provider-strategy "capacityProvider=$CAPACITY_PROVIDER_NAME,weight=1" \
-    --network-configuration "awsvpcConfiguration={subnets=[$SUBNET1,$SUBNET2],securityGroups=[$ECS_SG_ID]}" \
+    --network-configuration "awsvpcConfiguration={subnets=[$PRIVATE_SUBNET1,$PRIVATE_SUBNET2],securityGroups=[$ECS_SG_ID]}" \
     --load-balancers "targetGroupArn=$MONITORING_TG_ARN,containerName=grafana,containerPort=3000" \
     --service-registries "registryArn=arn:aws:servicediscovery:${REGION}:${ACCOUNT_ID}:service/${CM_SERVICE_ID}" \
     --deployment-configuration "$DEPLOY_CONFIG" \
@@ -2117,7 +2255,7 @@ fi
 step "Setup complete!"
 
 WEB_URL="http://${ALB_DNS}"
-[[ -n "$DOMAIN" && -n "$CERT_ARN" ]] && WEB_URL="https://${DOMAIN}"
+[[ -n "$DOMAIN" && -n "$CERT_ARN" ]] && WEB_URL="https://${APP_SUBDOMAIN}"
 HEALTH_URL="${API_URL}/api/health"
 GRAFANA_URL="http://${ALB_DNS}:3001"
 

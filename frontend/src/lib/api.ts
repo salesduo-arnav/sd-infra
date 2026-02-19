@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { toast } from 'sonner';
 
-export const API_URL = import.meta.env.VITE_API_BASE_URL || "http://sd-core-platform-test-alb-1933031983.us-east-1.elb.amazonaws.com:4000";
+export const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
 const api = axios.create({
   baseURL: API_URL,
