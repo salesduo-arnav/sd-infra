@@ -30,9 +30,8 @@ import { getAdsAuthUrl, handleAdsCallback } from '../controllers/ads.controller'
 router.get('/amazon-ads/auth-url', authenticate, getAdsAuthUrl);
 router.get('/amazon-ads/callback', handleAdsCallback);
 
-// Amazon SP-API (SC & VC)
-import { getSpAuthUrl, handleSpCallback } from '../controllers/sp.controller';
+// Amazon SP-API (SC & VC); Note - Handling the Callback in app.ts
+import { getSpAuthUrl } from '../controllers/sp.controller';
 router.get('/sp-api/auth-url', authenticate, getSpAuthUrl);
-router.get('/sp-api/callback', handleSpCallback);
 
 export default router;
