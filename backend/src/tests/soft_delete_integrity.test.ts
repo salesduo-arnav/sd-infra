@@ -5,7 +5,8 @@ import redisClient from '../config/redis';
 import User from '../models/user';
 import { Organization, OrganizationMember } from '../models/organization';
 import { Invitation } from '../models/invitation';
-import { Role } from '../models/role';
+import { Role, Permission, RolePermission } from '../models/role';
+import { seedPermissions } from './test-helpers';
 import { SubStatus, PriceInterval, TierType } from '../models/enums';
 
 describe('Soft Delete Integrity & Cascade Tests', () => {
@@ -34,6 +35,8 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
 
     beforeEach(async () => {
         // Clean up everything to start fresh
+        await RolePermission.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Permission.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await Invitation.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await OrganizationMember.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await Organization.destroy({ where: {}, truncate: true, cascade: true, force: true });
@@ -46,6 +49,8 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
         await Role.findOrCreate({ where: { name: 'Admin' }, defaults: { name: 'Admin', description: 'desc' } });
 
         await redisClient.flushAll();
+
+        await seedPermissions();
     });
 
     afterAll(async () => {

@@ -81,4 +81,10 @@ import * as ConfigController from '../controllers/admin.config.controller';
 router.get('/configs', ConfigController.getConfigs);
 router.put('/configs/:key', ConfigController.updateConfig);
 
+// RBAC Management
+import * as RBACController from '../controllers/admin.rbac.controller';
+router.get('/rbac/roles', RBACController.getRoles);
+router.get('/rbac/permissions', RBACController.getPermissions);
+router.put('/rbac/roles/:roleId/permissions', RBACController.updateRolePermissions);
+
 export default router;

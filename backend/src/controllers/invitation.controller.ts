@@ -10,6 +10,7 @@ import { AuditService } from '../services/audit.service';
 import { SystemConfig } from '../models/system_config';
 import { invitationService } from '../services/invitation.service';
 import Logger from '../utils/logger';
+import { RoleType } from '../constants/rbac.constants';
 
 export const inviteMember = async (req: Request, res: Response) => {
     Logger.info('Inviting member', { email: req.body.email, role_id: req.body.role_id, userId: req.user?.id });
@@ -23,7 +24,7 @@ export const inviteMember = async (req: Request, res: Response) => {
             include: [{ model: Role, as: 'role' }]
         });
 
-        if (!membership || (membership.role?.name !== 'Owner' && membership.role?.name !== 'Admin')) {
+        if (!membership || (membership.role?.name !== RoleType.OWNER && membership.role?.name !== RoleType.ADMIN)) {
             return res.status(403).json({ message: 'Insufficient permissions' });
         }
 
@@ -95,7 +96,7 @@ export const revokeInvitation = async (req: Request, res: Response) => {
             include: [{ model: Role, as: 'role' }]
         });
 
-        if (!membership || (membership.role?.name !== 'Owner' && membership.role?.name !== 'Admin')) {
+        if (!membership || (membership.role?.name !== RoleType.OWNER && membership.role?.name !== RoleType.ADMIN)) {
             return res.status(403).json({ message: 'Insufficient permissions' });
         }
 

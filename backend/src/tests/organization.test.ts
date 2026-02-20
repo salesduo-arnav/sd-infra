@@ -4,9 +4,9 @@ import sequelize, { closeDB } from '../config/db';
 import redisClient from '../config/redis';
 import User from '../models/user';
 import { Organization, OrganizationMember } from '../models/organization';
-import { Role } from '../models/role';
-
+import { Role, Permission, RolePermission } from '../models/role';
 import { Invitation, InvitationStatus } from '../models/invitation';
+import { seedPermissions } from './test-helpers';
 
 describe('Organization API Integration Tests', () => {
     const testUser = {
@@ -34,6 +34,8 @@ describe('Organization API Integration Tests', () => {
 
     beforeEach(async () => {
         // Clean up
+        await RolePermission.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Permission.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await Invitation.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await OrganizationMember.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await Organization.destroy({ where: {}, truncate: true, cascade: true, force: true });
@@ -44,6 +46,9 @@ describe('Organization API Integration Tests', () => {
         // Register and Login to get cookie
         const res = await request(app).post('/auth/register').send(testUser);
         authCookie = res.get('Set-Cookie') || [];
+
+        // Seed permissions and role-permission mappings for permission middleware
+        await seedPermissions();
     });
 
     afterAll(async () => {
@@ -157,10 +162,11 @@ describe('Organization API Integration Tests', () => {
     describe('PUT /organizations', () => {
         it('should update organization name and website', async () => {
             // Create org
-            await request(app)
+            const orgRes = await request(app)
                 .post('/organizations')
                 .set('Cookie', authCookie)
                 .send(testOrg);
+            const orgId = orgRes.body.organization.id;
 
             const updatedData = {
                 name: 'Updated Corp',
@@ -170,6 +176,7 @@ describe('Organization API Integration Tests', () => {
             const res = await request(app)
                 .put('/organizations')
                 .set('Cookie', authCookie)
+                .set('x-organization-id', orgId)
                 .send(updatedData);
 
             expect(res.statusCode).toEqual(200);
@@ -182,14 +189,16 @@ describe('Organization API Integration Tests', () => {
     describe('GET /organizations/members', () => {
         it('should list all members of the organization with pagination', async () => {
             // Create org
-            await request(app)
+            const orgRes = await request(app)
                 .post('/organizations')
                 .set('Cookie', authCookie)
                 .send(testOrg);
+            const orgId = orgRes.body.organization.id;
 
             const res = await request(app)
                 .get('/organizations/members')
-                .set('Cookie', authCookie);
+                .set('Cookie', authCookie)
+                .set('x-organization-id', orgId);
 
             expect(res.statusCode).toEqual(200);
             expect(res.body.members).toBeDefined();
@@ -204,14 +213,16 @@ describe('Organization API Integration Tests', () => {
 
         it('should support search by name', async () => {
             // Create org
-            await request(app)
+            const orgRes = await request(app)
                 .post('/organizations')
                 .set('Cookie', authCookie)
                 .send(testOrg);
+            const orgId = orgRes.body.organization.id;
 
             const res = await request(app)
                 .get('/organizations/members?search=Org')
-                .set('Cookie', authCookie);
+                .set('Cookie', authCookie)
+                .set('x-organization-id', orgId);
 
             expect(res.statusCode).toEqual(200);
             expect(res.body.members.length).toBe(1);
@@ -523,7 +534,7 @@ describe('Organization API Integration Tests', () => {
                 .set('x-organization-id', orgId);
 
             expect(res.statusCode).toEqual(403);
-            expect(res.body.message).toContain('Only the owner');
+            expect(res.body.message).toContain('permissions');
         });
     });
 });

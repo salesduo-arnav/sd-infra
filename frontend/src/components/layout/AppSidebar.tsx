@@ -16,6 +16,7 @@ import {
   Activity,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/contexts/PermissionsContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sidebar,
@@ -46,8 +47,8 @@ const mainNavItems = [
   { title: "Apps", url: "/apps", icon: LayoutDashboard },
   { title: "Organisation", url: "/organisation", icon: Building2 },
   { title: "Integrations", url: "/integrations", icon: Plug },
-  { title: "Plans", url: "/plans", icon: CreditCard },
-  { title: "Billing", url: "/billing", icon: Receipt },
+  { title: "Plans", url: "/plans", icon: CreditCard, permission: "plans.view" },
+  { title: "Billing", url: "/billing", icon: Receipt, permission: "billing.view" },
 ];
 
 
@@ -55,6 +56,7 @@ const mainNavItems = [
 export function AppSidebar() {
   const location = useLocation();
   const { user, logout, isAdmin, activeOrganization, switchOrganization } = useAuth();
+  const { hasPermission } = usePermissions();
   const currentPath = location.pathname;
 
   const isActive = (path: string) => {
@@ -137,7 +139,12 @@ export function AppSidebar() {
           <SidebarGroupLabel className="px-3 text-xs font-semibold text-muted-foreground/70 uppercase tracking-widest mt-2 mb-1">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
+              {mainNavItems.map((item) => {
+                // Hide items that require a permission the user doesn't have
+                if (item.permission && !hasPermission(item.permission)) {
+                  return null;
+                }
+                return (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
@@ -150,7 +157,8 @@ export function AppSidebar() {
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              ))}
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -243,6 +251,18 @@ export function AppSidebar() {
                       <Link to="/admin/configs">
                         <Settings className="h-4 w-4 opacity-70" />
                         <span>Configs</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive("/admin/rbac")}
+                      className="gap-3 px-3 py-2"
+                    >
+                      <Link to="/admin/rbac">
+                        <Shield className="h-4 w-4 opacity-70" />
+                        <span>Role Permissions</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

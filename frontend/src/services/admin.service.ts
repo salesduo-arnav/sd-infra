@@ -277,3 +277,32 @@ export const getToolUsageChart = async () => {
   return response.data;
 };
 
+// RBAC Management
+export interface RBACRole {
+  id: number;
+  name: string;
+  description: string;
+  permissions: RBACPermission[];
+}
+
+export interface RBACPermission {
+  id: string;
+  description: string;
+  category: string;
+}
+
+export const getRBACRoles = async () => {
+  const response = await api.get('/admin/rbac/roles');
+  return response.data;
+};
+
+export const getRBACPermissions = async () => {
+  const response = await api.get('/admin/rbac/permissions');
+  return response.data;
+};
+
+export const updateRolePermissions = async (roleId: number, permissionIds: string[]) => {
+  const response = await api.put(`/admin/rbac/roles/${roleId}/permissions`, { permissionIds });
+  return response.data;
+};
+

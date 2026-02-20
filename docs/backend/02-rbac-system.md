@@ -90,12 +90,14 @@ Separate from org RBAC — checks `is_superuser` flag on the User model. Used fo
 
 ## Issues Found
 
-1. **Role checking is string-based** — `requireOwner` checks `role.name === 'Owner'` which is brittle. If the role name is changed or localized, access control breaks. Should use role IDs or a dedicated role type enum.
-2. **No default roles seeded** — There is no migration or seed script to create the default Owner/Admin/Member roles. They must be created manually or by application logic.
+1. ~~**Role checking is string-based** — `requireOwner` checks `role.name === 'Owner'` which is brittle. If the role name is changed or localized, access control breaks. Should use role IDs or a dedicated role type enum.~~
+2. ~~**No default roles seeded** — There is no migration or seed script to create the default Owner/Admin/Member roles. They must be created manually or by application logic.~~
 3. **Role.id is auto-increment** — Using auto-increment IDs for roles makes test data inconsistent across environments. Consider using fixed UUIDs or string identifiers.
-4. **Permission model exists but is unused** — The Permission and RolePermission tables exist but no middleware actually checks individual permissions. Access control is entirely role-name-based (coarse-grained).
-5. **No permission validation on most routes** — Beyond `requireOwner` and `requireAdmin`, there is no fine-grained permission checking. For example, member invitation only checks if the user is an Admin/Owner by implication, not by explicit permission.
+(Skipping this as not needed)
+4. ~~**Permission model exists but is unused** — The Permission and RolePermission tables exist but no middleware actually checks individual permissions. Access control is entirely role-name-based (coarse-grained).~~
+5. ~~**No permission validation on most routes** — Beyond `requireOwner` and `requireAdmin`, there is no fine-grained permission checking. For example, member invitation only checks if the user is an Admin/Owner by implication, not by explicit permission.~~
 6. **`is_active` on OrganizationMember is redundant** — The soft delete pattern (`deleted_at`) already handles membership deactivation. The `is_active` boolean adds confusion about which field is authoritative.
-7. **No audit trail for role/permission changes** — Changes to roles or role assignments are not logged to the audit system.
-8. **Fallback organization behavior** — When no `x-organization-id` header is provided, the middleware falls back to the user's first organization (by `joined_at ASC`). This implicit behavior could cause confusion and unintended access.
-9. **Organization middleware uses `console.error`** — Should use the Logger utility instead of `console.error` for consistency (line 52 of `organization.middleware.ts`).
+(Skipping this as `is_active` may be needed in the future)
+7. ~~**No audit trail for role/permission changes** — Changes to roles or role assignments are not logged to the audit system.~~
+8. ~~**Fallback organization behavior** — When no `x-organization-id` header is provided, the middleware falls back to the user's first organization (by `joined_at ASC`). This implicit behavior could cause confusion and unintended access.~~
+9. ~~**Organization middleware uses `console.error`** — Should use the Logger utility instead of `console.error` for consistency (line 52 of `organization.middleware.ts`).~~

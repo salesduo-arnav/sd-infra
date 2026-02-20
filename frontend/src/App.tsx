@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { PermissionsProvider } from "@/contexts/PermissionsContext";
+import { usePermissions } from "@/contexts/PermissionsContext";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -26,6 +28,7 @@ import AdminPlans from "./pages/admin/AdminPlans";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminOrganizations from "./pages/admin/AdminOrganizations";
 import AdminConfigs from "./pages/admin/AdminConfigs";
+import AdminRBAC from "./pages/admin/AdminRBAC";
 import AuditLogs from "./pages/admin/AuditLogs";
 import InviteAccepted from "./pages/InviteAccepted";
 import PendingInvitations from "./pages/PendingInvitations";
@@ -67,6 +70,19 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
   if (!isAdmin) {
+    return <Navigate to="/apps" replace />;
+  }
+  return <>{children}</>;
+}
+
+function PermissionRoute({ permission, children }: { permission: string; children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
+  const { hasPermission, loading } = usePermissions();
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  if (loading) return <div>Loading...</div>;
+  if (!hasPermission(permission)) {
     return <Navigate to="/apps" replace />;
   }
   return <>{children}</>;
@@ -160,7 +176,9 @@ function AppRoutes() {
         path="/plans"
         element={
           <ProtectedRoute>
-            <Plans />
+            <PermissionRoute permission="plans.view">
+              <Plans />
+            </PermissionRoute>
           </ProtectedRoute>
         }
       />
@@ -168,7 +186,9 @@ function AppRoutes() {
         path="/billing"
         element={
           <ProtectedRoute>
-            <Billing />
+            <PermissionRoute permission="billing.view">
+              <Billing />
+            </PermissionRoute>
           </ProtectedRoute>
         }
       />
@@ -176,7 +196,9 @@ function AppRoutes() {
         path="/checkout"
         element={
           <ProtectedRoute>
-            <CheckoutPage />
+            <PermissionRoute permission="billing.manage">
+              <CheckoutPage />
+            </PermissionRoute>
           </ProtectedRoute>
         }
       />
@@ -295,6 +317,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/rbac"
+        element={
+          <AdminRoute>
+            <AdminRBAC />
+          </AdminRoute>
+        }
+      />
+      <Route
         path="/accept-invite"
         element={
           <InviteAccepted />
@@ -321,6 +351,7 @@ function AppRoutes() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
+      <PermissionsProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -328,6 +359,7 @@ const App = () => (
           <AppRoutes />
         </BrowserRouter>
       </TooltipProvider>
+      </PermissionsProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
