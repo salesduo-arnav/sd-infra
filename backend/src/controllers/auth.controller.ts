@@ -25,8 +25,15 @@ const client = new OAuth2Client(
     'postmessage' // Special redirect URI for credentials.getToken() from flow: 'auth-code'
 );
 
+// Helper to validate password strength
+const isValidPassword = (password: string): boolean => {
+    // at least 8 chars, 1 uppercase, 1 lowercase, 1 number
+    const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    return regex.test(password);
+};
+
 // Helper to create session
-const createSession = async (res: Response, user: User) => {
+const createSession = async (req: Request, res: Response, user: User) => {
     const sessionId = uuidv4();
     const sessionTTL = 86400; // 24 hours
 
@@ -35,7 +42,9 @@ const createSession = async (res: Response, user: User) => {
         id: user.id,
         email: user.email,
         name: user.full_name,
-        is_superuser: user.is_superuser
+        is_superuser: user.is_superuser,
+        ip: req.ip,
+        userAgent: req.headers['user-agent']
     };
 
     // Store in Redis
@@ -59,6 +68,10 @@ export const register = async (req: Request, res: Response) => {
     Logger.info("Registering new user", { email: req.body.email });
     try {
         const { email, password, full_name, token } = req.body;
+
+        if (!isValidPassword(password)) {
+            return res.status(400).json({ message: 'Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, and a number.' });
+        }
 
         const existingUser = await User.findOne({ where: { email } });
         if (existingUser) {
@@ -135,7 +148,7 @@ export const register = async (req: Request, res: Response) => {
             }]
         });
 
-        await createSession(res, user);
+        await createSession(req, res, user);
 
         // Audit log
         await AuditService.log({
@@ -230,7 +243,7 @@ export const login = async (req: Request, res: Response) => {
             }]
         });
 
-        await createSession(res, user);
+        await createSession(req, res, user);
 
         // Audit log
         await AuditService.log({
@@ -388,6 +401,10 @@ export const resetPassword = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
+        if (!isValidPassword(newPassword)) {
+            return res.status(400).json({ message: 'Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, and a number.' });
+        }
+
         // Hash new password
         const salt = await bcrypt.genSalt(10);
         user.password_hash = await bcrypt.hash(newPassword, salt);
@@ -533,7 +550,7 @@ export const googleAuth = async (req: Request, res: Response) => {
         });
 
         // 8. Create Session
-        await createSession(res, user);
+        await createSession(req, res, user);
 
         // Audit log
         await AuditService.log({
@@ -651,7 +668,7 @@ export const verifyLoginOtp = async (req: Request, res: Response) => {
         });
 
         // Create session
-        await createSession(res, user);
+        await createSession(req, res, user);
 
         // Audit log
         await AuditService.log({
@@ -684,6 +701,10 @@ export const sendSignupOtp = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Email, password, and full name are required' });
         }
 
+        if (!isValidPassword(password)) {
+            return res.status(400).json({ message: 'Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, and a number.' });
+        }
+
         // Check if user already exists
         const existingUser = await User.findOne({ where: { email } });
         if (existingUser) {
@@ -713,8 +734,12 @@ export const sendSignupOtp = async (req: Request, res: Response) => {
             }
         }
 
+        // Hash password before storing in Redis OTP data
+        const salt = await bcrypt.genSalt(10);
+        const password_hash = await bcrypt.hash(password, salt);
+
         // Generate and store OTP with user data
-        const otp = await otpService.createSignupOtp(email, password, full_name, token);
+        const otp = await otpService.createSignupOtp(email, password_hash, full_name, token);
 
         // Send OTP via email
         await mailService.sendMail({
@@ -790,13 +815,10 @@ export const verifySignupOtp = async (req: Request, res: Response) => {
             }
         }
 
-        // Hash password and create user
-        const salt = await bcrypt.genSalt(10);
-        const password_hash = await bcrypt.hash(password, salt);
-
+        // password is already hashed from sendSignupOtp
         const user = await User.create({
             email,
-            password_hash,
+            password_hash: password,
             full_name,
             is_superuser: isSuperuserEmail(email)
         });
@@ -839,7 +861,7 @@ export const verifySignupOtp = async (req: Request, res: Response) => {
         });
 
         // Create session
-        await createSession(res, user);
+        await createSession(req, res, user);
 
         // Audit log
         await AuditService.log({

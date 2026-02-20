@@ -205,7 +205,7 @@ describe('Authentication API Integration Tests', () => {
             // 1. Register User
             const reg = await request(app).post('/auth/register').send({
                 email: 'owner-login@test.com',
-                password: 'password123',
+                password: 'Password123!',
                 full_name: 'Owner Only'
             });
             const userId = reg.body.user.id;
@@ -230,7 +230,7 @@ describe('Authentication API Integration Tests', () => {
             // 3. Login
             const res = await request(app).post('/auth/login').send({
                 email: 'owner-login@test.com',
-                password: 'password123'
+                password: 'Password123!'
             });
 
             expect(res.status).toBe(200);
