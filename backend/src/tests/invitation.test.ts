@@ -4,9 +4,10 @@ import sequelize, { closeDB } from '../config/db';
 import redisClient from '../config/redis';
 import User from '../models/user';
 import { Organization, OrganizationMember } from '../models/organization';
-import { Role } from '../models/role';
+import { Role, Permission, RolePermission } from '../models/role';
 import { Invitation } from '../models/invitation';
 import { mailService } from '../services/mail.service';
+import { seedPermissions } from './test-helpers';
 
 describe('Invitation API Integration Tests', () => {
     const ownerUser = {
@@ -19,6 +20,7 @@ describe('Invitation API Integration Tests', () => {
 
     let authCookie: string[];
     let memberRoleId: number;
+    let orgId: string;
 
     beforeAll(async () => {
         if (process.env.PGDATABASE !== 'mydb_test') {
@@ -32,6 +34,8 @@ describe('Invitation API Integration Tests', () => {
 
     beforeEach(async () => {
         // Clean up
+        await RolePermission.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Permission.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await Invitation.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await OrganizationMember.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await Organization.destroy({ where: {}, truncate: true, cascade: true, force: true });
@@ -44,16 +48,18 @@ describe('Invitation API Integration Tests', () => {
         authCookie = res.get('Set-Cookie') || [];
 
         // Create Organization
-        await request(app)
+        const orgRes = await request(app)
             .post('/organizations')
             .set('Cookie', authCookie)
             .send({ name: 'Tech Corp', website: 'https://tech.com' });
+        orgId = orgRes.body.organization.id;
 
-        // Ensure 'Member' role exists (since controller might not create it automatically if not found during invite, unlike Owner in createOrg)
-        // Actually inviteMember uses role_id, so we need to know the IDs.
-        // Let's create roles.
+        // Create Member role
         const memberRole = await Role.create({ name: 'Member', description: 'Regular Member' });
         memberRoleId = memberRole.id;
+
+        // Seed permissions and role-permission mappings for permission middleware
+        await seedPermissions();
     });
 
     afterAll(async () => {
@@ -68,6 +74,7 @@ describe('Invitation API Integration Tests', () => {
             const res = await request(app)
                 .post('/invitations')
                 .set('Cookie', authCookie)
+                .set('x-organization-id', orgId)
                 .send({ email: invitedUserEmail, role_id: memberRoleId });
 
             expect(res.statusCode).toEqual(201);
@@ -86,12 +93,14 @@ describe('Invitation API Integration Tests', () => {
             await request(app)
                 .post('/invitations')
                 .set('Cookie', authCookie)
+                .set('x-organization-id', orgId)
                 .send({ email: invitedUserEmail, role_id: memberRoleId });
 
             // Invite again
             const res = await request(app)
                 .post('/invitations')
                 .set('Cookie', authCookie)
+                .set('x-organization-id', orgId)
                 .send({ email: invitedUserEmail, role_id: memberRoleId });
 
             expect(res.statusCode).toEqual(400);
@@ -104,11 +113,13 @@ describe('Invitation API Integration Tests', () => {
              await request(app)
                 .post('/invitations')
                 .set('Cookie', authCookie)
+                .set('x-organization-id', orgId)
                 .send({ email: invitedUserEmail, role_id: memberRoleId });
 
             const res = await request(app)
                 .get('/invitations')
-                .set('Cookie', authCookie);
+                .set('Cookie', authCookie)
+                .set('x-organization-id', orgId);
 
             expect(res.statusCode).toEqual(200);
             expect(res.body.length).toBe(1);
@@ -121,19 +132,21 @@ describe('Invitation API Integration Tests', () => {
             const inviteRes = await request(app)
                 .post('/invitations')
                 .set('Cookie', authCookie)
+                .set('x-organization-id', orgId)
                 .send({ email: invitedUserEmail, role_id: memberRoleId });
             
             const inviteId = inviteRes.body.invitation.id;
 
             const res = await request(app)
                 .delete(`/invitations/${inviteId}`)
-                .set('Cookie', authCookie);
+                .set('Cookie', authCookie)
+                .set('x-organization-id', orgId);
 
             expect(res.statusCode).toEqual(200);
             expect(res.body.message).toEqual('Invitation revoked');
 
             // Verify it's gone
-            const listRes = await request(app).get('/invitations').set('Cookie', authCookie);
+            const listRes = await request(app).get('/invitations').set('Cookie', authCookie).set('x-organization-id', orgId);
             expect(listRes.body.length).toBe(0);
         });
     });
