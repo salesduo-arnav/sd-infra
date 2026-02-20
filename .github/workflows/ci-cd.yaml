@@ -235,6 +235,42 @@ jobs:
           aws ecs wait services-stable \
             --cluster "${{ env.ECS_CLUSTER }}" \
             --services "${{ env.APP_SERVICE_NAME }}" \
-            --region "${{ env.AWS_REGION }}" || echo "Timeout waiting for stabilization (service may still be deploying)"
+            --region "${{ env.AWS_REGION }}"
 
-          echo "Deployment complete!"
+      - name: Verify deployment
+        run: |
+          # Check that only one deployment exists (no stuck old deployments)
+          DEPLOYMENT_COUNT=$(aws ecs describe-services \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.APP_SERVICE_NAME }}" \
+            --query "length(services[0].deployments)" \
+            --output text --region "${{ env.AWS_REGION }}")
+
+          if [ "$DEPLOYMENT_COUNT" -ne 1 ]; then
+            echo "::error::Deployment did not converge — $DEPLOYMENT_COUNT deployments still active"
+            aws ecs describe-services \
+              --cluster "${{ env.ECS_CLUSTER }}" \
+              --services "${{ env.APP_SERVICE_NAME }}" \
+              --query "services[0].deployments[*].{status:status,running:runningCount,desired:desiredCount,taskDef:taskDefinition}" \
+              --output table --region "${{ env.AWS_REGION }}"
+            exit 1
+          fi
+
+          # Check that desired == running
+          RUNNING=$(aws ecs describe-services \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.APP_SERVICE_NAME }}" \
+            --query "services[0].deployments[0].runningCount" \
+            --output text --region "${{ env.AWS_REGION }}")
+          DESIRED=$(aws ecs describe-services \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.APP_SERVICE_NAME }}" \
+            --query "services[0].deployments[0].desiredCount" \
+            --output text --region "${{ env.AWS_REGION }}")
+
+          if [ "$RUNNING" -ne "$DESIRED" ]; then
+            echo "::error::Task count mismatch — running: $RUNNING, desired: $DESIRED"
+            exit 1
+          fi
+
+          echo "Deployment verified: $RUNNING/$DESIRED tasks running"
