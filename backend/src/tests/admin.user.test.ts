@@ -4,7 +4,8 @@ import app from '../app';
 import sequelize from '../config/db';
 import redisClient from '../config/redis';
 import User from '../models/user';
-import { Organization, OrganizationMember, OrgStatus } from '../models/organization';
+import { Organization, OrganizationMember } from '../models/organization';
+import { OrgStatus } from '../models/enums';
 import { Role } from '../models/role';
 
 import path from 'path';

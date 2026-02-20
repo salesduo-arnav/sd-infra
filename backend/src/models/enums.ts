@@ -32,3 +32,9 @@ export enum FeatureResetPeriod {
   YEARLY = 'yearly',
   NEVER = 'never',
 }
+
+export enum OrgStatus {
+  ACTIVE = 'active',
+  SUSPENDED = 'suspended',
+  ARCHIVED = 'archived',
+}
