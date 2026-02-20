@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import redisClient from '../config/redis';
 import User from '../models/user';
 import { handleError } from '../utils/error';
+import Logger from '../utils/logger';
 
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -23,6 +24,15 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
         // 3. Parse session and verify user still exists in DB (DB is source of truth)
         const session = JSON.parse(sessionData);
+
+        // Security check: Session binding to IP and User-Agent
+        if (session.ip && session.userAgent && (session.ip !== req.ip || session.userAgent !== req.headers['user-agent'])) {
+            Logger.warn('Session binding failed', { sessionId, expectedIp: session.ip, actualIp: req.ip });
+            await redisClient.del(`session:${sessionId}`);
+            res.clearCookie('session_id');
+            return res.status(401).json({ message: 'Session invalid' });
+        }
+
         const userExists = await User.findByPk(session.id, { attributes: ['id'] });
 
         if (!userExists) {

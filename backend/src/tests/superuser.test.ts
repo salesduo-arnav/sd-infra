@@ -43,7 +43,7 @@ describe('Superuser Logic', () => {
             .post('/auth/register')
             .send({
                 email: 'normal@example.com',
-                password: 'password123',
+                password: 'Password123!',
                 full_name: 'Normal User',
             });
 
@@ -60,7 +60,7 @@ describe('Superuser Logic', () => {
             .post('/auth/register')
             .send({
                 email: 'superuser@example.com',
-                password: 'password123',
+                password: 'Password123!',
                 full_name: 'Super User',
             });
 
@@ -77,7 +77,7 @@ describe('Superuser Logic', () => {
             .post('/auth/register')
             .send({
                 email: 'SUPERUSER@example.com', // Uppercase input
-                password: 'password123',
+                password: 'Password123!',
                 full_name: 'Super User Capitalized',
             });
 
@@ -91,7 +91,7 @@ describe('Superuser Logic', () => {
 
     it('should update user to superuser on login if config changes', async () => {
         const salt = await bcrypt.genSalt(10);
-        const password_hash = await bcrypt.hash('password123', salt);
+        const password_hash = await bcrypt.hash('Password123!', salt);
 
         await User.create({
             email: 'superuser@example.com',
@@ -109,7 +109,7 @@ describe('Superuser Logic', () => {
             .post('/auth/login')
             .send({
                 email: 'superuser@example.com',
-                password: 'password123',
+                password: 'Password123!',
             });
 
         expect(res.status).toBe(200);
