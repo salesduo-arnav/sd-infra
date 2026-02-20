@@ -70,12 +70,12 @@ Tool.init(
     trial_card_required: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
-      comment: 'Whether a credit card is required to start a free trial',
+      comment: 'Whether a credit card is required to start a free trial. If true, payment method is verified before trial begins. Default is false.',
     },
     trial_days: {
       type: DataTypes.INTEGER,
       defaultValue: 0,
-      comment: 'Default trial period in days for this tool',
+      comment: 'Default trial period in days. If 0, no trial is offered.',
     },
     required_integrations: {
       type: DataTypes.JSONB,
@@ -113,7 +113,7 @@ Tool.init(
 
         await Feature.destroy({ where: { tool_id: tool.id }, transaction: options.transaction, individualHooks: true });
         await Plan.destroy({ where: { tool_id: tool.id }, transaction: options.transaction, individualHooks: true }); // individualHooks for Plan cascade
-        await OrganizationEntitlement.destroy({ where: { tool_id: tool.id }, transaction: options.transaction });
+        await OrganizationEntitlement.destroy({ where: { tool_id: tool.id }, transaction: options.transaction, individualHooks: true });
       }
     }
   }

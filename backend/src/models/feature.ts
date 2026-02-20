@@ -89,8 +89,8 @@ Feature.init(
         const { PlanLimit } = await import('./plan_limit');
         const { OrganizationEntitlement } = await import('./organization_entitlement');
 
-        await PlanLimit.destroy({ where: { feature_id: feature.id }, transaction: options.transaction });
-        await OrganizationEntitlement.destroy({ where: { feature_id: feature.id }, transaction: options.transaction });
+        await PlanLimit.destroy({ where: { feature_id: feature.id }, transaction: options.transaction, individualHooks: true });
+        await OrganizationEntitlement.destroy({ where: { feature_id: feature.id }, transaction: options.transaction, individualHooks: true });
       }
     }
   }
