@@ -106,11 +106,41 @@ describe('Invitation API Integration Tests', () => {
             expect(res.statusCode).toEqual(400);
             expect(res.body.message).toEqual('User already invited');
         });
+
+        it('should fail if email is invalid', async () => {
+            const res = await request(app)
+                .post('/invitations')
+                .set('Cookie', authCookie)
+                .set('x-organization-id', orgId)
+                .send({ email: 'invalid-email', role_id: memberRoleId });
+
+            expect(res.statusCode).toEqual(400);
+            expect(res.body.message).toEqual('Invalid email format');
+        });
+
+        it('should set expiry based on INVITATION_EXPIRY_DAYS', async () => {
+            process.env.INVITATION_EXPIRY_DAYS = '10';
+            const res = await request(app)
+                .post('/invitations')
+                .set('Cookie', authCookie)
+                .set('x-organization-id', orgId)
+                .send({ email: 'test_expiry@example.com', role_id: memberRoleId });
+
+            expect(res.statusCode).toEqual(201);
+
+            const invite = await Invitation.findOne({ where: { email: 'test_expiry@example.com' } });
+            expect(invite).toBeDefined();
+
+            const diffDays = Math.round((invite!.expires_at.getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+            expect(diffDays).toEqual(10);
+
+            delete process.env.INVITATION_EXPIRY_DAYS;
+        });
     });
 
     describe('GET /invitations', () => {
         it('should list pending invitations', async () => {
-             await request(app)
+            await request(app)
                 .post('/invitations')
                 .set('Cookie', authCookie)
                 .set('x-organization-id', orgId)
@@ -134,7 +164,7 @@ describe('Invitation API Integration Tests', () => {
                 .set('Cookie', authCookie)
                 .set('x-organization-id', orgId)
                 .send({ email: invitedUserEmail, role_id: memberRoleId });
-            
+
             const inviteId = inviteRes.body.invitation.id;
 
             const res = await request(app)
@@ -148,6 +178,21 @@ describe('Invitation API Integration Tests', () => {
             // Verify it's gone
             const listRes = await request(app).get('/invitations').set('Cookie', authCookie).set('x-organization-id', orgId);
             expect(listRes.body.length).toBe(0);
+        });
+    });
+
+    describe('GET /invitations/validate', () => {
+        it('should enforce rate limiting on validate endpoint', async () => {
+            const token = 'dummy-token';
+            let res;
+            // Send 20 requests (within limit)
+            for (let i = 0; i < 20; i++) {
+                await request(app).get(`/invitations/validate?token=${token}`);
+            }
+            // Send 21st (exceeds limit)
+            res = await request(app).get(`/invitations/validate?token=${token}`);
+            expect(res.statusCode).toEqual(429);
+            expect(res.body.message).toMatch(/Too many validation requests/);
         });
     });
 });

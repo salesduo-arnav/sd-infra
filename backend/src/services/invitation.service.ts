@@ -16,6 +16,12 @@ class InvitationService {
         invitedBy: string,
         transaction?: Transaction
     ) {
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            throw new Error('Invalid email format');
+        }
+
         // Check if already invited
         const existingInvite = await Invitation.findOne({
             where: { organization_id: orgId, email, status: InvitationStatus.PENDING },
@@ -39,7 +45,8 @@ class InvitationService {
 
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+        const expiryDays = process.env.INVITATION_EXPIRY_DAYS ? parseInt(process.env.INVITATION_EXPIRY_DAYS, 10) : 7;
+        expiresAt.setDate(expiresAt.getDate() + expiryDays);
 
         const invitation = await Invitation.create({
             organization_id: orgId,

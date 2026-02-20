@@ -85,13 +85,13 @@ Invitation emails include:
 
 ## Issues Found
 
-1. **Hardcoded 7-day expiry** — Invitation expiry is hardcoded to 7 days in the invitation service. This should be configurable via system config or environment variable.
-2. **No automatic expiry cleanup** — Expired invitations are not automatically cleaned up. The system relies on status checks at read time, meaning expired invitations accumulate in the database.
-3. **Email validation missing** — The invitation service does not validate email format before creating the invitation or sending the email. Invalid emails will silently fail.
-4. **Mail failure is silent** — If the email fails to send, the invitation is still created in the database. The user sees success but the invitee never receives the email.
-5. **`FRONTEND_URL` fallback is localhost** — The default fallback for `FRONTEND_URL` is `http://localhost:5173`, which would generate broken links in production if the env var is missing.
-6. **Invitation token stored unencrypted** — While the token is generated securely with `crypto.randomBytes(32)`, it is stored in plaintext in the database.
-7. **`/invitations/validate` is public with no rate limiting** — This endpoint can be used to probe for valid tokens without authentication, potentially enabling information disclosure.
-8. **Race condition on acceptance** — The user organization limit check happens after the membership existence check. Concurrent acceptance requests could bypass the org limit.
-9. **`invited_by` SET NULL on user deletion** — When the inviting user is deleted, the `invited_by` field becomes null, breaking the audit trail for who sent the invitation.
-10. **Redundant unique constraints** — The invitation model has both a unique constraint on `token` alone and on `(organization_id, token)`. The global unique on `token` makes the composite unnecessary.
+- [x] **Hardcoded 7-day expiry** — Invitation expiry is hardcoded to 7 days in the invitation service. This should be configurable via system config or environment variable.
+- [] [_**Skipped**_] **No automatic expiry cleanup** — Expired invitations are not automatically cleaned up. The system relies on status checks at read time, meaning expired invitations accumulate in the database.
+- [x] **Email validation missing** — The invitation service does not validate email format before creating the invitation or sending the email. Invalid emails will silently fail.
+- [] [_**Skipped**_] **Mail failure is silent** — If the email fails to send, the invitation is still created in the database. The user sees success but the invitee never receives the email.
+- [] [_**Skipped**_] **`FRONTEND_URL` fallback is localhost** — The default fallback for `FRONTEND_URL` is `http://localhost:5173`, which would generate broken links in production if the env var is missing.
+- [] [_**Skipped**_] **Invitation token stored unencrypted** — While the token is generated securely with `crypto.randomBytes(32)`, it is stored in plaintext in the database.
+- [x] **`/invitations/validate` is public with no rate limiting** — This endpoint can be used to probe for valid tokens without authentication, potentially enabling information disclosure.
+- [] [_**Skipped**_] **Race condition on acceptance** — The user organization limit check happens after the membership existence check. Concurrent acceptance requests could bypass the org limit.
+- [] [_**Skipped**_] **`invited_by` SET NULL on user deletion** — When the inviting user is deleted, the `invited_by` field becomes null, breaking the audit trail for who sent the invitation.
+- [] [_**Skipped**_] **Redundant unique constraints** — The invitation model has both a unique constraint on `token` alone and on `(organization_id, token)`. The global unique on `token` makes the composite unnecessary.
