@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { Organization, OrganizationMember, OrgStatus } from '../models/organization';
+import { Organization, OrganizationMember } from '../models/organization';
+import { OrgStatus } from '../models/enums';
 import { Role, RolePermission } from '../models/role';
 import { User } from '../models/user';
 import sequelize from '../config/db';
@@ -36,12 +37,12 @@ export const createOrganization = async (req: Request, res: Response) => {
 
         const result = await sequelize.transaction(async (t) => {
             // Generate slug from name
-            let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 40);
 
             // Append random string if slug exists
             const slugExists = await Organization.findOne({ where: { slug }, transaction: t });
             if (slugExists) {
-                slug = `${slug}-${Math.floor(Math.random() * 10000)}`;
+                slug = `${slug.substring(0, 35)}-${Math.floor(Math.random() * 10000)}`;
             }
 
             // Create Organization
@@ -69,43 +70,50 @@ export const createOrganization = async (req: Request, res: Response) => {
             return organization;
         });
 
-        // Handle Invites in background (fire and forget)
-        const handleInvites = async () => {
-            if (invites && Array.isArray(invites) && invites.length > 0) {
-                try {
-                    // Find Member Role
-                    let memberRole = await Role.findOne({ where: { name: RoleType.MEMBER } });
-                    if (!memberRole) {
-                        memberRole = await Role.create({ name: RoleType.MEMBER, description: 'Organization Member' });
-                    }
+        const failedInvites: string[] = [];
 
-                    for (const email of invites) {
-                        if (email && typeof email === 'string') {
-                            // Use separate transaction or no transaction for each invite
-                            await invitationService.sendInvitation(result.id, email, memberRole.id, userId);
-                        }
-                    }
-                } catch (inviteError) {
-                    Logger.error('Error sending background invites', { error: inviteError });
+        // Handle Invites
+        if (invites && Array.isArray(invites) && invites.length > 0) {
+            try {
+                // Find Member Role
+                let memberRole = await Role.findOne({ where: { name: RoleType.MEMBER } });
+                if (!memberRole) {
+                    memberRole = await Role.create({ name: RoleType.MEMBER, description: 'Organization Member' });
                 }
-            }
-        };
 
-        // Trigger invites without awaiting
-        handleInvites();
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                const invitePromises = invites.map(async (email) => {
+                    if (email && typeof email === 'string' && emailRegex.test(email)) {
+                        try {
+                            await invitationService.sendInvitation(result.id, email, memberRole.id, userId);
+                        } catch (inviteError) {
+                            Logger.error(`Error sending invite to ${email}`, { error: inviteError });
+                            failedInvites.push(email);
+                        }
+                    } else {
+                        failedInvites.push(email); // Invalid email format
+                    }
+                });
+
+                await Promise.all(invitePromises);
+            } catch (error) {
+                Logger.error('Error processing invites', { error });
+            }
+        }
 
         await AuditService.log({
             actorId: userId,
             action: 'CREATE_ORGANIZATION',
             entityType: 'Organization',
             entityId: result.id,
-            details: { name: result.name, slug: result.slug, invites_count: invites?.length || 0 },
+            details: { name: result.name, slug: result.slug, invites_count: invites?.length || 0, failed_invites_count: failedInvites.length },
             req
         });
 
         res.status(201).json({
             message: 'Organization created successfully',
-            organization: result
+            organization: result,
+            ...(failedInvites.length > 0 && { failed_invites: failedInvites })
         });
 
     } catch (error) {
