@@ -59,8 +59,10 @@ export const getSpAuthUrl = async (req: Request, res: Response) => {
         const statePayload = `${accountId}##${state}`; // accountId##state
 
         // Determine Base URL based on region
-        // defaulting to NA if not found, or maybe throw error
-        const regionCode = MARKETPLACE_REGION_MAP[account.region] || 'NA';
+        const regionCode = MARKETPLACE_REGION_MAP[account.region];
+        if (!regionCode) {
+            return res.status(400).json({ message: `Unsupported or unknown region: ${account.region}` });
+        }
 
         let authUrl: string;
 
@@ -178,6 +180,16 @@ export const handleSpCallback = async (req: Request, res: Response) => {
 // ========================================
 // Popup HTML Response
 // ========================================
+
+const escapeHtml = (unsafe: string) => {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+};
+
 const sendOAuthPopupResponse = (
     res: Response,
     status: 'success' | 'error',
@@ -192,7 +204,7 @@ const sendOAuthPopupResponse = (
     };
 
     // FORCE lax CSP for this specific response to ensure the inline script runs.
-    res.setHeader('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval';");
+    res.setHeader('Content-Security-Policy', "default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';");
     res.setHeader('Content-Type', 'text/html');
 
     return res.send(`
@@ -282,7 +294,7 @@ const sendOAuthPopupResponse = (
                <p>Your Amazon account has been connected successfully.</p>
                <p>This window will close automatically.</p>`
             : `<h3>Authentication Failed</h3>
-               <div class="error">${message || 'An unknown error occurred.'}</div>
+               <div class="error">${escapeHtml(message || 'An unknown error occurred.')}</div>
                <p>Please close this window and try again.</p>`
         }
         
@@ -309,7 +321,8 @@ const sendOAuthPopupResponse = (
             if (window.opener) {
                 try {
                     console.log("[Backend] Sending message to opener...");
-                    window.opener.postMessage(payload, "*");
+                    const targetOrigin = '${process.env.FRONTEND_URL || "http://localhost:5173"}';
+                    window.opener.postMessage(payload, targetOrigin);
                     console.log("[Backend] Message sent.");
                 } catch (err) {
                     console.error("[Backend] Error sending message:", err);

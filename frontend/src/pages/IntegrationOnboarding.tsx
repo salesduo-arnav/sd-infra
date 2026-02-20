@@ -35,6 +35,7 @@ import {
 } from "@/services/integration.service";
 import { getToolBySlug } from "@/services/tool.service";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
+import { useOAuthPopup } from "@/hooks/useOAuthPopup";
 
 // ------------------------------------------------------------------
 // Data                                                               
@@ -64,6 +65,7 @@ export default function IntegrationOnboarding() {
     const appId = searchParams.get("app");
     const { activeOrganization } = useAuth();
     const orgId = activeOrganization?.id || "";
+    const { openOAuthPopup } = useOAuthPopup();
 
     // State
     const [accountName, setAccountName] = useState<string>("");
@@ -302,134 +304,49 @@ export default function IntegrationOnboarding() {
                 const { getAdsAuthUrl } = await import("@/services/integration.service");
                 const url = await getAdsAuthUrl(orgId, accountId);
 
-                const width = 600;
-                const height = 700;
-                const left = window.screen.width / 2 - width / 2;
-                const top = window.screen.height / 2 - height / 2;
-
-                const popup = window.open(
+                const success = await openOAuthPopup({
+                    orgId,
+                    accountId,
                     url,
-                    "Connect Amazon Ads",
-                    `width=${width},height=${height},top=${top},left=${left}`
-                );
+                    title: "Connect Amazon Ads",
+                    width: 600,
+                    height: 700,
+                    successType: "ADS_AUTH_SUCCESS",
+                    errorType: "ADS_AUTH_ERROR"
+                });
 
-                if (!popup) {
-                    toast.error("Please allow popups to connect integrations.");
-                    setConnecting(null);
-                    return;
+                if (success) {
+                    toast.success("Integration connected successfully!");
+                    setIsAdsConnected(true);
+                } else {
+                    toast.error("Failed to connect integration");
                 }
-
-                // POLLING MECHANISM: Robust fallback for when postMessage fails
-                const pollInterval = setInterval(async () => {
-                    if (!orgId) return;
-                    try {
-                        const accounts = await getIntegrationAccounts(orgId);
-                        const account = accounts.find(a => a.id === accountId);
-
-                        if (account?.status === 'connected') {
-                            clearInterval(pollInterval);
-                            if (!popup.closed) popup.close();
-
-                            toast.success("Integration connected successfully!");
-                            // Update state manually because refreshIntegrations might have a stale closure
-                            setIsAdsConnected(true);
-                            setConnecting(null);
-                        } else if (account?.status === 'error') {
-                            clearInterval(pollInterval);
-                            if (!popup.closed) popup.close();
-
-                            toast.error("Failed to connect integration");
-                            setConnecting(null);
-                        }
-                    } catch (e) {
-                        // ignore errors during polling
-                    }
-                }, 2000);
-
-                // Stop polling after 2 minutes to prevent infinite loops
-                setTimeout(() => {
-                    clearInterval(pollInterval);
-                    if (connecting === 'ads') setConnecting(null);
-                }, 120000);
-
-                // Monitor popup closure to reset loading state (cancelled by user)
-                const checkPopup = setInterval(() => {
-                    if (popup.closed) {
-                        clearInterval(checkPopup);
-                        setTimeout(() => {
-                            // If we are still connecting after popup closes and short delay, 
-                            // it likely means we didn't get a success.
-                            setConnecting(prev => prev === 'ads' ? null : prev);
-                            clearInterval(pollInterval);
-                        }, 3000);
-                    }
-                }, 1000);
+                setConnecting(null);
 
             } else {
                 // --- Real OAuth Flow for SP-API (SC & VC) ---
                 const { getSpAuthUrl } = await import("@/services/integration.service");
                 const url = await getSpAuthUrl(orgId, accountId);
 
-                const width = window.screen.width;
-                const height = window.screen.height;
-                const left = 0;
-                const top = 0;
-
-                const popup = window.open(
+                const success = await openOAuthPopup({
+                    orgId,
+                    accountId,
                     url,
-                    "Connect Amazon SP-API",
-                    `width=${width},height=${height},top=${top},left=${left}`
-                );
+                    title: "Connect Amazon SP-API",
+                    width: window.screen.width,
+                    height: window.screen.height,
+                    successType: "SP_AUTH_SUCCESS",
+                    errorType: "SP_AUTH_ERROR"
+                });
 
-                if (!popup) {
-                    toast.error("Please allow popups to connect integrations.");
-                    setConnecting(null);
-                    return;
+                if (success) {
+                    toast.success("Integration connected successfully!");
+                    if (type === 'seller') setIsSellerConnected(true);
+                    if (type === 'vendor') setIsVendorConnected(true);
+                } else {
+                    toast.error("Failed to connect integration");
                 }
-
-                // POLLING MECHANISM
-                const pollInterval = setInterval(async () => {
-                    if (!orgId) return;
-                    try {
-                        const accounts = await getIntegrationAccounts(orgId);
-                        const account = accounts.find(a => a.id === accountId);
-
-                        if (account?.status === 'connected') {
-                            clearInterval(pollInterval);
-                            if (!popup.closed) popup.close();
-
-                            toast.success("Integration connected successfully!");
-                            if (type === 'seller') setIsSellerConnected(true);
-                            if (type === 'vendor') setIsVendorConnected(true);
-                            setConnecting(null);
-                        } else if (account?.status === 'error') {
-                            clearInterval(pollInterval);
-                            if (!popup.closed) popup.close();
-
-                            toast.error("Failed to connect integration");
-                            setConnecting(null);
-                        }
-                    } catch (e) {
-                        // ignore
-                    }
-                }, 2000);
-
-                setTimeout(() => {
-                    clearInterval(pollInterval);
-                    if (connecting === type) setConnecting(null);
-                }, 120000);
-
-                const checkPopup = setInterval(() => {
-                    if (popup.closed) {
-                        clearInterval(checkPopup);
-                        setTimeout(() => {
-                            if (connecting === type) {
-                                setConnecting(null);
-                                clearInterval(pollInterval);
-                            }
-                        }, 3000);
-                    }
-                }, 1000);
+                setConnecting(null);
             }
 
         } catch (error: unknown) {
