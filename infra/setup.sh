@@ -266,7 +266,7 @@ if [[ -z "$ASG_MIN" ]]; then
   [[ "$ENV" == "prod" ]] && ASG_MIN=2 || ASG_MIN=1
 fi
 if [[ -z "$ASG_MAX" ]]; then
-  [[ "$ENV" == "prod" ]] && ASG_MAX=4 || ASG_MAX=1
+  [[ "$ENV" == "prod" ]] && ASG_MAX=4 || ASG_MAX=2
 fi
 if [[ -z "$ASG_DESIRED" ]]; then
   [[ "$ENV" == "prod" ]] && ASG_DESIRED=2 || ASG_DESIRED=1
@@ -1254,6 +1254,12 @@ save_resource "cloudmap_service_id" "$CM_SERVICE_ID"
 # ══════════════════════════════════════════════════════════════════════════════
 step "Step 12: Creating ECS cluster"
 
+# Enable ENI trunking so awsvpc tasks share a trunk ENI — required for
+# rolling deployments where old + new tasks must run simultaneously on a
+# single EC2 instance without exceeding the per-instance ENI limit.
+aws ecs put-account-setting --name awsvpcTrunking --value enabled --region "$REGION" >/dev/null 2>&1 || true
+log "Enabled awsvpcTrunking account setting"
+
 CLUSTER_NAME="${PROJECT}-${ENV}-cluster"
 
 CLUSTER_ARN=$(aws ecs describe-clusters --clusters "$CLUSTER_NAME" \
@@ -1936,7 +1942,7 @@ if [[ "$APP_SVC_STATUS" == "None" || -z "$APP_SVC_STATUS" ]]; then
     --network-configuration "awsvpcConfiguration={subnets=[$PRIVATE_SUBNET1,$PRIVATE_SUBNET2],securityGroups=[$ECS_SG_ID]}" \
     --load-balancers "targetGroupArn=$BACKEND_TG_ARN,containerName=backend,containerPort=$API_PORT" "targetGroupArn=$FRONTEND_TG_ARN,containerName=frontend,containerPort=8080" \
     --deployment-configuration "$DEPLOY_CONFIG" \
-    --health-check-grace-period-seconds 120 \
+    --health-check-grace-period-seconds 300 \
     --region "$REGION" --output text >/dev/null
   log "Created App service: $APP_SERVICE_NAME"
 else
