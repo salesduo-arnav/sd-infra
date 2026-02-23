@@ -78,6 +78,25 @@ export function AppSidebar() {
       .slice(0, 2);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      const items = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-sidebar="menu-button"]')
+      );
+      const activeElement = document.activeElement as HTMLElement;
+      const currentIndex = items.indexOf(activeElement);
+
+      if (currentIndex !== -1) {
+        e.preventDefault();
+        const nextIndex =
+          e.key === "ArrowDown"
+            ? (currentIndex + 1) % items.length
+            : (currentIndex - 1 + items.length) % items.length;
+        items[nextIndex]?.focus();
+      }
+    }
+  };
+
   return (
     <Sidebar className="border-r border-border/50 bg-sidebar-background">
       <SidebarHeader className="border-b border-border/50 p-4">
@@ -134,7 +153,7 @@ export function AppSidebar() {
         </DropdownMenu>
       </SidebarHeader>
 
-      <SidebarContent className="p-2">
+      <SidebarContent className="p-2" onKeyDown={handleKeyDown}>
         <SidebarGroup>
           <SidebarGroupLabel className="px-3 text-xs font-semibold text-muted-foreground/70 uppercase tracking-widest mt-2 mb-1">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>

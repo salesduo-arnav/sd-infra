@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { Layout } from "@/components/layout/Layout";
 import { DataTable, DataTableColumnHeader, DataTableStaticHeader } from "@/components/ui/data-table";
 import { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
@@ -249,7 +248,7 @@ export default function AuditLogs() {
     ];
 
     return (
-        <Layout>
+        <>
             <div className="space-y-8">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Audit Logs</h1>
@@ -433,6 +432,6 @@ export default function AuditLogs() {
                     </DialogContent>
                 </Dialog>
             </div>
-        </Layout>
+        </>
     );
 }

@@ -43,6 +43,7 @@ User.init(
     password_hash: {
       type: DataTypes.STRING,
       allowNull: true,
+      comment: 'Null for OAuth-only users (Google login). Only set for email/password registrations.',
     },
     full_name: {
       type: DataTypes.STRING,
@@ -87,16 +88,22 @@ User.init(
     ],
     hooks: {
       afterDestroy: async (user, options) => {
-        const { OrganizationMember } = await import('./organization'); // Dynamic import to avoid circular dependency
-        await OrganizationMember.destroy({
-          where: { user_id: user.id },
-          transaction: options.transaction,
-        });
-        const { Invitation } = await import('./invitation'); // Dynamic import to avoid circular dependency
-        await Invitation.destroy({
-          where: { email: user.email },
-          transaction: options.transaction,
-        });
+        try {
+          // Dynamic imports required to avoid circular dependencies
+          const { OrganizationMember } = await import('./organization');
+          await OrganizationMember.destroy({
+            where: { user_id: user.id },
+            transaction: options.transaction,
+          });
+          const { Invitation } = await import('./invitation');
+          await Invitation.destroy({
+            where: { email: user.email },
+            transaction: options.transaction,
+          });
+        } catch (error) {
+          console.error(`Cascade delete failed for user ${user.id}:`, error);
+          throw error; // Re-throw to trigger transaction rollback
+        }
       },
     },
   }

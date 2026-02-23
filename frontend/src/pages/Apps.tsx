@@ -1,7 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Layout } from "@/components/layout/Layout";
 import { AppCard } from "@/components/dashboard/AppCard";
+import { AppCardSkeleton } from "@/components/dashboard/AppCardSkeleton";
 import { FileText, ImageIcon, BarChart, Package } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getTools, Tool } from "@/services/tool.service";
@@ -41,7 +41,7 @@ export default function Apps() {
   };
 
   return (
-    <Layout>
+    <>
       <div className="space-y-10">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary/10 via-primary/5 to-background p-8 md:p-12 border border-primary/10">
           <div className="relative z-10 max-w-2xl">
@@ -67,7 +67,9 @@ export default function Apps() {
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {loading ? (
-              <div className="col-span-full text-center text-muted-foreground">Loading tools...</div>
+              Array.from({ length: 4 }).map((_, i) => (
+                <AppCardSkeleton key={i} />
+              ))
             ) : (
               tools.map((tool, index) => {
                 const Icon = icons[index % icons.length];
@@ -86,6 +88,6 @@ export default function Apps() {
           </div>
         </div>
       </div>
-    </Layout>
+    </>
   );
 }

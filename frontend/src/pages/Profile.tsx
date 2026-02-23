@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_URL } from "@/lib/api";
 import { toast } from "sonner";
-import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -122,7 +121,7 @@ export default function Profile() {
   };
 
   return (
-    <Layout>
+    <>
       <div className="container max-w-4xl py-10 space-y-8 animate-in fade-in duration-500">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Account Settings</h1>
@@ -318,6 +317,6 @@ export default function Profile() {
           </Card>
         </div>
       </div>
-    </Layout>
+    </>
   );
 }

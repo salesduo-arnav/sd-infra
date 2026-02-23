@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 interface LayoutProps {
   children: ReactNode;
@@ -65,7 +66,9 @@ export function Layout({ children, animationClass }: LayoutProps) {
           </header>
           <div className="flex-1 overflow-auto p-6 md:p-8">
             <div className={cn("mx-auto max-w-6xl space-y-8", animationClass ?? "animate-in fade-in slide-in-from-bottom-4 duration-500")}>
-              {children}
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
             </div>
           </div>
         </main>

@@ -2,16 +2,11 @@ import { DataTypes, Model, Optional } from 'sequelize';
 import sequelize from '../config/db';
 import { User } from './user'; // Assuming User is exported from user.ts
 import { Role } from './role';
+import { OrgStatus } from './enums';
 
 // ==========================
 // Organization Model
 // ==========================
-
-export enum OrgStatus {
-  ACTIVE = 'active',
-  SUSPENDED = 'suspended',
-  ARCHIVED = 'archived',
-}
 
 export interface OrganizationAttributes {
   id: string;
@@ -123,36 +118,42 @@ Organization.init(
     ],
     hooks: {
       afterDestroy: async (organization, options) => {
-        const { Invitation } = await import('./invitation'); // Dynamic import
-        const { Subscription } = await import('./subscription');
-        const { OrganizationEntitlement } = await import('./organization_entitlement');
-        const { OneTimePurchase } = await import('./one_time_purchase');
+        try {
+          // Dynamic imports required to avoid circular dependencies
+          const { Invitation } = await import('./invitation');
+          const { Subscription } = await import('./subscription');
+          const { OrganizationEntitlement } = await import('./organization_entitlement');
+          const { OneTimePurchase } = await import('./one_time_purchase');
 
-        // Soft delete members
-        await OrganizationMember.destroy({
-          where: { organization_id: organization.id },
-          transaction: options.transaction,
-        });
-        // Soft delete invitations
-        await Invitation.destroy({
-          where: { organization_id: organization.id },
-          transaction: options.transaction,
-        });
-        // Soft delete subscriptions
-        await Subscription.destroy({
-          where: { organization_id: organization.id },
-          transaction: options.transaction,
-        });
-        // Soft delete entitlements
-        await OrganizationEntitlement.destroy({
-          where: { organization_id: organization.id },
-          transaction: options.transaction,
-        });
-        // Soft delete OTPs
-        await OneTimePurchase.destroy({
-          where: { organization_id: organization.id },
-          transaction: options.transaction,
-        });
+          // Soft delete members
+          await OrganizationMember.destroy({
+            where: { organization_id: organization.id },
+            transaction: options.transaction,
+          });
+          // Soft delete invitations
+          await Invitation.destroy({
+            where: { organization_id: organization.id },
+            transaction: options.transaction,
+          });
+          // Soft delete subscriptions
+          await Subscription.destroy({
+            where: { organization_id: organization.id },
+            transaction: options.transaction,
+          });
+          // Soft delete entitlements
+          await OrganizationEntitlement.destroy({
+            where: { organization_id: organization.id },
+            transaction: options.transaction,
+          });
+          // Soft delete one-time purchases
+          await OneTimePurchase.destroy({
+            where: { organization_id: organization.id },
+            transaction: options.transaction,
+          });
+        } catch (error) {
+          console.error(`Cascade delete failed for organization ${organization.id}:`, error);
+          throw error; // Re-throw to trigger transaction rollback
+        }
       },
     },
   }
@@ -273,28 +274,34 @@ OrganizationMember.init(
     ],
     hooks: {
       afterDestroy: async (member, options) => {
-        const { Invitation } = await import('./invitation');
-        const { User } = await import('./user');
+        try {
+          // Dynamic imports required to avoid circular dependencies
+          const { Invitation } = await import('./invitation');
+          const { User } = await import('./user');
 
-        let userEmail: string | undefined;
+          let userEmail: string | undefined;
 
-        if (member.user && member.user.email) {
-          userEmail = member.user.email;
-        } else {
-          const user = await User.findByPk(member.user_id, { transaction: options.transaction });
-          if (user) {
-            userEmail = user.email;
+          if (member.user && member.user.email) {
+            userEmail = member.user.email;
+          } else {
+            const user = await User.findByPk(member.user_id, { transaction: options.transaction });
+            if (user) {
+              userEmail = user.email;
+            }
           }
-        }
 
-        if (userEmail) {
-          await Invitation.destroy({
-            where: {
-              organization_id: member.organization_id,
-              email: userEmail
-            },
-            transaction: options.transaction,
-          });
+          if (userEmail) {
+            await Invitation.destroy({
+              where: {
+                organization_id: member.organization_id,
+                email: userEmail
+              },
+              transaction: options.transaction,
+            });
+          }
+        } catch (error) {
+          console.error(`Cascade delete failed for organization member ${member.id}:`, error);
+          throw error; // Re-throw to trigger transaction rollback
         }
       },
     }

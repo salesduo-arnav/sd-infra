@@ -5,7 +5,8 @@ import redisClient from '../config/redis';
 import User from '../models/user';
 import { Organization, OrganizationMember } from '../models/organization';
 import { Role, Permission, RolePermission } from '../models/role';
-import { Invitation, InvitationStatus } from '../models/invitation';
+import { Invitation } from '../models/invitation';
+import { InvitationStatus } from '../models/enums';
 import { seedPermissions } from './test-helpers';
 
 describe('Organization API Integration Tests', () => {

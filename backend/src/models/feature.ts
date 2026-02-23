@@ -86,11 +86,17 @@ Feature.init(
     ],
     hooks: {
       afterDestroy: async (feature, options) => {
-        const { PlanLimit } = await import('./plan_limit');
-        const { OrganizationEntitlement } = await import('./organization_entitlement');
+        try {
+          // Dynamic imports required to avoid circular dependencies
+          const { PlanLimit } = await import('./plan_limit');
+          const { OrganizationEntitlement } = await import('./organization_entitlement');
 
-        await PlanLimit.destroy({ where: { feature_id: feature.id }, transaction: options.transaction, individualHooks: true });
-        await OrganizationEntitlement.destroy({ where: { feature_id: feature.id }, transaction: options.transaction, individualHooks: true });
+          await PlanLimit.destroy({ where: { feature_id: feature.id }, transaction: options.transaction, individualHooks: true });
+          await OrganizationEntitlement.destroy({ where: { feature_id: feature.id }, transaction: options.transaction, individualHooks: true });
+        } catch (error) {
+          console.error(`Cascade delete failed for feature ${feature.id}:`, error);
+          throw error; // Re-throw to trigger transaction rollback
+        }
       }
     }
   }

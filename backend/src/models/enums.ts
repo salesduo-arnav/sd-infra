@@ -22,15 +22,16 @@ export enum SubStatus {
   PAUSED = 'paused',
 }
 
-export enum FeatureType {
-  BOOLEAN = 'boolean',
-  METERED = 'metered',
-}
-
 export enum FeatureResetPeriod {
   MONTHLY = 'monthly',
   YEARLY = 'yearly',
   NEVER = 'never',
+}
+
+export enum InvitationStatus {
+  PENDING = 'pending',
+  ACCEPTED = 'accepted',
+  EXPIRED = 'expired',
 }
 
 export enum OrgStatus {
