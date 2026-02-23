@@ -1,14 +1,30 @@
 import { Response } from 'express';
 import Logger from '../utils/logger';
 
+export class AppError extends Error {
+    constructor(public statusCode: number, message: string) {
+        super(message);
+        this.name = this.constructor.name;
+        Error.captureStackTrace(this, this.constructor);
+    }
+}
+
 export const handleError = (res: Response, error: unknown, message: string = 'Internal server error') => {
     Logger.error(message, { error });
 
     if (res.headersSent) return;
 
-    const err = error as Error;
+    if (error instanceof AppError) {
+        return res.status(error.statusCode).json({ message: error.message });
+    }
 
-    if (err.message === 'NOT_FOUND' || err.message.includes('not found')) {
+    const err = error as Error & { statusCode?: number };
+
+    if (err.statusCode) {
+        return res.status(err.statusCode).json({ message: err.message || message });
+    }
+
+    if (err.message === 'NOT_FOUND') {
         return res.status(404).json({ message: 'Resource not found' });
     }
 
