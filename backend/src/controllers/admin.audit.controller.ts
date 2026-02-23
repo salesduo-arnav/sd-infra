@@ -39,10 +39,18 @@ export const getAuditLogs = async (req: Request, res: Response) => {
         if (start_date || end_date) {
             whereClause.created_at = {};
             if (start_date) {
-                whereClause.created_at[Op.gte] = new Date(start_date as string);
+                const parsedStart = new Date(start_date as string);
+                if (isNaN(parsedStart.getTime())) {
+                    return res.status(400).json({ message: 'Invalid start_date format' });
+                }
+                whereClause.created_at[Op.gte] = parsedStart;
             }
             if (end_date) {
-                whereClause.created_at[Op.lte] = new Date(end_date as string);
+                const parsedEnd = new Date(end_date as string);
+                if (isNaN(parsedEnd.getTime())) {
+                    return res.status(400).json({ message: 'Invalid end_date format' });
+                }
+                whereClause.created_at[Op.lte] = parsedEnd;
             }
         }
 

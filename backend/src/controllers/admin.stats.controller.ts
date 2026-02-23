@@ -7,9 +7,33 @@ import { handleError } from '../utils/error';
 import { getStartOfMonth, calculateGrowth, calculateMRR } from '../utils/stats';
 import Logger from '../utils/logger';
 
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const statsCache = new Map<string, { data: any; timestamp: number }>();
+
+function getCached(key: string) {
+    const cached = statsCache.get(key);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        Logger.info(`[Cache] HIT for stats key: ${key}`);
+        return cached.data;
+    }
+    Logger.info(`[Cache] MISS for stats key: ${key}`);
+    return null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function setCache(key: string, data: any) {
+    statsCache.set(key, { data, timestamp: Date.now() });
+}
+
 export const getOverviewStats = async (req: Request, res: Response) => {
     Logger.info('Fetching overview stats');
     try {
+        const cached = getCached('overview');
+        if (cached) {
+            return res.status(200).json(cached);
+        }
+
         const totalUsers = await User.count();
         const totalOrgs = await Organization.count();
 
@@ -76,8 +100,7 @@ export const getOverviewStats = async (req: Request, res: Response) => {
         const totalOrgsStartOfMonth = totalOrgs - orgsCurrentMonth;
         const orgGrowthPercentage = calculateGrowth(totalOrgs, totalOrgsStartOfMonth);
 
-
-        res.status(200).json({
+        const responseData = {
             totalUsers,
             totalOrgs,
             activeSubs,
@@ -91,7 +114,10 @@ export const getOverviewStats = async (req: Request, res: Response) => {
             activeSubsGrowthAbsolute,
             mrrGrowth,
             mrrGrowthAbsolute
-        });
+        };
+
+        setCache('overview', responseData);
+        res.status(200).json(responseData);
     } catch (error) {
         handleError(res, error, 'Get Overview Stats Error');
     }
@@ -99,6 +125,11 @@ export const getOverviewStats = async (req: Request, res: Response) => {
 
 export const getRevenueChart = async (req: Request, res: Response) => {
     try {
+        const cached = getCached('revenueChart');
+        if (cached) {
+            return res.status(200).json(cached);
+        }
+
         const revenueData = await OneTimePurchase.findAll({
             attributes: [
                 [Sequelize.fn('date_trunc', 'month', Sequelize.col('created_at')), 'month'],
@@ -110,6 +141,7 @@ export const getRevenueChart = async (req: Request, res: Response) => {
             raw: true
         });
 
+        setCache('revenueChart', revenueData);
         res.status(200).json(revenueData);
     } catch (error) {
         handleError(res, error, 'Get Revenue Chart Error');
@@ -118,6 +150,11 @@ export const getRevenueChart = async (req: Request, res: Response) => {
 
 export const getUserGrowthChart = async (req: Request, res: Response) => {
     try {
+        const cached = getCached('userGrowthChart');
+        if (cached) {
+            return res.status(200).json(cached);
+        }
+
         const growthData = await User.findAll({
             attributes: [
                 [Sequelize.fn('date_trunc', 'month', Sequelize.col('created_at')), 'month'],
@@ -128,6 +165,7 @@ export const getUserGrowthChart = async (req: Request, res: Response) => {
             raw: true
         });
 
+        setCache('userGrowthChart', growthData);
         res.status(200).json(growthData);
     } catch (error) {
         handleError(res, error, 'Get User Growth Chart Error');
@@ -136,6 +174,11 @@ export const getUserGrowthChart = async (req: Request, res: Response) => {
 
 export const getToolUsageChart = async (req: Request, res: Response) => {
     try {
+        const cached = getCached('toolUsageChart');
+        if (cached) {
+            return res.status(200).json(cached);
+        }
+
         const usageData = await ToolUsage.findAll({
             attributes: [
                 'tool_id',
@@ -149,6 +192,7 @@ export const getToolUsageChart = async (req: Request, res: Response) => {
             limit: 5
         });
 
+        setCache('toolUsageChart', usageData);
         res.status(200).json(usageData);
     } catch (error) {
         handleError(res, error, 'Get Tool Usage Chart Error');

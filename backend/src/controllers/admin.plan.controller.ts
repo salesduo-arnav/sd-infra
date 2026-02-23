@@ -274,6 +274,32 @@ export const deletePlan = async (req: Request, res: Response) => {
                 throw new Error('HAS_ACTIVE_SUBSCRIPTIONS');
             }
 
+            // Check for active subscriptions for any bundle that contains this plan
+            const activeBundleSubscription = await import('../models/subscription').then(async ({ Subscription }) => {
+                const { BundlePlan } = await import('../models/bundle_plan');
+
+                const bundlePlans = await BundlePlan.findAll({
+                    where: { plan_id: id },
+                    transaction: t
+                });
+
+                if (bundlePlans.length === 0) return null;
+
+                const bundleIds = bundlePlans.map(bp => bp.bundle_id);
+
+                return Subscription.findOne({
+                    where: {
+                        bundle_id: { [Op.in]: bundleIds },
+                        status: { [Op.in]: [SubStatus.ACTIVE, SubStatus.TRIALING, SubStatus.PAST_DUE] }
+                    },
+                    transaction: t
+                });
+            });
+
+            if (activeBundleSubscription) {
+                throw new Error('HAS_ACTIVE_BUNDLE_SUBSCRIPTIONS');
+            }
+
             await plan.destroy({ transaction: t });
         });
 
@@ -292,6 +318,11 @@ export const deletePlan = async (req: Request, res: Response) => {
         if (err.message === 'HAS_ACTIVE_SUBSCRIPTIONS') {
             return res.status(400).json({
                 message: 'Cannot delete plan. There are active subscriptions associated with this plan.'
+            });
+        }
+        if (err.message === 'HAS_ACTIVE_BUNDLE_SUBSCRIPTIONS') {
+            return res.status(400).json({
+                message: 'Cannot delete plan. There are active subscriptions for a bundle containing this plan.'
             });
         }
         handleError(res, error, 'Delete Plan Error');
