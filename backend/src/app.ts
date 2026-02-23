@@ -12,6 +12,7 @@ import toolRoutes from './routes/tool.routes';
 import publicPlanRoutes from './routes/public.plan.routes';
 import integrationRoutes from './routes/integration.routes';
 import userRoutes from './routes/user.routes';
+import rateLimit from 'express-rate-limit';
 import { errorHandler } from './middlewares/error';
 import morganMiddleware from './middlewares/morgan.middleware';
 import './models'; // Initialize associations
@@ -49,7 +50,14 @@ app.get('/api/health', (req, res) => res.status(200).send('OK'));
 
 // SP-API Callback
 import { handleSpCallback } from './controllers/sp.controller';
-app.get('/callback', handleSpCallback);
+
+const oauthRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  message: 'Too many OAuth requests from this IP, please try again after 15 minutes'
+});
+
+app.get('/callback', oauthRateLimiter, handleSpCallback);
 
 app.use(errorHandler);
 

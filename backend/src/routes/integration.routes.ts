@@ -10,6 +10,13 @@ import {
     disconnectGlobalIntegration,
 } from '../controllers/integration.controller';
 import { authenticate } from '../middlewares/auth.middleware';
+import rateLimit from 'express-rate-limit';
+
+const oauthRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    limit: 10, // limit each IP to 10 requests per windowMs
+    message: 'Too many OAuth requests from this IP, please try again after 15 minutes'
+});
 
 const router = Router();
 
@@ -27,11 +34,11 @@ router.delete('/global/:id', authenticate, disconnectGlobalIntegration);
 
 // Amazon Ads
 import { getAdsAuthUrl, handleAdsCallback } from '../controllers/ads.controller';
-router.get('/amazon-ads/auth-url', authenticate, getAdsAuthUrl);
-router.get('/amazon-ads/callback', handleAdsCallback);
+router.get('/amazon-ads/auth-url', authenticate, oauthRateLimiter, getAdsAuthUrl);
+router.get('/amazon-ads/callback', oauthRateLimiter, handleAdsCallback);
 
 // Amazon SP-API (SC & VC); Note - Handling the Callback in app.ts
 import { getSpAuthUrl } from '../controllers/sp.controller';
-router.get('/sp-api/auth-url', authenticate, getSpAuthUrl);
+router.get('/sp-api/auth-url', authenticate, oauthRateLimiter, getSpAuthUrl);
 
 export default router;
