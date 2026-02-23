@@ -210,7 +210,14 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-
+      <Route
+          path="/integration-onboarding"
+          element={
+            <ProtectedRoute>
+              <IntegrationOnboarding />
+            </ProtectedRoute>
+          }
+      />
       <Route element={<AppLayout />}>
         <Route
           path="/apps"
@@ -258,14 +265,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/integration-onboarding"
-          element={
-            <ProtectedRoute>
-              <IntegrationOnboarding />
-            </ProtectedRoute>
-          }
-        />
+
         <Route
           path="/tools/listing-generator"
           element={
