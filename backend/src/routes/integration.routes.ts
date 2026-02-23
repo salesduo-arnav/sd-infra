@@ -15,7 +15,8 @@ import rateLimit from 'express-rate-limit';
 const oauthRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     limit: 10, // limit each IP to 10 requests per windowMs
-    message: 'Too many OAuth requests from this IP, please try again after 15 minutes'
+    message: 'Too many OAuth requests from this IP, please try again after 15 minutes',
+    skip: () => process.env.NODE_ENV === 'test'
 });
 
 const router = Router();

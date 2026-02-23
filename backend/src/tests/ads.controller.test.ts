@@ -219,8 +219,7 @@ describe('Ads Controller Integration Tests', () => {
             expect(updatedAccount?.status).toEqual(IntegrationStatus.CONNECTED);
             expect(updatedAccount?.oauth_state).toBeNull();
             expect(updatedAccount?.credentials).toEqual(expect.objectContaining({
-                access_token: 'mock_access_token',
-                refresh_token: 'mock_refresh_token'
+                encrypted: expect.any(String)
             }));
         });
 

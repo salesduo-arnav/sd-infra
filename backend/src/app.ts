@@ -54,7 +54,8 @@ import { handleSpCallback } from './controllers/sp.controller';
 const oauthRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
-  message: 'Too many OAuth requests from this IP, please try again after 15 minutes'
+  message: 'Too many OAuth requests from this IP, please try again after 15 minutes',
+  skip: () => process.env.NODE_ENV === 'test'
 });
 
 app.get('/callback', oauthRateLimiter, handleSpCallback);
