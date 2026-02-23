@@ -11,6 +11,7 @@ import { getPaginationOptions, formatPaginationResponse } from '../utils/paginat
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
 import Logger from '../utils/logger';
+import { IntegrationType } from '../models/integration_account';
 
 // ==========================
 // Tool Config Controllers
@@ -76,6 +77,19 @@ export const createTool = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Name and slug are required' });
         }
 
+        if (required_integrations && !Array.isArray(required_integrations)) {
+            return res.status(400).json({ message: 'required_integrations must be an array' });
+        }
+
+        if (required_integrations) {
+            const validTypes = Object.values(IntegrationType) as string[];
+            for (const type of required_integrations) {
+                if (!validTypes.includes(type)) {
+                    return res.status(400).json({ message: `Invalid integration type in required_integrations: ${type}` });
+                }
+            }
+        }
+
         const tool = await sequelize.transaction(async (t) => {
             const existingTool = await Tool.findOne({ where: { slug }, transaction: t });
             if (existingTool) {
@@ -114,6 +128,19 @@ export const updateTool = async (req: Request, res: Response) => {
         const { id } = req.params;
         const { name, slug, description, tool_link, is_active, trial_card_required, trial_days, required_integrations } = req.body;
         Logger.info('Updating tool', { id, userId: req.user?.id });
+
+        if (required_integrations && !Array.isArray(required_integrations)) {
+            return res.status(400).json({ message: 'required_integrations must be an array' });
+        }
+
+        if (required_integrations) {
+            const validTypes = Object.values(IntegrationType) as string[];
+            for (const type of required_integrations) {
+                if (!validTypes.includes(type)) {
+                    return res.status(400).json({ message: `Invalid integration type in required_integrations: ${type}` });
+                }
+            }
+        }
 
         const updatedTool = await sequelize.transaction(async (t) => {
             const tool = await Tool.findByPk(id, { transaction: t });

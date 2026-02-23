@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { URLSearchParams } from 'url';
 import crypto from 'crypto';
 import { IntegrationAccount, IntegrationStatus } from '../models/integration_account';
+import { encrypt } from '../utils/encryption';
+import { AuditService } from '../services/audit.service';
 import { handleError } from '../utils/error';
 import Logger from '../utils/logger';
 
@@ -82,7 +84,13 @@ export const handleAdsCallback = async (req: Request, res: Response) => {
         return sendOAuthPopupResponse(res, 'error', 'Integration account not found');
     }
 
-    if (account.oauth_state !== returnedState) {
+    const storedStateBuffer = Buffer.from(account.oauth_state || '');
+    const returnedStateBuffer = Buffer.from(returnedState || '');
+
+    if (
+        storedStateBuffer.length !== returnedStateBuffer.length ||
+        !crypto.timingSafeEqual(storedStateBuffer, returnedStateBuffer)
+    ) {
         return sendOAuthPopupResponse(res, 'error', 'Invalid OAuth state');
     }
 
@@ -119,17 +127,29 @@ export const handleAdsCallback = async (req: Request, res: Response) => {
         const tokenData = await tokenResponse.json();
         const { access_token, refresh_token, expires_in } = tokenData;
 
-        await account.update({
-            status: IntegrationStatus.CONNECTED,
-            credentials: {
+        const secureCredentials = {
+            encrypted: encrypt(JSON.stringify({
                 access_token,
                 refresh_token,
                 expires_in,
                 token_type: 'bearer',
                 obtained_at: new Date().toISOString()
-            },
+            }))
+        };
+
+        await account.update({
+            status: IntegrationStatus.CONNECTED,
+            credentials: secureCredentials,
             connected_at: new Date(),
             oauth_state: null
+        });
+
+        await AuditService.log({
+            action: 'CONNECT_INTEGRATION_ACCOUNT_OAUTH',
+            entityType: 'IntegrationAccount',
+            entityId: account.id,
+            details: { type: account.integration_type },
+            req
         });
 
         return sendOAuthPopupResponse(res, 'success');
@@ -171,8 +191,10 @@ const sendOAuthPopupResponse = (
         message: message || null
     };
 
-    // FORCE lax CSP for this specific response to ensure the inline script runs.
-    res.setHeader('Content-Security-Policy', "default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';");
+    const nonce = crypto.randomBytes(16).toString('base64');
+
+    // Ensure secure CSP with nonce instead of unsafe-inline
+    res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self' 'nonce-${nonce}';`);
     res.setHeader('Content-Type', 'text/html');
 
     return res.send(`
@@ -269,7 +291,7 @@ const sendOAuthPopupResponse = (
         <button class="btn" onclick="window.close()">Close Window</button>
     </div>
 
-    <script>
+    <script nonce="${nonce}">
         (function() {
             console.log("[Backend] OAuth Callback Script Started");
             const payload = ${JSON.stringify(payload)};
