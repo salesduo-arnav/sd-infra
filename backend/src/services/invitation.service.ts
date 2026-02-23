@@ -94,6 +94,7 @@ class InvitationService {
             });
         } catch (mailError) {
             Logger.error('Mail Error during invitation:', { error: mailError });
+            throw new Error('Failed to send invitation email');
         }
 
         return invitation;
