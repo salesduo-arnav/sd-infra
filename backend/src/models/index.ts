@@ -15,6 +15,7 @@ import { OneTimePurchase } from './one_time_purchase';
 import { ToolUsage } from './tool_usage';
 import { IntegrationAccount, IntegrationType, IntegrationStatus } from './integration_account';
 import { GlobalIntegration, GlobalIntegrationStatus } from './global_integration';
+import { WebhookEvent, WebhookEventStatus } from './webhook_event';
 import { PriceInterval, TierType, SubStatus, FeatureType, FeatureResetPeriod } from './enums';
 import { SystemConfig } from './system_config';
 
@@ -218,4 +219,6 @@ export {
   FeatureType,
   FeatureResetPeriod,
   SystemConfig,
+  WebhookEvent,
+  WebhookEventStatus,
 };
