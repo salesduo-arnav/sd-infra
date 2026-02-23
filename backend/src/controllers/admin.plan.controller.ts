@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import Stripe from 'stripe';
 import { Op } from 'sequelize';
 import sequelize from '../config/db';
 import { Plan } from '../models/plan';
@@ -106,14 +107,26 @@ export const createPlan = async (req: Request, res: Response) => {
         // 1. Create Stripe Product & Prices
         const stripeProduct = await stripeService.createProduct(name, description);
 
-        // Calculate amounts (simplified logic: if monthly plan, yearly = price * 12)
+        // Calculate amounts
         // STRIPE EXPECTS AMOUNTS IN CENTS
-        const PRICE_IN_CENTS = Math.round(price * 100);
-        const monthlyAmount = interval === 'monthly' ? PRICE_IN_CENTS : Math.round(PRICE_IN_CENTS / 12);
-        const yearlyAmount = interval === 'yearly' ? PRICE_IN_CENTS : PRICE_IN_CENTS * 12;
+        const PRICE_IN_CENTS = Math.round((price + Number.EPSILON) * 100);
+        let stripePriceMonthly: Stripe.Price | null = null;
+        let stripePriceYearly: Stripe.Price | null = null;
 
-        const stripePriceMonthly = await stripeService.createPrice(stripeProduct.id, monthlyAmount, currency, 'month');
-        const stripePriceYearly = await stripeService.createPrice(stripeProduct.id, yearlyAmount, currency, 'year');
+        if (interval === 'one_time') {
+            stripePriceMonthly = await stripeService.getClient().prices.create({
+                product: stripeProduct.id,
+                unit_amount: PRICE_IN_CENTS,
+                currency
+            });
+            stripePriceYearly = stripePriceMonthly; // Use same price ID
+        } else {
+            const monthlyAmount = interval === 'monthly' ? PRICE_IN_CENTS : Math.round((PRICE_IN_CENTS / 12) + Number.EPSILON);
+            const yearlyAmount = interval === 'yearly' ? PRICE_IN_CENTS : PRICE_IN_CENTS * 12;
+
+            stripePriceMonthly = await stripeService.createPrice(stripeProduct.id, monthlyAmount, currency, 'month');
+            stripePriceYearly = await stripeService.createPrice(stripeProduct.id, yearlyAmount, currency, 'year');
+        }
 
         const plan = await sequelize.transaction(async (t) => {
             // Validate: Only one trial plan per tool
@@ -195,12 +208,32 @@ export const updatePlan = async (req: Request, res: Response) => {
 
                 if (productId) {
                     // STRIPE EXPECTS AMOUNTS IN CENTS
-                    const PRICE_IN_CENTS = Math.round(newPrice * 100);
-                    const monthlyAmount = newInterval === 'monthly' ? PRICE_IN_CENTS : Math.round(PRICE_IN_CENTS / 12);
-                    const yearlyAmount = newInterval === 'yearly' ? PRICE_IN_CENTS : PRICE_IN_CENTS * 12;
+                    const PRICE_IN_CENTS = Math.round((newPrice + Number.EPSILON) * 100);
+                    let stripePriceMonthly: Stripe.Price | null = null;
+                    let stripePriceYearly: Stripe.Price | null = null;
 
-                    const stripePriceMonthly = await stripeService.createPrice(productId, monthlyAmount, newCurrency, 'month');
-                    const stripePriceYearly = await stripeService.createPrice(productId, yearlyAmount, newCurrency, 'year');
+                    if (newInterval === 'one_time') {
+                        stripePriceMonthly = await stripeService.getClient().prices.create({
+                            product: productId,
+                            unit_amount: PRICE_IN_CENTS,
+                            currency: newCurrency
+                        });
+                        stripePriceYearly = stripePriceMonthly; // Same ID
+                    } else {
+                        const monthlyAmount = newInterval === 'monthly' ? PRICE_IN_CENTS : Math.round((PRICE_IN_CENTS / 12) + Number.EPSILON);
+                        const yearlyAmount = newInterval === 'yearly' ? PRICE_IN_CENTS : PRICE_IN_CENTS * 12;
+
+                        stripePriceMonthly = await stripeService.createPrice(productId, monthlyAmount, newCurrency, 'month');
+                        stripePriceYearly = await stripeService.createPrice(productId, yearlyAmount, newCurrency, 'year');
+                    }
+
+                    // Archive old prices
+                    if (plan.stripe_price_id_monthly) {
+                        await stripeService.archivePrice(plan.stripe_price_id_monthly).catch(e => Logger.warn('Failed to archive old monthly price', { error: e }));
+                    }
+                    if (plan.stripe_price_id_yearly && plan.stripe_price_id_yearly !== plan.stripe_price_id_monthly) {
+                        await stripeService.archivePrice(plan.stripe_price_id_yearly).catch(e => Logger.warn('Failed to archive old yearly price', { error: e }));
+                    }
 
                     updates.stripe_price_id_monthly = stripePriceMonthly.id;
                     updates.stripe_price_id_yearly = stripePriceYearly.id;
@@ -272,6 +305,14 @@ export const deletePlan = async (req: Request, res: Response) => {
 
             if (activeSubscription) {
                 throw new Error('HAS_ACTIVE_SUBSCRIPTIONS');
+            }
+
+            // Archive Stripe prices
+            if (plan.stripe_price_id_monthly) {
+                await stripeService.archivePrice(plan.stripe_price_id_monthly).catch(e => Logger.warn('Failed to archive monthly price on delete', { error: e }));
+            }
+            if (plan.stripe_price_id_yearly) {
+                await stripeService.archivePrice(plan.stripe_price_id_yearly).catch(e => Logger.warn('Failed to archive yearly price on delete', { error: e }));
             }
 
             // Check for active subscriptions for any bundle that contains this plan

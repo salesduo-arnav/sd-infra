@@ -256,6 +256,11 @@ export default function AdminPlans() {
 
   const handlePlanSave = useCallback(async () => {
     try {
+      if (planFormData.is_trial_plan && planFormData.interval === 'one_time') {
+          toast.error("One-time plans cannot be set as trial plans. Please use a recurring interval.");
+          return;
+      }
+
       if (editingPlan) {
         await AdminService.updatePlan(editingPlan.id, planFormData);
       } else {
@@ -579,7 +584,7 @@ export default function AdminPlans() {
       {
           accessorKey: "price",
           header: ({ column }) => <DataTableColumnHeader column={column} title="Price" />,
-          cell: ({ row }) => `${row.original.currency} ${row.original.price}/${row.original.interval}`
+          cell: ({ row }) => row.original.interval === 'one_time' ? `${row.original.currency} ${row.original.price} (one-time)` : `${row.original.currency} ${row.original.price}/${row.original.interval}`
       },
       {
           accessorKey: "active",
@@ -658,7 +663,7 @@ export default function AdminPlans() {
         {
             accessorKey: "price",
             header: ({ column }) => <DataTableColumnHeader column={column} title="Price" />,
-             cell: ({ row }) => `${row.original.currency} ${row.original.price}/${row.original.interval}`
+             cell: ({ row }) => row.original.interval === 'one_time' ? `${row.original.currency} ${row.original.price} (one-time)` : `${row.original.currency} ${row.original.price}/${row.original.interval}`
         },
         {
             accessorKey: "active",
@@ -921,11 +926,20 @@ export default function AdminPlans() {
                   </div>
                   <div className="space-y-2">
                       <Label>Interval</Label>
-                      <Select value={planFormData.interval} onValueChange={(v: Plan["interval"]) => setPlanFormData({...planFormData, interval: v})}>
-                          <SelectTrigger><SelectValue/></SelectTrigger>
+                      <Select value={planFormData.interval} onValueChange={(v: Plan["interval"]) => {
+                          setPlanFormData(prev => ({
+                              ...prev, 
+                              interval: v,
+                              is_trial_plan: v === 'one_time' ? false : prev.is_trial_plan
+                          }));
+                      }}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select interval" />
+                          </SelectTrigger>
                           <SelectContent>
                               <SelectItem value="monthly">Monthly</SelectItem>
                               <SelectItem value="yearly">Yearly</SelectItem>
+                              <SelectItem value="one_time">One-time</SelectItem>
                           </SelectContent>
                       </Select>
                   </div>
@@ -942,9 +956,21 @@ export default function AdminPlans() {
                       </Select>
                   </div>
 
-                   <div className="col-span-2 flex gap-6 pt-2">
+                   <div className="col-span-2 flex gap-6 pt-2 items-start">
                       <div className="flex items-center gap-2"><Switch checked={planFormData.active} onCheckedChange={c => setPlanFormData({...planFormData, active: c})} /><Label>Active</Label></div>
-                      <div className="flex items-center gap-2"><Switch checked={planFormData.is_trial_plan} onCheckedChange={c => setPlanFormData({...planFormData, is_trial_plan: c})} /><Label>Trial Plan</Label></div>
+                      <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                              <Switch 
+                                  checked={planFormData.is_trial_plan && planFormData.interval !== 'one_time'} 
+                                  disabled={planFormData.interval === 'one_time'}
+                                  onCheckedChange={c => setPlanFormData({...planFormData, is_trial_plan: c})} 
+                              />
+                              <Label className={planFormData.interval === 'one_time' ? 'text-muted-foreground' : ''}>Trial Plan</Label>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground max-w-[200px] leading-tight">
+                              For trials use monthly interval and set price to 0 for a free trial that cancels automatically.
+                          </span>
+                      </div>
                    </div>
               </div>
               <DialogFooter>

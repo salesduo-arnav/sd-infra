@@ -108,10 +108,11 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
                     </p>
                     {bundle.tiers.map((tier) => {
                     const inCart = isInCart(bundle.id, tier.name);
+                    const isOneTime = tier.period === '/one_time';
                     const isCurrent = currentSubscription?.bundle?.id === tier.id;
                     const isUpcoming = currentSubscription?.upcoming_bundle?.id === tier.id;
-                    const isUpgrade = currentSubscription && tier.price > currentPrice && !isCurrent && !isUpcoming;
-                    const isDowngrade = currentSubscription && tier.price < currentPrice && !isCurrent && !isUpcoming;
+                    const isUpgrade = !isOneTime && currentSubscription && tier.price > currentPrice && !isCurrent && !isUpcoming;
+                    const isDowngrade = !isOneTime && currentSubscription && tier.price < currentPrice && !isCurrent && !isUpcoming;
 
                     return (
                         <TierItem
@@ -133,6 +134,7 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
                                         name: bundle.name,
                                         tierName: tier.name,
                                         price: tier.price,
+                                        currency: tier.currency || 'USD',
                                         period: tier.period,
                                         limits: tier.limits,
                                         features: tier.features,

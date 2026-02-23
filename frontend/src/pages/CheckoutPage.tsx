@@ -157,7 +157,11 @@ export default function CheckoutPage() {
                                             </div>
                                             <p className="font-bold text-lg">
                                                 {formatPrice(item.price, item.currency)} 
-                                                <span className="text-sm text-muted-foreground font-normal"> {item.currency || 'USD'} /{item.period === 'yearly' ? 'yr' : 'mo'}</span>
+                                                {item.period === 'one_time' ? (
+                                                    <span className="text-sm text-muted-foreground font-normal"> {item.currency || 'USD'} (one-time)</span>
+                                                ) : (
+                                                    <span className="text-sm text-muted-foreground font-normal"> {item.currency || 'USD'} /{item.period === 'yearly' ? 'yr' : 'mo'}</span>
+                                                )}
                                             </p>
                                         </div>
                                         

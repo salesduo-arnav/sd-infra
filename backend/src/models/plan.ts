@@ -84,6 +84,7 @@ Plan.init(
     price: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      comment: 'Price in base currency. Converted to cents dynamically for Stripe.',
     },
     currency: {
       type: DataTypes.STRING,

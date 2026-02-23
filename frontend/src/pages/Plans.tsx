@@ -121,6 +121,7 @@ export default function Plans() {
             name: app.name,
             tierName: 'Free Trial',
             price: 0,
+            currency: app.trialPlanCurrency || 'USD',
             period: app.trialPlanInterval ? `/${app.trialPlanInterval}` : `${app.trialDays} days`,
             features: [],
             limits: 'Free Trial',
@@ -211,17 +212,21 @@ export default function Plans() {
         return;
     }
 
-    const itemsToCheckout = cart.map(item => ({
-        id: item.planId,
-        type: item.type === 'app' ? 'plan' : item.type,
-        interval: item.period.includes('year') ? 'yearly' : 'monthly',
-        price: item.price,
-        name: item.name,
-        tier: item.tierName,
-        features: item.features,
-        limits: item.limits,
-        currency: item.currency
-    }));
+    const itemsToCheckout = cart.map(item => {
+        const mappedInterval = item.period.includes('year') ? 'yearly' : (item.period.includes('one_time') ? 'one_time' : 'monthly');
+        return {
+            id: item.planId,
+            type: item.type === 'app' ? 'plan' : item.type,
+            interval: mappedInterval,
+            period: mappedInterval,
+            price: item.price,
+            name: item.name,
+            tier: item.tierName,
+            features: item.features,
+            limits: item.limits,
+            currency: item.currency
+        };
+    });
     
     // Check mixed intervals
     const firstInterval = itemsToCheckout[0].interval;
@@ -248,11 +253,11 @@ export default function Plans() {
     setChangingSubId('processing');
     try {
         for (const item of changeItems) {
-            const interval = item.period.includes('year') ? 'yearly' : 'monthly';
+            const mappedInterval = item.period.includes('year') ? 'yearly' : (item.period.includes('one_time') ? 'one_time' : 'monthly');
             await BillingService.updateSubscription(item.subscriptionId!, [{
                 id: item.planId,
                 type: (item.type === 'app' ? 'plan' : item.type) as 'plan' | 'bundle',
-                interval: interval as 'monthly' | 'yearly'
+                interval: mappedInterval as 'monthly' | 'yearly' | 'one_time'
             }]);
         }
         

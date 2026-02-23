@@ -12,6 +12,7 @@ export class StripeService {
     
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       typescript: true,
+      maxNetworkRetries: 3,
     });
   }
 
@@ -68,18 +69,24 @@ export class StripeService {
     });
   }
 
-  async updateSubscription(subscriptionId: string, priceId: string, metadata?: Record<string, string>) {
+  async updateSubscription(subscriptionId: string, priceId: string, metadata?: Record<string, string>, endTrialNow?: boolean) {
       const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
       const itemId = subscription.items.data[0].id;
 
-      return this.stripe.subscriptions.update(subscriptionId, {
+      const updateConfig: Stripe.SubscriptionUpdateParams = {
           proration_behavior: 'always_invoice',
           items: [{
               id: itemId,
               price: priceId,
           }],
           metadata: metadata || undefined,
-      });
+      };
+
+      if (endTrialNow) {
+          updateConfig.trial_end = 'now';
+      }
+
+      return this.stripe.subscriptions.update(subscriptionId, updateConfig);
   }
 
   async scheduleDowngrade(subscriptionId: string, newPriceId: string) {
@@ -183,6 +190,12 @@ export class StripeService {
       recurring: {
         interval,
       },
+    });
+  }
+
+  async archivePrice(priceId: string) {
+    return this.stripe.prices.update(priceId, {
+      active: false,
     });
   }
 

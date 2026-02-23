@@ -14,11 +14,13 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   const { activeOrganization, isAuthenticated } = useAuth();
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [fetchedOrgId, setFetchedOrgId] = useState<string | null>(null);
 
   const fetchPermissions = useCallback(async () => {
     if (!isAuthenticated || !activeOrganization) {
       setPermissions(new Set());
       setLoading(false);
+      setFetchedOrgId(null);
       return;
     }
 
@@ -27,8 +29,10 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
         headers: { "x-organization-id": activeOrganization.id },
       });
       setPermissions(new Set(res.data.permissions));
+      setFetchedOrgId(activeOrganization.id);
     } catch {
       setPermissions(new Set());
+      setFetchedOrgId(activeOrganization.id);
     } finally {
       setLoading(false);
     }
@@ -44,8 +48,10 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     [permissions]
   );
 
+  const isEffectivelyLoading = loading || (isAuthenticated && !!activeOrganization && activeOrganization.id !== fetchedOrgId);
+
   return (
-    <PermissionsContext.Provider value={{ permissions, hasPermission, loading }}>
+    <PermissionsContext.Provider value={{ permissions, hasPermission, loading: isEffectivelyLoading }}>
       {children}
     </PermissionsContext.Provider>
   );
