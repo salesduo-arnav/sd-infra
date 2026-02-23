@@ -26,7 +26,7 @@ const colors = {
 winston.addColors(colors);
 
 const format = winston.format.combine(
-  winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss:ms" }),
+  winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss.SSS" }),
   winston.format.printf(
     (info) => {
       const { timestamp, level, message, ...meta } = info;
@@ -36,9 +36,20 @@ const format = winston.format.combine(
   )
 );
 
-const transports = [
+const transports: winston.transport[] = [
   new winston.transports.Console({
     silent: process.env.NODE_ENV === "test" || process.env.NODE_ENV === "testing",
+  }),
+  new winston.transports.File({
+    filename: "logs/error.log",
+    level: "error",
+    maxsize: 5242880, // 5MB
+    maxFiles: 5,
+  }),
+  new winston.transports.File({
+    filename: "logs/combined.log",
+    maxsize: 5242880, // 5MB
+    maxFiles: 5,
   }),
 ];
 
