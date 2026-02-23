@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -358,7 +357,7 @@ export default function AdminApps() {
 
 
     return (
-        <Layout>
+        <>
             <div className="space-y-6">
                 <div className="flex items-center gap-4 justify-between">
                     <div>
@@ -719,6 +718,6 @@ export default function AdminApps() {
                     </SheetContent>
                 </Sheet>
             </div>
-        </Layout>
+        </>
     );
 }

@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { Layout } from "@/components/layout/Layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -420,7 +419,7 @@ export default function AdminOrganizations() {
   ];
 
   return (
-    <Layout>
+    <>
       <div className="space-y-6">
         {/* Page Header */}
         <div className="flex items-center gap-4">
@@ -665,6 +664,6 @@ export default function AdminOrganizations() {
         </SheetContent>
       </Sheet>
 
-    </Layout>
+    </>
   );
 }

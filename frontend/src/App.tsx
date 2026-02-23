@@ -2,7 +2,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
+import { Layout } from "@/components/layout/Layout";
+import { FullPageLoader } from "@/components/layout/FullPageLoader";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PermissionsProvider } from "@/contexts/PermissionsContext";
 import { usePermissions } from "@/contexts/PermissionsContext";
@@ -38,10 +40,8 @@ import DesignSystem from "./pages/DesignSystem";
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user, isLoading, activeOrganization, isOrgResolving } = useAuth();
+  const { isAuthenticated, user, activeOrganization } = useAuth();
   const location = useLocation();
-
-  if (isLoading || isOrgResolving) return <div>Loading...</div>;
 
   if (!isAuthenticated) {
     return <Navigate to={`/login${location.search}`} replace />;
@@ -83,9 +83,12 @@ function PermissionRoute({ permission, children }: { permission: string; childre
     return <Navigate to="/login" replace />;
   }
 
-  // Wait for activeOrganization to be resolved and permissions to finish loading
   if (!activeOrganization || loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
   }
 
   if (!hasPermission(permission)) {
@@ -96,12 +99,10 @@ function PermissionRoute({ permission, children }: { permission: string; childre
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user, activeOrganization, isOrgResolving } = useAuth();
+  const { isAuthenticated, user, activeOrganization } = useAuth();
   const location = useLocation();
 
   if (isAuthenticated) {
-    if (isOrgResolving) return <div>Loading...</div>;
-
     const params = new URLSearchParams(location.search);
     const redirectUrl = params.get("redirect");
 
@@ -125,6 +126,24 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to={`/choose-organisation${location.search}`} replace />;
   }
   return <>{children}</>;
+}
+
+function AppInitializer({ children }: { children: React.ReactNode }) {
+  const { isLoading, isOrgResolving } = useAuth();
+
+  if (isLoading || isOrgResolving) {
+    return <FullPageLoader message="Initializing workspace..." />;
+  }
+
+  return <>{children}</>;
+}
+
+function AppLayout() {
+  return (
+    <Layout>
+      <Outlet />
+    </Layout>
+  );
 }
 
 function AppRoutes() {
@@ -173,166 +192,173 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/apps"
-        element={
-          <ProtectedRoute>
-            <Apps />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/plans"
-        element={
-          <ProtectedRoute>
-            <PermissionRoute permission="plans.view">
-              <Plans />
-            </PermissionRoute>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/billing"
-        element={
-          <ProtectedRoute>
-            <PermissionRoute permission="billing.view">
-              <Billing />
-            </PermissionRoute>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/checkout"
-        element={
-          <ProtectedRoute>
-            <PermissionRoute permission="billing.manage">
-              <CheckoutPage />
-            </PermissionRoute>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/integrations"
-        element={
-          <ProtectedRoute>
-            <Integrations />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/integration-onboarding"
-        element={
-          <ProtectedRoute>
-            <IntegrationOnboarding />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/tools/listing-generator"
-        element={
-          <ProtectedRoute>
-            <ListingGenerator />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute>
-            <Profile />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/organisation"
-        element={
-          <ProtectedRoute>
-            <Organisation />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/create-organisation"
-        element={
-          <ProtectedRoute>
-            <CreateOrganisation />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/pending-invites"
-        element={
-          <ProtectedRoute>
-            <PendingInvitations />
-          </ProtectedRoute>
-        }
-      />
 
-      {/* Admin routes */}
       <Route
-        path="/admin"
-        element={
-          <AdminRoute>
-            <AdminDashboard />
-          </AdminRoute>
-        }
-      />
+          path="/create-organisation"
+          element={
+            <ProtectedRoute>
+              <CreateOrganisation />
+            </ProtectedRoute>
+          }
+        />
+
       <Route
-        path="/admin/apps"
-        element={
-          <AdminRoute>
-            <AdminApps />
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/plans"
-        element={
-          <AdminRoute>
-            <AdminPlans />
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/users"
-        element={
-          <AdminRoute>
-            <AdminUsers />
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/audit-logs"
-        element={
-          <AdminRoute>
-            <AuditLogs />
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/organizations"
-        element={
-          <AdminRoute>
-            <AdminOrganizations />
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/configs"
-        element={
-          <AdminRoute>
-            <AdminConfigs />
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/rbac"
-        element={
-          <AdminRoute>
-            <AdminRBAC />
-          </AdminRoute>
-        }
-      />
+          path="/pending-invites"
+          element={
+            <ProtectedRoute>
+              <PendingInvitations />
+            </ProtectedRoute>
+          }
+        />
+
+      <Route element={<AppLayout />}>
+        <Route
+          path="/apps"
+          element={
+            <ProtectedRoute>
+              <Apps />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/plans"
+          element={
+            <ProtectedRoute>
+              <PermissionRoute permission="plans.view">
+                <Plans />
+              </PermissionRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/billing"
+          element={
+            <ProtectedRoute>
+              <PermissionRoute permission="billing.view">
+                <Billing />
+              </PermissionRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/checkout"
+          element={
+            <ProtectedRoute>
+              <PermissionRoute permission="billing.manage">
+                <CheckoutPage />
+              </PermissionRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/integrations"
+          element={
+            <ProtectedRoute>
+              <Integrations />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/integration-onboarding"
+          element={
+            <ProtectedRoute>
+              <IntegrationOnboarding />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tools/listing-generator"
+          element={
+            <ProtectedRoute>
+              <ListingGenerator />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/organisation"
+          element={
+            <ProtectedRoute>
+              <Organisation />
+            </ProtectedRoute>
+          }
+        />
+        
+        
+
+        {/* Admin routes */}
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/apps"
+          element={
+            <AdminRoute>
+              <AdminApps />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/plans"
+          element={
+            <AdminRoute>
+              <AdminPlans />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <AdminRoute>
+              <AdminUsers />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/audit-logs"
+          element={
+            <AdminRoute>
+              <AuditLogs />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/organizations"
+          element={
+            <AdminRoute>
+              <AdminOrganizations />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/configs"
+          element={
+            <AdminRoute>
+              <AdminConfigs />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/rbac"
+          element={
+            <AdminRoute>
+              <AdminRBAC />
+            </AdminRoute>
+          }
+        />
+      </Route>
       <Route
         path="/accept-invite"
         element={
@@ -365,7 +391,9 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <AppRoutes />
+          <AppInitializer>
+            <AppRoutes />
+          </AppInitializer>
         </BrowserRouter>
       </TooltipProvider>
       </PermissionsProvider>

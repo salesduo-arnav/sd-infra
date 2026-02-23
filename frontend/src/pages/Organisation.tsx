@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -552,7 +551,7 @@ export default function Organisation() {
   ];
 
   return (
-    <Layout>
+    <>
       <div className="space-y-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Organisation</h1>
@@ -983,6 +982,6 @@ export default function Organisation() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Layout>
+    </>
   );
 }

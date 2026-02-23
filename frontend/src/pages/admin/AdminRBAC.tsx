@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -90,16 +89,16 @@ export default function AdminRBAC() {
 
   if (loading) {
     return (
-      <Layout>
+      <>
         <div className="flex h-[50vh] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </Layout>
+      </>
     );
   }
 
   return (
-    <Layout>
+    <>
       <div className="container py-8">
         <div className="flex items-center gap-3 mb-2">
           <Shield className="h-7 w-7 text-primary" />
@@ -182,6 +181,6 @@ export default function AdminRBAC() {
           ))}
         </div>
       </div>
-    </Layout>
+    </>
   );
 }

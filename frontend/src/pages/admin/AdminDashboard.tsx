@@ -1,4 +1,3 @@
-import { Layout } from "@/components/layout/Layout";
 import {
   Users,
   Building2,
@@ -34,7 +33,7 @@ export default function AdminDashboard() {
   });
 
   return (
-    <Layout>
+    <>
       <div className="space-y-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
@@ -125,7 +124,7 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
-    </Layout>
+    </>
   );
 }
 

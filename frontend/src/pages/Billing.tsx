@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +17,7 @@ import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import { BillingAlert } from "@/components/billing/BillingAlert";
 import { getSubscriptionColumns, invoiceColumns, oneTimePurchaseColumns } from "@/components/billing/columns";
 import { OneTimePurchase } from "@/types/subscription";
+import { BillingSkeleton } from "@/components/billing/BillingSkeleton";
 
 export default function Billing() {
   const navigate = useNavigate();
@@ -311,17 +311,11 @@ export default function Billing() {
   const pageCount = Math.ceil(filteredAndSortedInvoices.length / pagination.pageSize);
 
   if (loading) {
-     return (
-        <Layout>
-            <div className="flex h-[50vh] items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        </Layout>
-     )
+     return <BillingSkeleton />
   }
 
   return (
-    <Layout>
+    <>
       <div className="container py-8">
         <div className="mb-8 flex items-center justify-between">
             <div>
@@ -438,6 +432,6 @@ export default function Billing() {
           </CardContent>
         </Card>
       </div>
-    </Layout>
+    </>
   );
 }

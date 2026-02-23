@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -708,7 +707,7 @@ export default function AdminPlans() {
 
 
   return (
-    <Layout>
+    <>
       <div className="space-y-6">
 
 
@@ -1474,7 +1473,7 @@ export default function AdminPlans() {
             </SheetContent>
         </Sheet>
       </div>
-    </Layout>
+    </>
   );
 }
 

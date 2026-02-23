@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,6 +8,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import * as PublicService from "@/services/public.service";
 import { toast } from "sonner";
 import { BundleCard } from "@/components/plans/BundleCard";
+import { BundleCardSkeleton } from "@/components/plans/BundleCardSkeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AppCard } from "@/components/plans/AppCard";
 import { Bundle, App, CartItem } from "@/components/plans/types";
 import { CartSidebarItem } from "@/components/plans/CartSidebarItem";
@@ -310,16 +311,23 @@ export default function Plans() {
 
   if (isLoading) {
       return (
-          <Layout>
-              <div className="flex h-[50vh] items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="flex-1 container py-8">
+              <div className="mb-8 text-center space-y-2 flex flex-col items-center">
+                  <Skeleton className="h-10 w-[250px]" />
+                  <Skeleton className="h-5 w-[400px]" />
               </div>
-          </Layout>
+              <div className="w-full max-w-md mx-auto mb-8 h-10 bg-muted/50 rounded-lg" />
+              <div className="grid gap-6 items-start md:grid-cols-2 lg:grid-cols-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                      <BundleCardSkeleton key={i} />
+                  ))}
+              </div>
+          </div>
       )
   }
 
   return (
-    <Layout animationClass="">
+    <>
       <div className="flex animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Content */}
         <div className={cn("flex-1 container py-8", enableTransition && "transition-[padding] duration-300", isCartOpen ? "pr-[340px]" : "pr-4")}>
@@ -537,6 +545,6 @@ export default function Plans() {
             </div>
           )}
         </div>
-    </Layout>
+    </>
   );
 }
