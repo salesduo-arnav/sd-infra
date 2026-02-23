@@ -5,7 +5,8 @@ import User from '../models/user';
 import { Organization, OrganizationMember } from '../models/organization';
 import { OrgStatus } from '../models/enums';
 import { Role } from '../models/role';
-import { Invitation, InvitationStatus } from '../models/invitation';
+import { Invitation } from '../models/invitation';
+import { InvitationStatus } from '../models/enums';
 import { mailService } from '../services/mail.service';
 import '../models'; // Ensure associations are registered
 

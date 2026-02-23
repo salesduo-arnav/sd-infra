@@ -1,4 +1,5 @@
-import { Invitation, InvitationStatus } from '../models/invitation';
+import { Invitation } from '../models/invitation';
+import { InvitationStatus } from '../models/enums';
 import { OrganizationMember } from '../models/organization';
 
 import User from '../models/user';

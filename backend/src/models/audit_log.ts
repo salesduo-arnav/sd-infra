@@ -74,7 +74,17 @@ AuditLog.init(
         tableName: 'audit_logs',
         timestamps: true,
         updatedAt: false, // Audit logs are immutable
-        createdAt: 'created_at'
+        createdAt: 'created_at',
+        indexes: [
+            {
+                fields: ['entity_type', 'entity_id'],
+                name: 'audit_logs_entity_type_entity_id',
+            },
+            {
+                fields: ['created_at'],
+                name: 'audit_logs_created_at',
+            },
+        ],
     }
 );
 

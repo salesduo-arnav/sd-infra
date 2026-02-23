@@ -1,12 +1,7 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import sequelize from '../config/db';
 import { Role } from './role';
-
-export enum InvitationStatus {
-  PENDING = 'pending',
-  ACCEPTED = 'accepted',
-  EXPIRED = 'expired',
-}
+import { InvitationStatus } from './enums';
 
 export interface InvitationAttributes {
   id: string;

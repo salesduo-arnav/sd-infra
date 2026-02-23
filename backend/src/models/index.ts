@@ -16,7 +16,7 @@ import { ToolUsage } from './tool_usage';
 import { IntegrationAccount, IntegrationType, IntegrationStatus } from './integration_account';
 import { GlobalIntegration, GlobalIntegrationStatus } from './global_integration';
 import { WebhookEvent, WebhookEventStatus } from './webhook_event';
-import { PriceInterval, TierType, SubStatus, FeatureType, FeatureResetPeriod } from './enums';
+import { PriceInterval, TierType, SubStatus, FeatureResetPeriod, InvitationStatus, OrgStatus } from './enums';
 import { SystemConfig } from './system_config';
 
 // =====================
@@ -216,8 +216,9 @@ export {
   PriceInterval,
   TierType,
   SubStatus,
-  FeatureType,
   FeatureResetPeriod,
+  InvitationStatus,
+  OrgStatus,
   SystemConfig,
   WebhookEvent,
   WebhookEventStatus,

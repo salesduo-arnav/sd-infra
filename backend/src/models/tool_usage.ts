@@ -77,6 +77,7 @@ ToolUsage.init(
             type: DataTypes.INTEGER,
             defaultValue: 1,
             allowNull: false,
+            comment: 'Incremented via findOrCreate + increment pattern: a row is created per (tool, user, org, date) and the count is atomically incremented on each subsequent usage.',
         },
         created_at: {
             type: DataTypes.DATE,
