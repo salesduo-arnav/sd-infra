@@ -28,6 +28,10 @@ router.delete('/global/:id', authenticate, disconnectGlobalIntegration);
 // Amazon Ads
 import { getAdsAuthUrl, handleAdsCallback } from '../controllers/ads.controller';
 router.get('/amazon-ads/auth-url', authenticate, getAdsAuthUrl);
-router.get('/amazon-ads/callback', handleAdsCallback); // Callback might not have auth header?
+router.get('/amazon-ads/callback', handleAdsCallback);
+
+// Amazon SP-API (SC & VC); Note - Handling the Callback in app.ts
+import { getSpAuthUrl } from '../controllers/sp.controller';
+router.get('/sp-api/auth-url', authenticate, getSpAuthUrl);
 
 export default router;

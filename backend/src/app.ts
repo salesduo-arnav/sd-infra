@@ -47,6 +47,10 @@ app.use('/users', userRoutes);
 app.get('/health', (req, res) => res.status(200).send('OK'));
 app.get('/api/health', (req, res) => res.status(200).send('OK'));
 
+// SP-API Callback
+import { handleSpCallback } from './controllers/sp.controller';
+app.get('/callback', handleSpCallback);
+
 app.use(errorHandler);
 
 export default app;

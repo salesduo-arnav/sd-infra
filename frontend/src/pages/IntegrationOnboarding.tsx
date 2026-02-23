@@ -31,9 +31,11 @@ import {
     createIntegrationAccount,
     connectIntegrationAccount,
     getIntegrationAccounts,
+    IntegrationAccount,
 } from "@/services/integration.service";
 import { getToolBySlug } from "@/services/tool.service";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
+import { useOAuthPopup } from "@/hooks/useOAuthPopup";
 
 // ------------------------------------------------------------------
 // Data                                                               
@@ -63,6 +65,7 @@ export default function IntegrationOnboarding() {
     const appId = searchParams.get("app");
     const { activeOrganization } = useAuth();
     const orgId = activeOrganization?.id || "";
+    const { openOAuthPopup } = useOAuthPopup();
 
     // State
     const [accountName, setAccountName] = useState<string>("");
@@ -81,6 +84,9 @@ export default function IntegrationOnboarding() {
 
     // key of the item currently connecting (to show spinner)
     const [connecting, setConnecting] = useState<string | null>(null);
+
+    const [resumeAccount, setResumeAccount] = useState<IntegrationAccount | null>(null);
+    const [accounts, setAccounts] = useState<IntegrationAccount[]>([]);
 
     // Fetch required integrations from backend based on app slug
     const fetchRequirements = useCallback(async () => {
@@ -109,25 +115,25 @@ export default function IntegrationOnboarding() {
     const refreshIntegrations = useCallback(async () => {
         if (!orgId) return;
         try {
-            const accounts = await getIntegrationAccounts(orgId);
+            const fetchedAccounts = await getIntegrationAccounts(orgId);
+            setAccounts(fetchedAccounts);
 
-            // Only check status for accounts created in THIS session
+            // 1. Update Connection Status from Session IDs
             const sellerId = createdAccountIds['sp_api_sc'];
             const vendorId = createdAccountIds['sp_api_vc'];
             const adsId = createdAccountIds['ads_api'];
 
-            if (sellerId) {
-                const acc = accounts.find(a => a.id === sellerId);
-                if (acc?.status === 'connected') setIsSellerConnected(true);
-            }
-            if (vendorId) {
-                const acc = accounts.find(a => a.id === vendorId);
-                if (acc?.status === 'connected') setIsVendorConnected(true);
-            }
-            if (adsId) {
-                const acc = accounts.find(a => a.id === adsId);
-                if (acc?.status === 'connected') setIsAdsConnected(true);
-            }
+            // Helper to find if an account type is connected
+            const isConnected = (type: string) => {
+                if (createdAccountIds[type]) {
+                    return fetchedAccounts.find((a: IntegrationAccount) => a.id === createdAccountIds[type])?.status === 'connected';
+                }
+                return false;
+            };
+
+            if (isConnected('sp_api_sc')) setIsSellerConnected(true);
+            if (isConnected('sp_api_vc')) setIsVendorConnected(true);
+            if (isConnected('ads_api')) setIsAdsConnected(true);
 
         } catch (error) {
             console.error("Failed to refresh integrations", error);
@@ -138,6 +144,64 @@ export default function IntegrationOnboarding() {
         fetchRequirements();
         refreshIntegrations();
     }, [fetchRequirements, refreshIntegrations]);
+
+    // Check for existing account when user types Name + Region
+    useEffect(() => {
+        if (accountName && marketplace && accounts.length > 0) {
+            // Check if we already have this in our current session (don't prompt to resume what we just made)
+            const alreadyInSession = Object.values(createdAccountIds).some(id =>
+                accounts.find(a => a.id === id && a.account_name === accountName && a.region === marketplace)
+            );
+
+            if (alreadyInSession) {
+                setResumeAccount(null);
+                return;
+            }
+
+            // Find a match in the backend list
+            const match = accounts.find(a =>
+                a.account_name.toLowerCase() === accountName.trim().toLowerCase() &&
+                a.region === marketplace
+            );
+
+            if (match) {
+                setResumeAccount(match);
+            } else {
+                setResumeAccount(null);
+            }
+        } else {
+            setResumeAccount(null);
+        }
+    }, [accountName, marketplace, accounts, createdAccountIds]);
+
+    const handleResume = () => {
+        if (!resumeAccount) return;
+
+        // Populate local session state with the IDs from the found account group
+        const group = accounts.filter(a =>
+            a.account_name === resumeAccount.account_name &&
+            a.region === resumeAccount.region
+        );
+
+        const newIds: Record<string, string> = {};
+        let resumedAny = false;
+
+        group.forEach(a => {
+            newIds[a.integration_type] = a.id;
+            if (a.status === 'connected') {
+                if (a.integration_type === 'sp_api_sc') setIsSellerConnected(true);
+                if (a.integration_type === 'sp_api_vc') setIsVendorConnected(true);
+                if (a.integration_type === 'ads_api') setIsAdsConnected(true);
+            }
+            resumedAny = true;
+        });
+
+        if (resumedAny) {
+            setCreatedAccountIds(prev => ({ ...prev, ...newIds }));
+            toast.success(`Resumed setup for "${resumeAccount.account_name}"`);
+            setResumeAccount(null); // Dismiss after resuming
+        }
+    };
 
     // Global Message Listener for OAuth Popups
     useEffect(() => {
@@ -240,111 +304,49 @@ export default function IntegrationOnboarding() {
                 const { getAdsAuthUrl } = await import("@/services/integration.service");
                 const url = await getAdsAuthUrl(orgId, accountId);
 
-                const width = 600;
-                const height = 700;
-                const left = window.screen.width / 2 - width / 2;
-                const top = window.screen.height / 2 - height / 2;
-
-                const popup = window.open(
+                const success = await openOAuthPopup({
+                    orgId,
+                    accountId,
                     url,
-                    "Connect Amazon Ads",
-                    `width=${width},height=${height},top=${top},left=${left}`
-                );
+                    title: "Connect Amazon Ads",
+                    width: 600,
+                    height: 700,
+                    successType: "ADS_AUTH_SUCCESS",
+                    errorType: "ADS_AUTH_ERROR"
+                });
 
-                if (!popup) {
-                    toast.error("Please allow popups to connect integrations.");
-                    setConnecting(null);
-                    return;
+                if (success) {
+                    toast.success("Integration connected successfully!");
+                    setIsAdsConnected(true);
+                } else {
+                    toast.error("Failed to connect integration");
                 }
-
-                // POLLING MECHANISM: Robust fallback for when postMessage fails
-                const pollInterval = setInterval(async () => {
-                    if (!orgId) return;
-                    try {
-                        const accounts = await getIntegrationAccounts(orgId);
-                        const account = accounts.find(a => a.id === accountId);
-
-                        if (account?.status === 'connected') {
-                            clearInterval(pollInterval);
-                            if (!popup.closed) popup.close();
-
-                            toast.success("Integration connected successfully!");
-                            // Update state manually because refreshIntegrations might have a stale closure
-                            setIsAdsConnected(true);
-                            setConnecting(null);
-                        } else if (account?.status === 'error') {
-                            clearInterval(pollInterval);
-                            if (!popup.closed) popup.close();
-
-                            toast.error("Failed to connect integration");
-                            setConnecting(null);
-                        }
-                    } catch (e) {
-                        // ignore errors during polling
-                    }
-                }, 2000);
-
-                // Stop polling after 2 minutes to prevent infinite loops
-                setTimeout(() => {
-                    clearInterval(pollInterval);
-                    if (connecting === 'ads') setConnecting(null);
-                }, 120000);
-
-                // Monitor popup closure to reset loading state (cancelled by user)
-                const checkPopup = setInterval(() => {
-                    if (popup.closed) {
-                        clearInterval(checkPopup);
-                        setTimeout(() => {
-                            // If we are still connecting after popup closes and short delay, 
-                            // it likely means we didn't get a success.
-                            setConnecting(prev => prev === 'ads' ? null : prev);
-                            clearInterval(pollInterval);
-                        }, 3000);
-                    }
-                }, 1000);
+                setConnecting(null);
 
             } else {
-                // --- Simulated OAuth Flow for SP-API ---
-                // In a real app, this would redirect to Amazon Seller Central
-                const width = 600;
-                const height = 700;
-                const left = window.screen.width / 2 - width / 2;
-                const top = window.screen.height / 2 - height / 2;
+                // --- Real OAuth Flow for SP-API (SC & VC) ---
+                const { getSpAuthUrl } = await import("@/services/integration.service");
+                const url = await getSpAuthUrl(orgId, accountId);
 
-                const popup = window.open(
-                    "",
-                    "Connect Integration",
-                    `width=${width},height=${height},top=${top},left=${left}`
-                );
+                const success = await openOAuthPopup({
+                    orgId,
+                    accountId,
+                    url,
+                    title: "Connect Amazon SP-API",
+                    width: window.screen.width,
+                    height: window.screen.height,
+                    successType: "SP_AUTH_SUCCESS",
+                    errorType: "SP_AUTH_ERROR"
+                });
 
-                if (popup) {
-                    popup.document.write(SIMULATED_POPUP_CONTENT);
-
-                    // Simulate success after delay
-                    setTimeout(async () => {
-                        if (!popup.closed) popup.close();
-
-                        // Connect via API
-                        if (accountId && orgId) {
-                            try {
-                                await connectIntegrationAccount(orgId, accountId, {
-                                    simulated: true,
-                                    connected_via: "oauth_popup_onboarding",
-                                });
-                                // Manual update state
-                                if (type === 'seller') setIsSellerConnected(true);
-                                if (type === 'vendor') setIsVendorConnected(true);
-                            } catch {
-                                console.error("Failed to mark account connected");
-                            }
-                        }
-
-                        setConnecting(null);
-                    }, 2500);
+                if (success) {
+                    toast.success("Integration connected successfully!");
+                    if (type === 'seller') setIsSellerConnected(true);
+                    if (type === 'vendor') setIsVendorConnected(true);
                 } else {
-                    toast.error("Please allow popups to connect integrations.");
-                    setConnecting(null);
+                    toast.error("Failed to connect integration");
                 }
+                setConnecting(null);
             }
 
         } catch (error: unknown) {
@@ -550,6 +552,27 @@ export default function IntegrationOnboarding() {
                         </div>
 
                         {/* 3. Connect Services */}
+                        {resumeAccount && (
+                            <Card className="mb-6 bg-blue-50/50 border-blue-200">
+                                <CardContent className="p-4 flex items-center justify-between">
+                                    <div className="flex gap-3">
+                                        <div className="p-2 bg-blue-100 rounded-full h-8 w-8 flex items-center justify-center text-blue-600">
+                                            <Package className="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-medium text-sm text-blue-900">Existing Account Found</h4>
+                                            <p className="text-xs text-blue-700">
+                                                An account matching <strong>"{resumeAccount.account_name}"</strong> in this region already exists.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <Button size="sm" onClick={handleResume} className="bg-blue-600 hover:bg-blue-700 text-white border-none whitespace-nowrap ml-4">
+                                        Sync Status
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        )}
+
                         <div className="space-y-3">
                             <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                                 3. Connect Services
@@ -689,20 +712,4 @@ export default function IntegrationOnboarding() {
     );
 }
 
-const SIMULATED_POPUP_CONTENT = `
-<html>
-<head>
-    <title>Connecting...</title>
-    <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f9fafb; color: #111; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #ff9900; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-</head>
-<body>
-    <div class="loader"></div>
-    <h2>Connecting...</h2>
-    <p>Please wait while we verify your credentials.</p>
-</body>
-</html>
-`;
+

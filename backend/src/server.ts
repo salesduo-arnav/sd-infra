@@ -5,6 +5,7 @@ import http from "http";
 import { closeDB, connectDB } from "./config/db";
 import { connectRedis, closeRedis } from "./config/redis";
 import Logger from "./utils/logger";
+import { cronService } from "./services/cron.service";
 
 dotenv.config({ path: path.join(__dirname, "../.env") });
 
@@ -52,6 +53,9 @@ const startServer = async () => {
 
         await connectDB();
         await connectRedis();
+
+        // Start Cron Jobs
+        cronService.startJobs();
 
         server = app.listen(PORT, () => {
             Logger.info(`✅ Server running on port ${PORT}`);
