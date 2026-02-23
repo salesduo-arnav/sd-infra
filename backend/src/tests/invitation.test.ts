@@ -184,13 +184,12 @@ describe('Invitation API Integration Tests', () => {
     describe('GET /invitations/validate', () => {
         it('should enforce rate limiting on validate endpoint', async () => {
             const token = 'dummy-token';
-            let res;
             // Send 20 requests (within limit)
             for (let i = 0; i < 20; i++) {
                 await request(app).get(`/invitations/validate?token=${token}`);
             }
             // Send 21st (exceeds limit)
-            res = await request(app).get(`/invitations/validate?token=${token}`);
+            const res = await request(app).get(`/invitations/validate?token=${token}`);
             expect(res.statusCode).toEqual(429);
             expect(res.body.message).toMatch(/Too many validation requests/);
         });

@@ -37,7 +37,9 @@ const format = winston.format.combine(
 );
 
 const transports = [
-  new winston.transports.Console(),
+  new winston.transports.Console({
+    silent: process.env.NODE_ENV === "test" || process.env.NODE_ENV === "testing",
+  }),
 ];
 
 const Logger = winston.createLogger({
