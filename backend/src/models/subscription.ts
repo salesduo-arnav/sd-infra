@@ -129,6 +129,7 @@ Subscription.init(
     stripe_subscription_id: {
       type: DataTypes.STRING,
       allowNull: true,
+      unique: true,
     },
     status: {
       type: DataTypes.ENUM(...Object.values(SubStatus)),
@@ -184,6 +185,12 @@ Subscription.init(
       eitherPlanOrBundle() {
         if (!this.plan_id && !this.bundle_id) {
           throw new Error('Subscription must have either a plan_id or a bundle_id');
+        }
+        if (this.plan_id && this.bundle_id) {
+          throw new Error('Subscription cannot have both a plan_id and a bundle_id');
+        }
+        if (this.upcoming_plan_id && this.upcoming_bundle_id) {
+          throw new Error('Subscription cannot have both an upcoming_plan_id and an upcoming_bundle_id');
         }
       },
     },

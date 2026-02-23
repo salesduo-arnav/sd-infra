@@ -12,6 +12,7 @@ import sequelize from '../config/db';
 import { Op } from 'sequelize';
 import { AuditService } from '../services/audit.service';
 import { SystemConfig } from '../models/system_config';
+import Logger from '../utils/logger';
 
 class BillingController {
     // Get public/user-accessible config
@@ -93,9 +94,12 @@ class BillingController {
             if (lineItems.length === 0) { res.status(400).json({ message: 'No valid price IDs found for selected items' }); return; }
 
             // 3. Create Session
+            const isOneTime = firstInterval === 'one_time';
+            const sessionMode = isOneTime ? 'payment' : 'subscription';
+
             const sessionConfig: Stripe.Checkout.SessionCreateParams = {
                 customer: customerId,
-                mode: 'subscription',
+                mode: sessionMode as Stripe.Checkout.SessionCreateParams.Mode,
                 payment_method_types: ['card'],
                 line_items: lineItems,
                 metadata: {
@@ -103,19 +107,22 @@ class BillingController {
                     items: JSON.stringify(metadataItems),
                     interval: firstInterval,
                     userId: user?.id
-                },
-                subscription_data: { metadata: { organizationId: organization.id, userId: user?.id } }
-            };
-
-            if (trialPeriodDays > 0) {
-                if (!sessionConfig.subscription_data) {
-                    sessionConfig.subscription_data = {};
                 }
-                sessionConfig.subscription_data.trial_period_days = trialPeriodDays;
+            };
+            
+            if (isOneTime) {
+                sessionConfig.invoice_creation = { enabled: true };
+            }
+            
+            if (!isOneTime) {
+                sessionConfig.subscription_data = { metadata: { organizationId: organization.id, userId: user?.id } };
+                if (trialPeriodDays > 0) {
+                    sessionConfig.subscription_data.trial_period_days = trialPeriodDays;
 
-                // Only auto-cancel free trials
-                if (!hasPaidComponent) {
-                    sessionConfig.subscription_data.metadata = { ...sessionConfig.subscription_data.metadata, auto_cancel_trial: 'true' };
+                    // Only auto-cancel free trials
+                    if (!hasPaidComponent) {
+                        sessionConfig.subscription_data.metadata = { ...sessionConfig.subscription_data.metadata, auto_cancel_trial: 'true' };
+                    }
                 }
             }
 
@@ -182,6 +189,17 @@ class BillingController {
                 order: [['created_at', 'DESC']]
             });
 
+            // Fetch One-Time Purchases
+            const { OneTimePurchase } = await import('../models/one_time_purchase');
+            const oneTimePurchases = await OneTimePurchase.findAll({
+                where: { organization_id: organization.id },
+                include: [
+                    { model: Plan, as: 'plan', include: [{ model: Tool, as: 'tool' }] },
+                    { model: Bundle, as: 'bundle', include: [{ model: BundleGroup, as: 'group' }] }
+                ],
+                order: [['created_at', 'DESC']]
+            });
+
             // 2. Fetch Stripe Data for Payment Methods (if connected)
             const stripePaymentMethodsMap: Record<string, Stripe.PaymentMethod | string> = {};
             let defaultPaymentMethod: Stripe.PaymentMethod | string | null = null;
@@ -212,8 +230,10 @@ class BillingController {
                     });
 
                 } catch (err) {
-                    console.error("Failed to fetch Stripe details for enrichment", err);
-                    // Continue without payment details if Stripe fails
+                    Logger.error("Failed to fetch Stripe details for enrichment", { error: err, organizationId: organization.id });
+                    // Throw error or flag partial response
+                    res.status(502).json({ message: 'Failed to retrieve payment details from Stripe', subscriptions: subscriptions });
+                    return;
                 }
             }
 
@@ -244,7 +264,10 @@ class BillingController {
                 };
             });
 
-            res.status(200).json({ subscriptions: enrichedSubscriptions });
+            res.status(200).json({ 
+                subscriptions: enrichedSubscriptions,
+                oneTimePurchases: oneTimePurchases 
+            });
         } catch (error) {
             next(error);
         }
@@ -469,9 +492,9 @@ class BillingController {
                         last_payment_failure_at: isPaymentFailed ? localSub.last_payment_failure_at : null
                     });
 
-                    // Sync Fingerprint if missing and active/trialing
+                    // Sync Fingerprint if missing
                     let fingerprint = localSub.card_fingerprint;
-                    if (!fingerprint && (status === SubStatus.TRIALING || status === SubStatus.ACTIVE)) {
+                    if (!fingerprint) {
                         fingerprint = await this.getCardFingerprint(stripeSub);
                         if (fingerprint) await localSub.update({ card_fingerprint: fingerprint });
                     }
@@ -493,11 +516,10 @@ class BillingController {
     // --- Webhook Handlers ---
 
     private async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
-        console.log(`[BillingController] Checkout completed for Org ${session.metadata?.organizationId}, Sub ${session.subscription}`);
+        console.log(`[BillingController] Checkout completed for Org ${session.metadata?.organizationId}, Sub ${session.subscription}, PaymentIntent ${session.payment_intent}`);
         const orgId = session.metadata?.organizationId;
-        if (orgId && session.subscription) {
-            console.log(`Checkout completed for Org ${orgId}, Sub ${session.subscription}`);
-
+        
+        if (orgId) {
             // Strict Synchronization: Ensure local DB matches the Customer ID that just paid
             if (session.customer) {
                 const organization = await Organization.findByPk(orgId);
@@ -507,18 +529,60 @@ class BillingController {
                 }
             }
             
-            await AuditService.log({
-                actorId: session.metadata?.userId,
-                action: session.amount_total === 0 ? 'TRIAL_STARTED' : 'PURCHASE_COMPLETED',
-                entityType: 'Subscription',
-                entityId: session.subscription as string,
-                details: {
-                    organizationId: orgId,
-                    amount_total: session.amount_total,
-                    currency: session.currency,
-                    sessionId: session.id
-                }
-            });
+            if (session.mode === 'subscription' && session.subscription) {
+                console.log(`Checkout completed for Org ${orgId}, Sub ${session.subscription}`);
+
+                await AuditService.log({
+                    actorId: session.metadata?.userId,
+                    action: session.amount_total === 0 ? 'TRIAL_STARTED' : 'PURCHASE_COMPLETED',
+                    entityType: 'Subscription',
+                    entityId: session.subscription as string,
+                    details: {
+                        organizationId: orgId,
+                        amount_total: session.amount_total,
+                        currency: session.currency,
+                        sessionId: session.id
+                    }
+                });
+            } else if (session.mode === 'payment' && session.payment_intent) {
+                 console.log(`Payment Checkout completed for Org ${orgId}, Intent ${session.payment_intent}`);
+                 
+                 const itemsMeta = session.metadata?.items ? JSON.parse(session.metadata.items) : [];
+                 let planId = null;
+                 let bundleId = null;
+                 
+                 if (itemsMeta.length > 0) {
+                     const item = itemsMeta[0];
+                     if (item.type === 'plan') planId = item.id;
+                     if (item.type === 'bundle') bundleId = item.id;
+                 }
+
+                 const { OneTimePurchase } = await import('../models/one_time_purchase');
+                 
+                 const purchase = await OneTimePurchase.create({
+                     organization_id: orgId,
+                     plan_id: planId,
+                     bundle_id: bundleId,
+                     stripe_payment_intent_id: session.payment_intent as string,
+                     amount_paid: session.amount_total || 0,
+                     currency: session.currency || 'USD',
+                     status: 'succeeded'
+                 });
+
+                 await AuditService.log({
+                    actorId: session.metadata?.userId,
+                    action: 'ONE_TIME_PURCHASE_COMPLETED',
+                    entityType: 'OneTimePurchase',
+                    entityId: purchase.id,
+                    details: {
+                        organizationId: orgId,
+                        amount_total: session.amount_total,
+                        currency: session.currency,
+                        sessionId: session.id,
+                        payment_intent: session.payment_intent
+                    }
+                });
+            }
         }
     }
 
@@ -891,8 +955,16 @@ class BillingController {
                 // UPGRADE (or same price switch) -> Immediate
                 console.log(`[BillingController] Upgrading subscription ${stripeSubId} to ${targetItem.type} ${targetItem.id}`);
                 
+                // End trial immediately if current price was 0 (upgrading a free trial)
+                const isCurrentlyFreeTrial = currentPriceAmount === 0;
+
                 // Ensure userId is in metadata for future webhooks
-                await stripeService.updateSubscription(stripeSubId, targetPriceId, req.user ? { userId: req.user.id } : undefined);
+                await stripeService.updateSubscription(
+                    stripeSubId, 
+                    targetPriceId, 
+                    req.user ? { userId: req.user.id } : undefined,
+                    isCurrentlyFreeTrial
+                );
 
                 // Immediately update local DB with new plan/bundle
                 await subscription.update({

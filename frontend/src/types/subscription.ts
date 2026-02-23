@@ -71,3 +71,15 @@ export interface Invoice {
     status: 'draft' | 'open' | 'paid' | 'uncollectible' | 'void';
     invoice_pdf: string | null;
 }
+
+export interface OneTimePurchase {
+    id: string;
+    organization_id: string;
+    stripe_payment_intent_id: string;
+    amount_paid: number;
+    currency: string;
+    status: string;
+    created_at: string;
+    plan?: SubscriptionPlan | null;
+    bundle?: SubscriptionBundle | null;
+}

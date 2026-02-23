@@ -27,9 +27,17 @@ app.use(cors({
   credentials: true
 }))
 
-app.use('/webhooks', webhookRoutes);
+app.use('/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
 
-app.use(express.json());
+// Apply express.json to everything EXCEPT webhooks
+app.use((req, res, next) => {
+  if (req.originalUrl.startsWith('/webhooks')) {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
+
 app.use(cookieParser());
 app.use(morganMiddleware);
 

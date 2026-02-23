@@ -176,15 +176,16 @@ The `StripeService` class wraps all Stripe API calls:
 
 ## Issues Found
 
-1. **Trial abuse gap** — Card fingerprint check only triggers for `TRIALING` or `ACTIVE` status subscriptions. A user could: start trial -> cancel -> start another trial with the same card if the original subscription reaches `canceled` status.
-2. **`updateGracePeriod()` is a stub** — `StripeService.updateGracePeriod()` only logs to console and doesn't actually update any Stripe configuration.
-3. **Floating-point price calculation** — `Math.round(price * 100)` for converting to cents can have floating-point precision errors with certain decimal values.
-4. **Orphaned Stripe prices** — When a plan is updated, new Stripe prices are created but old prices are never archived/deactivated, leading to orphaned prices in Stripe.
-5. **`eitherPlanOrBundle` validator incomplete** — The Subscription model validates that either `plan_id` or `bundle_id` is set, but doesn't validate `upcoming_plan_id`/`upcoming_bundle_id`.
-6. **OneTimePurchase lacks plan/bundle validation** — Unlike Subscription, OneTimePurchase has no model-level validator ensuring either `plan_id` or `bundle_id` is set.
-7. **Silent Stripe connection failures** — When fetching payment methods fails, the error is silently caught and the response continues without payment details, potentially masking configuration issues.
-8. **No retry logic in Stripe service** — Transient Stripe API failures are not retried.
-9. **Webhook raw body requirement** — The webhook route must be mounted before `express.json()` middleware. This is correctly implemented but fragile — reordering routes in `app.ts` would break webhook signature verification.
-10. **`stripe_subscription_id` not unique** — The Subscription model doesn't enforce uniqueness on `stripe_subscription_id`, which could cause duplicate entries if sync logic runs concurrently.
+1. ~~**Trial abuse gap** — Card fingerprint check only triggers for `TRIALING` or `ACTIVE` status subscriptions. A user could: start trial -> cancel -> start another trial with the same card if the original subscription reaches `canceled` status.~~
+2. **`updateGracePeriod()` is a stub** — `StripeService.updateGracePeriod()` only logs to console and doesn't actually update any Stripe configuration. (Skipped as stripe doesn't support this)
+3. ~~**Floating-point price calculation** — `Math.round(price * 100)` for converting to cents can have floating-point precision errors with certain decimal values.~~
+4. ~~**Orphaned Stripe prices** — When a plan is updated, new Stripe prices are created but old prices are never archived/deactivated, leading to orphaned prices in Stripe.~~
+5. ~~**`eitherPlanOrBundle` validator incomplete** — The Subscription model validates that either `plan_id` or `bundle_id` is set, but doesn't validate `upcoming_plan_id`/`upcoming_bundle_id`.~~
+6. ~~**OneTimePurchase lacks plan/bundle validation** — Unlike Subscription, OneTimePurchase has no model-level validator ensuring either `plan_id` or `bundle_id` is set.~~
+7. ~~**Silent Stripe connection failures** — When fetching payment methods fails, the error is silently caught and the response continues without payment details, potentially masking configuration issues.~~
+8. ~~**No retry logic in Stripe service** — Transient Stripe API failures are not retried.~~
+9. ~~**Webhook raw body requirement** — The webhook route must be mounted before `express.json()` middleware. This is correctly implemented but fragile — reordering routes in `app.ts` would break webhook signature verification.~~
+10. ~~**`stripe_subscription_id` not unique** — The Subscription model doesn't enforce uniqueness on `stripe_subscription_id`, which could cause duplicate entries if sync logic runs concurrently.~~
 11. **MRR calculation excludes trialing** — Overview stats only include `ACTIVE` subscriptions in MRR, excluding `TRIALING` subscriptions. This may or may not be intentional but should be documented.
-12. **Price stored ambiguously** — Plan `price` field represents cents but this is not documented in the model or migrations, creating confusion.
+(Skipped as it is not a bug)
+~~12. **Price stored ambiguously** — Plan `price` field represents cents but this is not documented in the model or migrations, creating confusion.~~

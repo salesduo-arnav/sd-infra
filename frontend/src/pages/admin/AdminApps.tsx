@@ -84,7 +84,7 @@ export default function AdminApps() {
     tool_link: "",
     is_active: true,
     required_integrations: [] as string[],
-    trial_card_required: false,
+    trial_card_required: true,
     trial_days: 0
   });
 
@@ -143,12 +143,12 @@ export default function AdminApps() {
         tool_link: app.tool_link || "",
         is_active: app.is_active,
         required_integrations: app.required_integrations || [],
-        trial_card_required: app.trial_card_required || false,
+        trial_card_required: app.trial_card_required || true,
         trial_days: app.trial_days || 0
       });
     } else {
       setEditingApp(null);
-      setFormData({ name: "", slug: "", description: "", tool_link: "", is_active: true, required_integrations: [], trial_card_required: false, trial_days: 0 });
+      setFormData({ name: "", slug: "", description: "", tool_link: "", is_active: true, required_integrations: [], trial_card_required: true, trial_days: 0 });
     }
     setIsDialogOpen(true);
   }, []);

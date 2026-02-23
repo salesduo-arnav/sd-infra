@@ -16,11 +16,13 @@ import { Subscription, Invoice } from "@/types/subscription";
 import { ColumnDef, SortingState, PaginationState, ColumnFiltersState } from "@tanstack/react-table";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import { BillingAlert } from "@/components/billing/BillingAlert";
-import { getSubscriptionColumns, invoiceColumns } from "@/components/billing/columns";
+import { getSubscriptionColumns, invoiceColumns, oneTimePurchaseColumns } from "@/components/billing/columns";
+import { OneTimePurchase } from "@/types/subscription";
 
 export default function Billing() {
   const navigate = useNavigate();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [oneTimePurchases, setOneTimePurchases] = useState<OneTimePurchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
 
@@ -53,6 +55,7 @@ export default function Billing() {
     try {
       const response = await api.get(`/billing`);
       setSubscriptions(response.data.subscriptions);
+      setOneTimePurchases(response.data.oneTimePurchases || []);
     } catch (error) {
       console.error("Failed to fetch subscription", error);
     }
@@ -185,6 +188,7 @@ export default function Billing() {
                     const response = await api.get(`/billing`);
                     const subs = response.data.subscriptions;
                     setSubscriptions(subs);
+                    setOneTimePurchases(response.data.oneTimePurchases || []);
                     
                     if (subs.length > 0) {
                         const latestSub = subs[0];
@@ -244,6 +248,16 @@ export default function Billing() {
 
   const subPageCount = Math.ceil(filteredSubscriptions.length / subPagination.pageSize);
 
+  // --- One Time Purchases ---
+  const [otpSorting, setOtpSorting] = useState<SortingState>([]);
+  const [otpPagination, setOtpPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 5 });
+
+  const paginatedOtp = useMemo(() => {
+    const start = otpPagination.pageIndex * otpPagination.pageSize;
+    return oneTimePurchases.slice(start, start + otpPagination.pageSize);
+  }, [oneTimePurchases, otpPagination]);
+
+  const otpPageCount = Math.ceil(oneTimePurchases.length / otpPagination.pageSize);
 
   // --- Invoices ---
   
@@ -374,6 +388,30 @@ export default function Billing() {
                 />
             </CardContent>
         </Card>
+
+        {/* One-Time Purchases */}
+        {oneTimePurchases.length > 0 && (
+            <Card className="mb-8">
+                <CardHeader>
+                    <CardTitle>One-Time Purchases</CardTitle>
+                    <CardDescription>Your lifetime plans and bundles</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <DataTable
+                        columns={oneTimePurchaseColumns}
+                        data={paginatedOtp}
+                        pageCount={otpPageCount}
+                        pagination={otpPagination}
+                        onPaginationChange={setOtpPagination}
+                        sorting={otpSorting}
+                        onSortingChange={setOtpSorting}
+                        isLoading={loading}
+                        searchQuery=""
+                        onSearchChange={() => {}}
+                    />
+                </CardContent>
+            </Card>
+        )}
 
         {/* Billing History */}
         <Card className="mt-6">

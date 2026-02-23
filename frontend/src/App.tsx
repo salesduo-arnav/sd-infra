@@ -38,10 +38,10 @@ import DesignSystem from "./pages/DesignSystem";
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user, isLoading, activeOrganization } = useAuth();
+  const { isAuthenticated, user, isLoading, activeOrganization, isOrgResolving } = useAuth();
   const location = useLocation();
 
-  if (isLoading) return <div>Loading...</div>;
+  if (isLoading || isOrgResolving) return <div>Loading...</div>;
 
   if (!isAuthenticated) {
     return <Navigate to={`/login${location.search}`} replace />;
@@ -76,23 +76,32 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PermissionRoute({ permission, children }: { permission: string; children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, activeOrganization } = useAuth();
   const { hasPermission, loading } = usePermissions();
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  if (loading) return <div>Loading...</div>;
+
+  // Wait for activeOrganization to be resolved and permissions to finish loading
+  if (!activeOrganization || loading) {
+    return <div>Loading...</div>;
+  }
+
   if (!hasPermission(permission)) {
     return <Navigate to="/apps" replace />;
   }
+
   return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user, activeOrganization } = useAuth();
+  const { isAuthenticated, user, activeOrganization, isOrgResolving } = useAuth();
   const location = useLocation();
 
   if (isAuthenticated) {
+    if (isOrgResolving) return <div>Loading...</div>;
+
     const params = new URLSearchParams(location.search);
     const redirectUrl = params.get("redirect");
 
