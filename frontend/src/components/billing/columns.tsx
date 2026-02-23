@@ -1,6 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
-import { Subscription, Invoice } from "@/types/subscription";
+import { Subscription, Invoice, OneTimePurchase } from "@/types/subscription";
 import { Button } from "@/components/ui/button";
 import { DataTableColumnHeader } from "@/components/ui/data-table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -203,7 +203,7 @@ export const invoiceColumns: ColumnDef<Invoice>[] = [
     },
   ];
 
-export const oneTimePurchaseColumns: ColumnDef<any>[] = [
+export const oneTimePurchaseColumns: ColumnDef<OneTimePurchase>[] = [
     {
         accessorKey: "item",
         header: "Plan / Bundle",

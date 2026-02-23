@@ -107,6 +107,7 @@ describe('Admin Stats Controller', () => {
                 amount_paid: 50,
                 status: 'succeeded',
                 organization_id: org.id, // Linked to Org, not User directly
+                plan_id: monthlyPlan.id,
                 created_at: now
             });
 

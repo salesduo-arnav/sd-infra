@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { stripeService } from '../services/stripe.service';
 import Stripe from 'stripe';
-import { Organization, OrganizationMember } from '../models/organization';
+import { OrganizationMember } from '../models/organization';
 import { Plan } from '../models/plan';
 import { Tool } from '../models/tool';
 import { Bundle } from '../models/bundle';

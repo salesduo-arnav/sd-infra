@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { stripeService } from '../services/stripe.service';
 import Stripe from 'stripe';
-import { Organization, OrganizationMember } from '../models/organization';
+import { Organization } from '../models/organization';
 import { Plan } from '../models/plan';
 import { Bundle } from '../models/bundle';
 import { Subscription } from '../models/subscription';
@@ -205,7 +205,20 @@ class WebhookController {
             }
         }
 
-        const subData: any = {
+        const subData: {
+            stripe_subscription_id: string;
+            plan_id: string | null;
+            bundle_id: string | null;
+            status: SubStatus;
+            current_period_start: Date | null;
+            current_period_end: Date | null;
+            trial_start: Date | null;
+            trial_end: Date | null;
+            cancel_at_period_end: boolean;
+            upcoming_plan_id: string | null;
+            upcoming_bundle_id: string | null;
+            card_fingerprint?: string;
+        } = {
             stripe_subscription_id: stripeSub.id,
             plan_id: finalPlanId,
             bundle_id: finalBundleId,
@@ -234,7 +247,7 @@ class WebhookController {
         }
     }
 
-    private async checkAndEnforceTrialAbuse(subscription: Subscription, stripeSub: Stripe.Subscription, planId: string | null | undefined, fingerprint: string | null, actorId?: string) {
+    private async checkAndEnforceTrialAbuse(subscription: Subscription, stripeSub: Stripe.Subscription, planId: string | null | undefined, fingerprint: string | null, _actorId?: string) {
         if (fingerprint && (subscription.status === SubStatus.TRIALING || subscription.status === SubStatus.ACTIVE)) {
             try {
                 // Check for duplicates
@@ -299,7 +312,10 @@ class WebhookController {
         Logger.info(`[WebhookController] Invoice payment failed: ${invoice.id}`);
 
         // Resolve subscription ID (handle different invoice structures)
-        const inv = invoice as any;
+        const inv = invoice as Stripe.Invoice & {
+            subscription?: string;
+            parent?: { subscription_details?: { subscription?: string } };
+        };
         const subscriptionId = typeof inv.subscription === 'string'
             ? inv.subscription
             : inv.parent?.subscription_details?.subscription;
@@ -327,7 +343,10 @@ class WebhookController {
         Logger.info(`[WebhookController] Invoice payment succeeded: ${invoice.id}`);
 
         // Resolve subscription ID (handle different invoice structures)
-        const inv = invoice as any;
+        const inv = invoice as Stripe.Invoice & {
+            subscription?: string;
+            parent?: { subscription_details?: { subscription?: string } };
+        };
         const subscriptionId = typeof inv.subscription === 'string'
             ? inv.subscription
             : inv.parent?.subscription_details?.subscription;

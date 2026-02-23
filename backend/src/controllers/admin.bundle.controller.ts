@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import Stripe from 'stripe';
 import { Op } from 'sequelize';
 import sequelize from '../config/db';
 import { Bundle } from '../models/bundle';
@@ -266,8 +267,8 @@ export const createBundle = async (req: Request, res: Response) => {
 
         // STRIPE EXPECTS AMOUNTS IN CENTS
         const PRICE_IN_CENTS = Math.round(price * 100);
-        let stripePriceMonthly: any = null;
-        let stripePriceYearly: any = null;
+        let stripePriceMonthly: Stripe.Price | null = null;
+        let stripePriceYearly: Stripe.Price | null = null;
 
         if (interval === 'one_time') {
             stripePriceMonthly = await stripeService.getClient().prices.create({
@@ -394,8 +395,8 @@ export const updateBundle = async (req: Request, res: Response) => {
 
                     // STRIPE EXPECTS AMOUNTS IN CENTS
                     const PRICE_IN_CENTS = Math.round(newPrice * 100);
-                    let stripePriceMonthly: any = null;
-                    let stripePriceYearly: any = null;
+                    let stripePriceMonthly: Stripe.Price | null = null;
+                    let stripePriceYearly: Stripe.Price | null = null;
 
                     if (newInterval === 'one_time') {
                         stripePriceMonthly = await stripeService.getClient().prices.create({
