@@ -124,7 +124,7 @@ Invitation.init(
       {
         unique: true,
         fields: ['organization_id', 'email'],
-        name: 'invitations_organization_id_email', // Explicit naming to prevent duplicate invites
+        name: 'invitations_org_email_deleted_at_unique',
         where: {
           deleted_at: null,
         },
@@ -132,6 +132,7 @@ Invitation.init(
       {
         unique: true,
         fields: ['token'],
+        name: 'invitations_token_deleted_at_unique',
         where: {
           deleted_at: null,
         },
@@ -139,6 +140,7 @@ Invitation.init(
       {
         unique: true,
         fields: ['organization_id', 'token'],
+        name: 'invitations_org_token_deleted_at_unique',
         where: {
           deleted_at: null,
         },

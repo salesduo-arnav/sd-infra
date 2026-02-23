@@ -38,7 +38,7 @@ export const inviteMember = async (req: Request, res: Response) => {
         const pendingInviteCount = await Invitation.count({ where: { organization_id: orgId, status: InvitationStatus.PENDING } });
 
         if ((currentMemberCount + pendingInviteCount) >= maxCapacity) {
-             return res.status(403).json({ message: `Organization has reached its maximum capacity of ${maxCapacity} members (including pending invites).` });
+            return res.status(403).json({ message: `Organization has reached its maximum capacity of ${maxCapacity} members (including pending invites).` });
         }
 
         const invitation = await invitationService.sendInvitation(orgId, email, role_id, userId);
@@ -55,7 +55,7 @@ export const inviteMember = async (req: Request, res: Response) => {
         res.status(201).json({ message: 'Invitation sent', invitation });
 
     } catch (error) {
-        if (error instanceof Error && (error.message === 'User already invited' || error.message === 'User is already a member')) {
+        if (error instanceof Error && (error.message === 'User already invited' || error.message === 'User is already a member' || error.message === 'Invalid email format')) {
             return res.status(400).json({ message: error.message });
         }
         handleError(res, error, 'Invite Error');
@@ -188,7 +188,7 @@ export const acceptInvitation = async (req: Request, res: Response) => {
         // Check User Org Limit (Reuse logic or keep inline for now)
         const userOrgLimitConfig = await SystemConfig.findByPk('user_org_limit');
         const limit = userOrgLimitConfig ? parseInt(userOrgLimitConfig.value, 10) : 5; // Default 5
-        
+
         const currentOrgCount = await OrganizationMember.count({
             where: { user_id: userId }
         });
@@ -205,7 +205,7 @@ export const acceptInvitation = async (req: Request, res: Response) => {
 
         // NOW check limit since they are NOT a member yet
         if (currentOrgCount >= limit) {
-             return res.status(403).json({ message: `You have reached the limit of ${limit} organizations.` });
+            return res.status(403).json({ message: `You have reached the limit of ${limit} organizations.` });
         }
 
         // Add user to organization

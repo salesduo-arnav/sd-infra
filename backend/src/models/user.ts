@@ -92,6 +92,11 @@ User.init(
           where: { user_id: user.id },
           transaction: options.transaction,
         });
+        const { Invitation } = await import('./invitation'); // Dynamic import to avoid circular dependency
+        await Invitation.destroy({
+          where: { email: user.email },
+          transaction: options.transaction,
+        });
       },
     },
   }
