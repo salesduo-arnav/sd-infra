@@ -86,6 +86,7 @@ export default function Billing() {
   }, [fetchSubscription]);
 
   const handleResumeSubscription = useCallback(async (subId: string, stripeSubId: string) => {
+    if (!confirm("Are you sure you want to resume this subscription? You will be billed again at the next renewal date.")) return;
     setActionLoading(subId);
     try {
         await api.post(`/billing/subscription/${stripeSubId}/resume`);
@@ -168,9 +169,10 @@ export default function Billing() {
     const init = async () => {
         const params = new URLSearchParams(window.location.search);
         const isSuccess = params.get('success') === 'true';
+        const isCanceled = params.get('canceled') === 'true';
 
-        // Clear the query param immediately to prevent double toasts in StrictMode
-        if (isSuccess) {
+        // Clear the query params immediately to prevent double toasts on re-navigation
+        if (isSuccess || isCanceled) {
             const newUrl = window.location.pathname;
             window.history.replaceState({}, '', newUrl);
         }
