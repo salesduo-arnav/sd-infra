@@ -7,9 +7,9 @@ export class StripeService {
 
   constructor() {
     if (!process.env.STRIPE_SECRET_KEY) {
-      console.warn('STRIPE_SECRET_KEY is not defined in environment variables.');
+      throw new Error('STRIPE_SECRET_KEY is not defined in environment variables. Stripe service cannot start.');
     }
-    
+
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       typescript: true,
       maxNetworkRetries: 3,
@@ -65,101 +65,106 @@ export class StripeService {
 
   async resumeSubscription(subscriptionId: string) {
     return this.stripe.subscriptions.update(subscriptionId, {
-        cancel_at_period_end: false,
+      cancel_at_period_end: false,
     });
   }
 
   async updateSubscription(subscriptionId: string, priceId: string, metadata?: Record<string, string>, endTrialNow?: boolean) {
-      const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
-      const itemId = subscription.items.data[0].id;
+    const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
 
-      const updateConfig: Stripe.SubscriptionUpdateParams = {
-          proration_behavior: 'always_invoice',
-          items: [{
-              id: itemId,
-              price: priceId,
-          }],
-          metadata: metadata || undefined,
-      };
+    if (!subscription.items.data || subscription.items.data.length === 0) {
+      throw new Error(`Subscription ${subscriptionId} has no items. Cannot update.`);
+    }
 
-      if (endTrialNow) {
-          updateConfig.trial_end = 'now';
-      }
+    const itemId = subscription.items.data[0].id;
 
-      return this.stripe.subscriptions.update(subscriptionId, updateConfig);
+    const updateConfig: Stripe.SubscriptionUpdateParams = {
+      proration_behavior: 'always_invoice',
+      items: [{
+        id: itemId,
+        price: priceId,
+      }],
+      metadata: metadata || undefined,
+    };
+
+    if (endTrialNow) {
+      updateConfig.trial_end = 'now';
+    }
+
+    return this.stripe.subscriptions.update(subscriptionId, updateConfig);
   }
 
   async scheduleDowngrade(subscriptionId: string, newPriceId: string) {
-      const subscription = await this.stripe.subscriptions.retrieve(subscriptionId) as Stripe.Subscription;
-      
-      let scheduleId = subscription.schedule;
+    const subscription = await this.stripe.subscriptions.retrieve(subscriptionId) as Stripe.Subscription;
 
-      // If no schedule exists, create one from the subscription
-      if (!scheduleId || typeof scheduleId !== 'string') {
-          const newSchedule = await this.stripe.subscriptionSchedules.create({
-              from_subscription: subscriptionId,
-          });
-          scheduleId = newSchedule.id;
-      }
+    let scheduleId = subscription.schedule;
 
-      // Retrieve the schedule to get the auto-populated current phase
-      const schedule = await this.stripe.subscriptionSchedules.retrieve(scheduleId) as Stripe.SubscriptionSchedule;
-      const currentPhase = schedule.phases[schedule.phases.length - 1];
-
-      // Build phases: keep the current phase as-is, add the downgrade phase after it
-      return this.stripe.subscriptionSchedules.update(scheduleId, {
-          end_behavior: 'release',
-          phases: [
-              {
-                  items: currentPhase.items.map((item) => ({
-                      price: typeof item.price === 'string' ? item.price : item.price.id,
-                      quantity: item.quantity,
-                  })),
-                  start_date: currentPhase.start_date,
-                  end_date: currentPhase.end_date,
-              },
-              {
-                  items: [{ price: newPriceId, quantity: 1 }],
-                  start_date: currentPhase.end_date,
-              }
-          ],
+    // If no schedule exists, create one from the subscription
+    if (!scheduleId || typeof scheduleId !== 'string') {
+      const newSchedule = await this.stripe.subscriptionSchedules.create({
+        from_subscription: subscriptionId,
       });
+      scheduleId = newSchedule.id;
+    }
+
+    // Retrieve the schedule to get the auto-populated current phase
+    const schedule = await this.stripe.subscriptionSchedules.retrieve(scheduleId) as Stripe.SubscriptionSchedule;
+    const currentPhase = schedule.phases[schedule.phases.length - 1];
+
+    // Build phases: keep the current phase as-is, add the downgrade phase after it
+    return this.stripe.subscriptionSchedules.update(scheduleId, {
+      end_behavior: 'release',
+      phases: [
+        {
+          items: currentPhase.items.map((item) => ({
+            price: typeof item.price === 'string' ? item.price : item.price.id,
+            quantity: item.quantity,
+          })),
+          start_date: currentPhase.start_date,
+          end_date: currentPhase.end_date,
+        },
+        {
+          items: [{ price: newPriceId, quantity: 1 }],
+          start_date: currentPhase.end_date,
+        }
+      ],
+    });
   }
 
   async cancelScheduledDowngrade(subscriptionId: string) {
-      const subscription = await this.stripe.subscriptions.retrieve(subscriptionId) as Stripe.Subscription;
-      const scheduleId = subscription.schedule;
+    const subscription = await this.stripe.subscriptions.retrieve(subscriptionId) as Stripe.Subscription;
+    const scheduleId = subscription.schedule;
 
-      if (!scheduleId || typeof scheduleId !== 'string') {
-          throw new Error('No subscription schedule found to cancel');
-      }
+    if (!scheduleId || typeof scheduleId !== 'string') {
+      throw new Error('No subscription schedule found to cancel');
+    }
 
-      // Release the schedule — subscription continues with current plan
-      return this.stripe.subscriptionSchedules.release(scheduleId);
+    // Release the schedule — subscription continues with current plan
+    return this.stripe.subscriptionSchedules.release(scheduleId);
   }
 
   async getCustomerSubscriptions(customerId: string) {
-      return this.stripe.subscriptions.list({
-          customer: customerId,
-          status: 'all',
-          expand: ['data.default_payment_method'],
-      });
+    return this.stripe.subscriptions.list({
+      customer: customerId,
+      status: 'all',
+      expand: ['data.default_payment_method'],
+    });
   }
 
   // Invoices
   async getInvoices(customerId: string, limit: number = 10) {
-      return this.stripe.invoices.list({
-          customer: customerId,
-          limit: limit,
-      });
+    return this.stripe.invoices.list({
+      customer: customerId,
+      limit: limit,
+    });
   }
 
   // Payment Methods
   async getPaymentMethods(customerId: string) {
-      return this.stripe.paymentMethods.list({
-          customer: customerId,
-          type: 'card',
-      });
+    return this.stripe.paymentMethods.list({
+      customer: customerId,
+      type: 'card',
+    });
   }
 
   // Webhook Construction
@@ -217,10 +222,10 @@ export class StripeService {
     // for standard accounts programmatically via the SDK easily. 
     // This is often a Dashboard setting. created here for future extensibility or if using custom subscription schedules.
     console.log(`[StripeService] Requested update for grace period to ${days} days.`);
-    
+
     // Potentially we could update a metadata field on the account to track this sync
     // return this.stripe.accounts.update(process.env.STRIPE_ACCOUNT_ID, { metadata: { grace_period_days: days.toString() } });
-    return Promise.resolve(true); 
+    return Promise.resolve(true);
   }
 
   // Helper to get client (for rare cases)

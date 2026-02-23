@@ -24,7 +24,7 @@ export class AuditService {
 
             let finalIp = ipAddress;
             if (!finalIp && req) {
-                finalIp = req.ip || req.connection?.remoteAddress;
+                finalIp = req.ip || req.socket?.remoteAddress || req.connection?.remoteAddress;
             }
 
             await AuditLog.create({

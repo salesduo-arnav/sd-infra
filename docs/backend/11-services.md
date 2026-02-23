@@ -139,19 +139,19 @@ interface MailOptions {
 
 ## Issues Found
 
-1. **SECURITY: Password stored in plaintext in Redis** — The OTP signup flow stores the user's password as plaintext in Redis. If Redis is compromised, all in-progress signup passwords are exposed.
-2. **OTP is too weak** — 6-digit OTP has only 60,000 combinations. With 5 retry attempts, brute-force is feasible. Consider 8+ digits or alphanumeric codes.
-3. **OTP stored unhashed** — OTPs are stored in plaintext in Redis. Should be hashed (e.g., bcrypt or SHA-256) before storage.
-4. **`generateOtp()` has minor modulo bias** — Using `randomBytes` with modulo for non-power-of-2 ranges introduces slight bias, though practically negligible for OTPs.
-5. **Stripe service continues with missing key** — If `STRIPE_SECRET_KEY` is not set, the service logs a warning but initializes with `undefined`, which will cause cryptic errors on first API call.
-6. **`updateGracePeriod()` is a stub** — Only logs to console, doesn't implement actual Stripe configuration update.
-7. **`getClient()` exposes raw Stripe instance** — Allows callers to bypass the service abstraction and make direct Stripe API calls.
-8. **`scheduleDowngrade()` assumes items array** — Assumes `subscription.items.data[0]` exists without validation.
-9. **Audit service silently swallows errors** — If the database is down, audit log creation fails silently with no indication to the caller.
-10. **`req.connection.remoteAddress` is deprecated** — The audit service uses deprecated Node.js API for IP extraction.
-11. **Audit service has no batching** — Each audit log is an individual database INSERT, which could be slow under high throughput.
-12. **Mail service hardcoded fallback credentials** — Falls back to `test_user`/`test_pass` at `smtp.ethereal.email` if environment variables are missing. This could cause silent failures in production.
-13. **Mail service has no retry logic** — Transient SMTP failures are not retried.
-14. **Invitation expiry hardcoded** — 7-day expiry is not configurable.
-15. **Invitation email sent after creation** — If email sending fails, the invitation record exists but the user never receives it. No mechanism to resend.
-16. **No email template engine** — HTML content is constructed as raw strings by callers, with no templating system.
+- [x] **[ALREADY FIXED] SECURITY: Password stored in plaintext in Redis** — The OTP signup flow stores the user's password as plaintext in Redis. If Redis is compromised, all in-progress signup passwords are exposed.
+- [x] ** [SKIPPED] OTP is too weak** — 6-digit OTP has only 60,000 combinations. With 5 retry attempts, brute-force is feasible. Consider 8+ digits or alphanumeric codes. *(Skipped: Not needed)*
+- [x] **[ALREADY FIXED] OTP stored unhashed** — OTPs are stored in plaintext in Redis. Should be hashed (e.g., bcrypt or SHA-256) before storage.
+- [x] **[SKIPPED] `generateOtp()` has minor modulo bias** — Using `randomBytes` with modulo for non-power-of-2 ranges introduces slight bias, though practically negligible for OTPs. *(Skipped: Not needed)*
+- [x] **Stripe service continues with missing key** — If `STRIPE_SECRET_KEY` is not set, the service logs a warning but initializes with `undefined`, which will cause cryptic errors on first API call.
+- [ ] **[SKIPPED] `updateGracePeriod()` is a stub** — Only logs to console, doesn't implement actual Stripe configuration update. *(Skipped: Not possible)*
+- [ ] **[SKIPPED] `getClient()` exposes raw Stripe instance** — Allows callers to bypass the service abstraction and make direct Stripe API calls. *(Skipped: Needed for future edge cases)*
+- [x] **`scheduleDowngrade()` assumes items array** — Assumes `subscription.items.data[0]` exists without validation.
+- [ ] **[SKIPPED] Audit service silently swallows errors** — If the database is down, audit log creation fails silently with no indication to the caller. *(Skipped: Intentional design to prevent audit failures from failing core business logic)*
+- [x] **`req.connection.remoteAddress` is deprecated** — The audit service uses deprecated Node.js API for IP extraction.
+- [ ] **[SKIPPED] Audit service has no batching** — Each audit log is an individual database INSERT, which could be slow under high throughput. *(Skipped: Not needed)*
+- [x] **Mail service hardcoded fallback credentials** — Falls back to `test_user`/`test_pass` at `smtp.ethereal.email` if environment variables are missing. This could cause silent failures in production.
+- [ ] **[SKIPPED] Mail service has no retry logic** — Transient SMTP failures are not retried. *(Skipped: Not needed)*
+- [x] **[ALREADY FIXED] Invitation expiry hardcoded** — 7-day expiry is not configurable.
+- [x] **Invitation email sent after creation** — If email sending fails, the invitation record exists but the user never receives it. No mechanism to resend.
+- [ ] **[SKIPPED] No email template engine** — HTML content is constructed as raw strings by callers, with no templating system. *(Skipped: Not needed)*
