@@ -6,6 +6,7 @@ const stream: StreamOptions = {
     write: (message) => Logger.http(message),
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const skip = (req: Request, res: Response) => {
     if (req.originalUrl === '/health' || req.originalUrl === '/api/health') {
         return true;
