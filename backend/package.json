@@ -4,7 +4,7 @@
     "scripts": {
         "dev": "npx ts-node scripts/wait-for-db.ts && npm run migrate:up && nodemon",
         "build": "tsc",
-        "start": "npm run migrate:up && node dist/server.js",
+        "start": "node dist/server.js",
         "lint": "eslint src",
         "clean": "rimraf dist && rimraf node_modules",
         "migrate:create": "npx sequelize-cli migration:generate --name",

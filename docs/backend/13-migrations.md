@@ -75,11 +75,11 @@ npm run migrate:down    # Undo last migration
 
 ## Issues Found
 
-1. **Soft delete columns added late** — The `deleted_at` columns were added in migration `20260206083056`, after models were already using `paranoid: true`. This means early data may have inconsistencies.
-2. **Multiple constraint fix migrations** — Several migrations (20260205xxx) fix constraints from the initial schema, indicating the initial migration design had issues.
-3. **No rollback testing** — There are no tests verifying that `down` migrations work correctly. A failed rollback in production could be catastrophic.
-4. **No seed data** — There are no seed scripts for default roles (Owner, Admin, Member), permissions, or initial system config values.
-5. **No data migration scripts** — Only schema migrations exist. If data transformations are needed, there's no established pattern.
-6. **SSL `rejectUnauthorized: false` in production** — The sequelize config uses `rejectUnauthorized: false` for SSL in production, which is vulnerable to man-in-the-middle attacks. Should use proper CA certificates.
-7. **Migrations run at startup** — Running migrations automatically at container startup can cause slow deployments and race conditions if multiple instances start simultaneously.
-8. **No migration locking** — If multiple containers start concurrently, they could both attempt to run migrations simultaneously, causing conflicts.
+- [ ] **Soft delete columns added late** — The `deleted_at` columns were added in migration `20260206083056`, after models were already using `paranoid: true`. This means early data may have inconsistencies. *(Skipped: Database contains no production data, so early data inconsistency is a non-issue)*
+- [ ] **Multiple constraint fix migrations** — Several migrations (20260205xxx) fix constraints from the initial schema, indicating the initial migration design had issues. *(Skipped: Current database schema is correct; no production data exists to need rewriting history)*
+- [ ] **No rollback testing** — There are no tests verifying that `down` migrations work correctly. A failed rollback in production could be catastrophic. *(Skipped: Roll-forward is preferred, and without production data, down migrations are not needed)*
+- [ ] **No seed data** — There are no seed scripts for default roles (Owner, Admin, Member), permissions, or initial system config values. *(Skipped: Multiple seed migrations have already been implemented previously)*
+- [ ] **No data migration scripts** — Only schema migrations exist. If data transformations are needed, there's no established pattern. *(Skipped: We have no production data to transform yet. Can be implemented when needed)*
+- [x] **SSL `rejectUnauthorized: false` in production** — The sequelize config uses `rejectUnauthorized: false` for SSL in production, which is vulnerable to man-in-the-middle attacks. Should use proper CA certificates.
+- [x] **[ALREADY FIXED] Migrations run at startup** — Running migrations automatically at container startup can cause slow deployments and race conditions if multiple instances start simultaneously.
+- [x] **[ALREADY FIXED] No migration locking** — If multiple containers start concurrently, they could both attempt to run migrations simultaneously, causing conflicts.
