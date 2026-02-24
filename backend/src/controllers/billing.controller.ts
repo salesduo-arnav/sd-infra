@@ -444,6 +444,46 @@ class BillingController {
                         await this.checkAndEnforceTrialAbuse(localSub, stripeSub, localSub.plan_id, fingerprint, req.user?.id);
                     }
                     updatedCount++;
+                } else {
+                    // Create missing local record
+                    const status = this.mapStripeStatus(stripeSub.status);
+                    const item = stripeSub.items?.data?.[0];
+                    const start = (stripeSub as unknown as { current_period_start?: number }).current_period_start || item?.current_period_start;
+                    const end = (stripeSub as unknown as { current_period_end?: number }).current_period_end || item?.current_period_end;
+
+                    let finalPlanId: string | null = null;
+                    let finalBundleId: string | null = null;
+
+                    for (const it of stripeSub.items?.data || []) {
+                        const { planId, bundleId } = await this.resolvePlanOrBundle(it.price.id);
+                        if (planId || bundleId) {
+                            finalPlanId = planId;
+                            finalBundleId = bundleId;
+                            break;
+                        }
+                    }
+
+                    const fingerprint = await this.getCardFingerprint(stripeSub);
+
+                    const newSub = await Subscription.create({
+                        organization_id: organization.id,
+                        stripe_subscription_id: stripeSub.id,
+                        plan_id: finalPlanId,
+                        bundle_id: finalBundleId,
+                        status: status,
+                        current_period_start: this.toDateNullable(start),
+                        current_period_end: this.toDateNullable(end),
+                        trial_start: this.toDateNullable(stripeSub.trial_start),
+                        trial_end: this.toDateNullable(stripeSub.trial_end),
+                        cancel_at_period_end: stripeSub.cancel_at_period_end,
+                        card_fingerprint: fingerprint || undefined
+                    });
+
+                    if (fingerprint && (status === SubStatus.TRIALING || status === SubStatus.ACTIVE)) {
+                        await this.checkAndEnforceTrialAbuse(newSub, stripeSub, finalPlanId, fingerprint, req.user?.id);
+                    }
+                    console.log(`[Billing] Created missing subscription record for Stripe Sub ${stripeSub.id}`);
+                    updatedCount++;
                 }
             }
 

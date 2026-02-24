@@ -162,8 +162,35 @@ class WebhookController {
     }
 
     private async handleSubscriptionUpdated(stripeSub: Stripe.Subscription) {
-        const orgId = stripeSub.metadata?.organizationId;
-        if (!orgId) return;
+        let orgId = stripeSub.metadata?.organizationId || stripeSub.metadata?.org_id;
+
+        // 1. Fallback to customer metadata if not in subscription metadata
+        if (!orgId && stripeSub.customer) {
+            try {
+                const customerId = typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id;
+                const customer = await stripeService.getCustomer(customerId) as Stripe.Customer;
+                if (!customer.deleted && customer.metadata) {
+                    orgId = customer.metadata.organizationId || customer.metadata.orgId || customer.metadata.org_id;
+                }
+            } catch (err) {
+                Logger.warn(`[WebhookController] Failed to fetch customer for sub ${stripeSub.id} to resolve orgId`, err);
+            }
+        }
+
+        // 2. Final fallback: check local DB
+        if (!orgId) {
+            const existingSub = await Subscription.findOne({
+                where: { stripe_subscription_id: stripeSub.id }
+            });
+            if (existingSub) {
+                orgId = existingSub.organization_id;
+            }
+        }
+
+        if (!orgId) {
+            Logger.warn(`[WebhookController] Could not resolve orgId for subscription ${stripeSub.id}. Skipping update.`);
+            return;
+        }
 
         Logger.info(`[WebhookController] Sub Update Org ${orgId}. Status: ${stripeSub.status}`);
 

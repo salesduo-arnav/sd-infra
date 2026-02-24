@@ -6,6 +6,7 @@ import { SubStatus } from '../models/enums';
 import { stripeService } from './stripe.service';
 import { AuditService } from './audit.service';
 import Logger from '../utils/logger';
+import redisClient from '../config/redis';
 
 export class CronService {
     // Start Cron Jobs
@@ -13,7 +14,7 @@ export class CronService {
         Logger.info('Initializing Cron Jobs...');
 
         // Run every day at 00:00
-        cron.schedule('0 0 * * *', async () => {
+        cron.schedule('41 10 * * *', async () => {
             Logger.info('[Cron] Starting check for past_due subscriptions...');
             await this.checkAndCancelPastDueSubscriptions();
         });
@@ -23,6 +24,16 @@ export class CronService {
 
     public async checkAndCancelPastDueSubscriptions() {
         try {
+            const lockKey = 'cron:lock:checkAndCancelPastDueSubscriptions';
+            
+            // Acquire lock (NX = Set only if not exists, EX = expire in 300 seconds)
+            const acquired = await redisClient.set(lockKey, 'locked', { NX: true, EX: 300 });
+
+            if (!acquired) {
+                Logger.info('[Cron] checkAndCancelPastDueSubscriptions job is already running or ran recently. Skipping...');
+                return;
+            }
+
             // 1. Get Grace Period from Config (Default to 3 days if not set)
             const config = (await SystemConfig.findByPk('payment_grace_period_days')) as SystemConfig | null;
             const gracePeriodDays = config ? parseInt(config.value, 10) : 3;

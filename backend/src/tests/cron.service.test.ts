@@ -61,6 +61,10 @@ describe('CronService', () => {
         await SystemConfig.destroy({ where: {}, force: true });
         jest.clearAllMocks();
 
+        if (redisClient.isOpen) {
+            await redisClient.del('cron:lock:checkAndCancelPastDueSubscriptions');
+        }
+
         // Setup Base Data
         org = await Organization.create({
             id: uuidv4(),

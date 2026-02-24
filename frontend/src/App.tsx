@@ -194,29 +194,47 @@ function AppRoutes() {
       />
 
       <Route
-          path="/create-organisation"
-          element={
-            <ProtectedRoute>
-              <CreateOrganisation />
-            </ProtectedRoute>
-          }
-        />
+        path="/create-organisation"
+        element={
+          <ProtectedRoute>
+            <CreateOrganisation />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
-          path="/pending-invites"
-          element={
-            <ProtectedRoute>
-              <PendingInvitations />
-            </ProtectedRoute>
-          }
-        />
+        path="/pending-invites"
+        element={
+          <ProtectedRoute>
+            <PendingInvitations />
+          </ProtectedRoute>
+        }
+      />
       <Route
-          path="/integration-onboarding"
-          element={
-            <ProtectedRoute>
-              <IntegrationOnboarding />
-            </ProtectedRoute>
-          }
+        path="/integration-onboarding"
+        element={
+          <ProtectedRoute>
+            <IntegrationOnboarding />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/checkout"
+        element={
+          <ProtectedRoute>
+            <PermissionRoute permission="billing.manage">
+              <CheckoutPage />
+            </PermissionRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tools/listing-generator"
+        element={
+          <ProtectedRoute>
+            <ListingGenerator />
+          </ProtectedRoute>
+        }
       />
       <Route element={<AppLayout />}>
         <Route
@@ -248,29 +266,10 @@ function AppRoutes() {
           }
         />
         <Route
-          path="/checkout"
-          element={
-            <ProtectedRoute>
-              <PermissionRoute permission="billing.manage">
-                <CheckoutPage />
-              </PermissionRoute>
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/integrations"
           element={
             <ProtectedRoute>
               <Integrations />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/tools/listing-generator"
-          element={
-            <ProtectedRoute>
-              <ListingGenerator />
             </ProtectedRoute>
           }
         />
@@ -290,8 +289,6 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        
-        
 
         {/* Admin routes */}
         <Route
@@ -387,15 +384,15 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <PermissionsProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AppInitializer>
-            <AppRoutes />
-          </AppInitializer>
-        </BrowserRouter>
-      </TooltipProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AppInitializer>
+              <AppRoutes />
+            </AppInitializer>
+          </BrowserRouter>
+        </TooltipProvider>
       </PermissionsProvider>
     </AuthProvider>
   </QueryClientProvider>
