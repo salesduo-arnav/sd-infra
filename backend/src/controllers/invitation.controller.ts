@@ -18,10 +18,15 @@ export const inviteMember = async (req: Request, res: Response) => {
     try {
         const { email, role_id } = req.body;
         const userId = req.user?.id;
+        const orgIdStr = req.headers['x-organization-id'] as string;
+
+        if (!orgIdStr) {
+            return res.status(400).json({ message: 'x-organization-id header is required' });
+        }
 
         // Check permission
         const membership = await OrganizationMember.findOne({
-            where: { user_id: userId },
+            where: { user_id: userId, organization_id: orgIdStr },
             include: [{ model: Role, as: 'role' }]
         });
 
@@ -66,9 +71,15 @@ export const inviteMember = async (req: Request, res: Response) => {
 export const getPendingInvitations = async (req: Request, res: Response) => {
     try {
         const userId = req.user?.id;
+        const orgIdStr = req.headers['x-organization-id'] as string;
+
+        if (!orgIdStr) {
+            return res.status(400).json({ message: 'x-organization-id header is required' });
+        }
+
         // Check permission (Reader/Viewer might not see invites, but Admin/Owner should)
         const membership = await OrganizationMember.findOne({
-            where: { user_id: userId }
+            where: { user_id: userId, organization_id: orgIdStr }
         });
 
         if (!membership) return res.status(403).json({ message: 'Not in organization' });
@@ -91,9 +102,14 @@ export const revokeInvitation = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const userId = req.user?.id;
+        const orgIdStr = req.headers['x-organization-id'] as string;
+
+        if (!orgIdStr) {
+            return res.status(400).json({ message: 'x-organization-id header is required' });
+        }
 
         const membership = await OrganizationMember.findOne({
-            where: { user_id: userId },
+            where: { user_id: userId, organization_id: orgIdStr },
             include: [{ model: Role, as: 'role' }]
         });
 
