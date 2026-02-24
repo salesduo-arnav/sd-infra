@@ -138,6 +138,13 @@ export default function ChooseOrganisation() {
                                     key={membership.organization.id}
                                     className={`shadow-sm cursor-pointer border transition-all duration-200 hover:border-primary/60 hover:shadow-md group ${isSelected ? "border-primary ring-2 ring-primary/20" : ""}`}
                                     onClick={() => !isLoading && handleSelectOrg(membership.organization.id)}
+                                    tabIndex={0}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            if (!isLoading) handleSelectOrg(membership.organization.id);
+                                        }
+                                    }}
                                 >
                                     <CardContent className="p-4 flex items-center justify-between gap-3">
                                         <div className="flex items-center gap-3 min-w-0">
