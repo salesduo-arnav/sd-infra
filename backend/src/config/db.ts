@@ -15,6 +15,12 @@ const sequelize = new Sequelize({
     password: process.env.PGPASSWORD,
     database: process.env.PGDATABASE,
     logging: false,
+    pool: {
+        max: 10,
+        min: 2,
+        acquire: 30000,
+        idle: 10000
+    },
     ...(isProduction && {
         dialectOptions: {
             ssl: {
@@ -32,7 +38,7 @@ export const connectDB = async () => {
         Logger.info('Database connected successfully (Sequelize)');
     } catch (error) {
         Logger.error('Unable to connect to the database:', error);
-        process.exit(1);
+        throw error;
     }
 };
 

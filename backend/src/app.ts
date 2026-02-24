@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import Logger from './utils/logger';
 import authRoutes from './routes/auth.routes';
 import organizationRoutes from './routes/organization.routes';
 import invitationRoutes from './routes/invitation.routes';
@@ -20,12 +21,16 @@ import './models'; // Initialize associations
 const app = express();
 
 app.use(helmet());
-const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [];
+
+if (!process.env.CORS_ORIGINS) {
+  Logger.warn('CORS_ORIGINS is not set. All cross-origin requests may be blocked because of the empty allowed origins array.');
+}
+const allowedOrigins = process.env.CORS_ORIGINS?.split(',').map(o => o.trim()).filter(Boolean) || [];
 
 app.use(cors({
   origin: allowedOrigins,
   credentials: true
-}))
+}));
 
 app.use('/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
 

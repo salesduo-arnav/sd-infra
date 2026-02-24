@@ -11,6 +11,22 @@ dotenv.config({ path: path.join(__dirname, "../.env") });
 
 const PORT = Number(process.env.PORT) || 3000;
 
+const validateEnv = () => {
+    const requiredEnv = [
+        'PGHOST', 'PGUSER', 'PGPASSWORD', 'PGDATABASE', 'REDIS_URL', 'REDIS_PASSWORD',
+        'GOOGLE_CLIENT_ID', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET',
+        'FRONTEND_URL'
+    ];
+
+    const missing = requiredEnv.filter(env => !process.env[env]);
+    if (missing.length > 0) {
+        Logger.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
+        process.exit(1);
+    }
+};
+
+validateEnv();
+
 let server: http.Server;
 
 const shutdown = async (signal: string) => {
