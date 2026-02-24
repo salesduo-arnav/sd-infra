@@ -48,16 +48,19 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to={`/login${location.search}`} replace />;
   }
 
+  // Normalize path to prevent redirect loops from trailing slashes or case differences
+  const normalizedPath = location.pathname.toLowerCase().replace(/\/$/, "") || "/";
+
   // If user has no organization and is not on the creation page, redirect them
-  if ((!user?.memberships || user.memberships.length === 0) && location.pathname !== "/create-organisation" && location.pathname !== "/pending-invites") {
+  if ((!user?.memberships || user.memberships.length === 0) && normalizedPath !== "/create-organisation" && normalizedPath !== "/pending-invites") {
     return <Navigate to={`/create-organisation${location.search}`} replace />;
   }
 
   // If user has organizations but none is active, redirect to selection (unless already there or creating/handling invites)
   if (user?.memberships && user.memberships.length > 0 && !activeOrganization &&
-    location.pathname !== "/choose-organisation" &&
-    location.pathname !== "/create-organisation" &&
-    location.pathname !== "/pending-invites") {
+    normalizedPath !== "/choose-organisation" &&
+    normalizedPath !== "/create-organisation" &&
+    normalizedPath !== "/pending-invites") {
     const currentPath = location.pathname + location.search;
     return <Navigate to={`/choose-organisation?redirect=${encodeURIComponent(currentPath)}`} replace />;
   }

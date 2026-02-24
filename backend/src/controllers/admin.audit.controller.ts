@@ -97,3 +97,56 @@ export const getAuditLogById = async (req: Request, res: Response) => {
         handleError(res, error, 'Get Audit Log Details Error');
     }
 };
+
+export const getAuditLogActions = async (req: Request, res: Response) => {
+    try {
+        const logs = await AuditLog.findAll({
+            attributes: ['action'],
+            group: ['action'],
+        });
+
+        const actions = logs.map(l => l.action).filter(Boolean);
+
+        const actionCategories: Record<string, string[]> = {
+            "Auth": [],
+            "Organization": [],
+            "User": [],
+            "Billing": [],
+            "Catalog": [],
+            "System": [],
+            "Other": []
+        };
+
+        actions.forEach(action => {
+            const upperAction = action.toUpperCase();
+            if (upperAction.includes('LOGIN') || upperAction.includes('LOGOUT') || upperAction.includes('REGISTER') || upperAction.includes('AUTH') || upperAction.includes('OTP') || upperAction.includes('PASSWORD')) {
+                actionCategories["Auth"].push(action);
+            } else if (upperAction.includes('ORG') || upperAction.includes('ORGANIZATION')) {
+                actionCategories["Organization"].push(action);
+            } else if (upperAction.includes('USER')) {
+                actionCategories["User"].push(action);
+            } else if (upperAction.includes('SUBSCRIPTION') || upperAction.includes('PAYMENT') || upperAction.includes('INVOICE') || upperAction.includes('BILLING')) {
+                actionCategories["Billing"].push(action);
+            } else if (upperAction.includes('PLAN') || upperAction.includes('TOOL') || upperAction.includes('FEATURE') || upperAction.includes('BUNDLE') || upperAction.includes('ENTITLEMENT')) {
+                actionCategories["Catalog"].push(action);
+            } else if (upperAction.includes('SYSTEM') || upperAction.includes('CRON') || upperAction.includes('WEBHOOK')) {
+                actionCategories["System"].push(action);
+            } else {
+                actionCategories["Other"].push(action);
+            }
+        });
+
+        // Sort actions within categories and remove empty categories
+        for (const key of Object.keys(actionCategories)) {
+            if (actionCategories[key].length === 0) {
+                delete actionCategories[key];
+            } else {
+                actionCategories[key].sort();
+            }
+        }
+
+        res.status(200).json(actionCategories);
+    } catch (error) {
+        handleError(res, error, 'Get Audit Log Actions Error');
+    }
+};

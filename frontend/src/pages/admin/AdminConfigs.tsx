@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
@@ -125,12 +126,43 @@ export default function AdminConfigs() {
                                     )}
                                 </div>
                                 <div className="flex items-center gap-3 w-full md:w-auto">
-                                    <Input
-                                        id={config.key}
-                                        value={editValues[config.key] || ''}
-                                        onChange={(e) => handleChange(config.key, e.target.value)}
-                                        className="flex-1 md:w-[320px]"
-                                    />
+                                    {(() => {
+                                        const value = editValues[config.key] || '';
+                                        const isBoolean = value === 'true' || value === 'false';
+                                        const isNumber = !isBoolean && !isNaN(Number(value)) && value.trim() !== '';
+
+                                        if (isBoolean) {
+                                            return (
+                                                <div className="flex-1 md:w-[320px] flex items-center h-10">
+                                                    <Switch 
+                                                        checked={value === 'true'}
+                                                        onCheckedChange={(checked) => handleChange(config.key, checked ? 'true' : 'false')}
+                                                    />
+                                                </div>
+                                            );
+                                        }
+
+                                        if (isNumber) {
+                                            return (
+                                                <Input
+                                                    id={config.key}
+                                                    type="number"
+                                                    value={value}
+                                                    onChange={(e) => handleChange(config.key, e.target.value)}
+                                                    className="flex-1 md:w-[320px]"
+                                                />
+                                            );
+                                        }
+
+                                        return (
+                                            <Input
+                                                id={config.key}
+                                                value={value}
+                                                onChange={(e) => handleChange(config.key, e.target.value)}
+                                                className="flex-1 md:w-[320px]"
+                                            />
+                                        );
+                                    })()}
                                     <Button 
                                         size="icon"
                                         variant="outline"

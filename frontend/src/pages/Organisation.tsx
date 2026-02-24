@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,7 +100,6 @@ export default function Organisation() {
   const [membersLoading, setMembersLoading] = useState(true);
 
   const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [loading, setLoading] = useState(true);
 
   // Member details sheet state
   const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
@@ -139,7 +138,6 @@ export default function Organisation() {
   // Fetch org details and invitations
   const fetchOrgData = useCallback(async () => {
     if (!activeOrganization) return;
-    setLoading(true);
     try {
       const headers = { 'x-organization-id': activeOrganization.id };
       const [invitesRes, orgRes] = await Promise.all([
@@ -161,14 +159,22 @@ export default function Organisation() {
     } catch (error) {
       console.error("Failed to fetch data", error);
       toast.error("Failed to load organization data");
-    } finally {
-      setLoading(false);
     }
   }, [activeOrganization]);
+
+  // Ref for AbortController
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Fetch members with pagination/search/sorting
   const fetchMembers = useCallback(async () => {
     if (!activeOrganization) return;
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setMembersLoading(true);
     try {
       const page = pagination.pageIndex + 1;
@@ -189,7 +195,8 @@ export default function Organisation() {
 
       const res = await fetch(`${API_URL}/organizations/members?${params.toString()}`, {
         credentials: 'include',
-        headers: { 'x-organization-id': activeOrganization.id }
+        headers: { 'x-organization-id': activeOrganization.id },
+        signal: controller.signal
       });
 
       if (res.ok) {
@@ -198,10 +205,13 @@ export default function Organisation() {
         setPageCount(data.meta.totalPages);
       }
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
       console.error("Failed to fetch members", error);
       toast.error("Failed to load members");
     } finally {
-      setMembersLoading(false);
+      if (abortControllerRef.current === controller) {
+        setMembersLoading(false);
+      }
     }
   }, [activeOrganization, pagination, sorting, debouncedSearch]);
 
@@ -361,6 +371,10 @@ export default function Organisation() {
   // Transfer ownership
   const handleTransferOwnership = async () => {
     if (!activeOrganization || !newOwnerId) return;
+    if (newOwnerId === user?.id) {
+      toast.error("Cannot transfer ownership to yourself");
+      return;
+    }
     setIsTransferring(true);
     try {
       const res = await fetch(`${API_URL}/organizations/transfer-ownership`, {
@@ -618,7 +632,13 @@ export default function Organisation() {
                 </CardDescription>
               </div>
               {canInvite && (
-                <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+                <Dialog open={isInviteDialogOpen} onOpenChange={(open) => {
+                  if (!open) {
+                    setInviteEmail("");
+                    setInviteRole("2");
+                  }
+                  setIsInviteDialogOpen(open);
+                }}>
                   <DialogTrigger asChild>
                     <Button>
                       <UserPlus className="h-4 w-4 mr-2" />

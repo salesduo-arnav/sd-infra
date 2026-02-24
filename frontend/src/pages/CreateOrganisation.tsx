@@ -31,8 +31,11 @@ export default function CreateOrganisation() {
   });
 
   const addInvite = () => {
-    if (newInvite && !invites.includes(newInvite) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newInvite)) {
-      setInvites([...invites, newInvite]);
+    const email = newInvite.trim().toLowerCase();
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+    if (email && !invites.includes(email) && emailRegex.test(email)) {
+      setInvites([...invites, email]);
       setNewInvite("");
     }
   };
