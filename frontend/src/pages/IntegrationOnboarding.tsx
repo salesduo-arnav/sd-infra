@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,7 @@ import {
 import { getToolBySlug } from "@/services/tool.service";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
 import { useOAuthPopup } from "@/hooks/useOAuthPopup";
+import { getRedirectContext, clearRedirectContext, finalizeRedirect } from "@/lib/redirectContext";
 
 // ------------------------------------------------------------------
 // Data                                                               
@@ -60,9 +61,10 @@ const ALL_INTEGRATIONS = ["sp_api", "ads_api"];
 // ------------------------------------------------------------------ 
 
 export default function IntegrationOnboarding() {
-    const [searchParams] = useSearchParams();
-    const redirectUrl = searchParams.get("redirect");
-    const appId = searchParams.get("app");
+    // Read redirect context from sessionStorage (sole source of truth)
+    const ctx = getRedirectContext();
+    const redirectUrl = ctx?.redirect || null;
+    const appId = ctx?.app || null;
     const { activeOrganization } = useAuth();
     const orgId = activeOrganization?.id || "";
     const { openOAuthPopup } = useOAuthPopup();
@@ -144,6 +146,23 @@ export default function IntegrationOnboarding() {
         fetchRequirements();
         refreshIntegrations();
     }, [fetchRequirements, refreshIntegrations]);
+
+    // Auto-redirect when there's nothing to connect:
+    // - No required integrations for this app
+    // - OR all required integrations are already connected
+    const [autoRedirected, setAutoRedirected] = useState(false);
+    useEffect(() => {
+        if (isLoadingRequirements || autoRedirected) return;
+
+        const hasAny = requiredIntegrations.length > 0;
+        if (!hasAny) {
+            // No integrations needed — skip straight to external app or /apps
+            setAutoRedirected(true);
+            if (!finalizeRedirect()) {
+                window.location.replace("/apps");
+            }
+        }
+    }, [isLoadingRequirements, requiredIntegrations, autoRedirected]);
 
     // Check for existing account when user types Name + Region
     useEffect(() => {
@@ -359,11 +378,7 @@ export default function IntegrationOnboarding() {
     const handleContinue = async () => {
         setIsSaving(true);
         try {
-            if (redirectUrl) {
-                const url = new URL(redirectUrl);
-                url.searchParams.set("integration_success", "true");
-                window.location.replace(url.toString());
-            } else {
+            if (!finalizeRedirect()) {
                 window.location.replace("/");
             }
         } finally {

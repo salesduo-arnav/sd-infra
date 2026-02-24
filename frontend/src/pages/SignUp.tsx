@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { useAuth, User } from "@/contexts/AuthContext";
@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { OtpInput } from "@/components/auth/OtpInput";
 import { Check, X, Lock, Mail, ArrowLeft, Loader2 } from "lucide-react";
+import { captureRedirectContext, hasRedirectContext } from "@/lib/redirectContext";
 import {
   Dialog,
   DialogContent,
@@ -23,14 +24,9 @@ export default function SignUp() {
   const [searchParams] = useSearchParams();
   const inviteEmail = searchParams.get("email");
   const inviteToken = searchParams.get("token");
-  const redirectUrl = searchParams.get("redirect");
-  const appParam = searchParams.get("app");
 
-  const params = new URLSearchParams();
-  if (redirectUrl) params.set("redirect", redirectUrl);
-  if (appParam) params.set("app", appParam);
-
-  const redirectSuffix = params.toString() ? `?${params.toString()}` : "";
+  // Capture redirect context from URL params into sessionStorage (idempotent)
+  captureRedirectContext(searchParams);
 
   // Personal info
   const [fullName, setFullName] = useState("");
@@ -38,21 +34,30 @@ export default function SignUp() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [acceptTerms, setAcceptTerms] = useState(false);
   const [error, setError] = useState("");
   const [otp, setOtp] = useState("");
   const [signupState, setSignupState] = useState<SignupState>("form");
   const [showOtpModal, setShowOtpModal] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const { sendSignupOtp, verifySignupOtp, isLoading, checkPendingInvites, switchOrganization } = useAuth();
   const navigate = useNavigate();
+
+  // Handle Resend Cooldown
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (resendCooldown > 0) {
+      timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   const handleAuthSuccess = async (user: User | void) => {
     // Check for pending invites (always check, regardless of how they signed up)
     try {
       const pending = await checkPendingInvites();
       if (pending && pending.length > 0) {
-        navigate(`/pending-invites${redirectSuffix}`);
+        navigate(`/pending-invites`);
         return;
       }
     } catch (e) {
@@ -61,39 +66,39 @@ export default function SignUp() {
 
     if (!user) return;
 
-    // If there's an external redirect, go there
-    if (redirectUrl) {
-      // Auto-set org if they have exactly 1
-      if (user?.memberships?.length === 1) {
-        switchOrganization(user.memberships[0].organization.id);
-      }
-      const url = new URL(redirectUrl);
-      url.searchParams.set("auth_success", "true");
-      window.location.href = url.toString();
+    // Check if user has organizations FIRST — org is required before anything else
+    const hasOrg = (user.memberships && user.memberships.length > 0);
+
+    if (!hasOrg) {
+      navigate("/create-organisation");
       return;
     }
 
-    // Default flow — check if user has organizations
-    const hasOrg = (user.memberships && user.memberships.length > 0);
-
-    if (hasOrg) {
-      navigate("/apps");
-    } else {
-      navigate(`/create-organisation${redirectSuffix}`);
+    // Has org — if external redirect, route through integration onboarding
+    if (hasRedirectContext()) {
+      if (user.memberships!.length === 1) {
+        switchOrganization(user.memberships![0].organization.id);
+      }
+      navigate("/integration-onboarding");
+      return;
     }
+
+    navigate("/apps");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
+    // Password Policy Check
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$/;
+    if (!passwordRegex.test(password)) {
+      setError("Password must be at least 8 characters long and contain both letters and numbers.");
       return;
     }
 
-    if (!acceptTerms) {
-      setError("Please accept the terms and conditions");
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
       return;
     }
 
@@ -133,6 +138,7 @@ export default function SignUp() {
   };
 
   const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
     setError("");
     setOtp("");
     try {
@@ -142,6 +148,7 @@ export default function SignUp() {
         password,
         token: inviteToken || undefined,
       });
+      setResendCooldown(60);
     } catch (err) {
       setError(err.message || "Failed to resend OTP");
     }
@@ -241,27 +248,6 @@ export default function SignUp() {
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="terms"
-            checked={acceptTerms}
-            onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
-          />
-          <label
-            htmlFor="terms"
-            className="text-sm text-muted-foreground leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-          >
-            I agree to the{" "}
-            <Link to="/terms" className="text-primary hover:underline">
-              Terms of Service
-            </Link>{" "}
-            and{" "}
-            <Link to="/privacy" className="text-primary hover:underline">
-              Privacy Policy
-            </Link>
-          </label>
-        </div>
-
         {error && !showOtpModal && (
           <p className="text-sm text-destructive">{error}</p>
         )}
@@ -297,7 +283,7 @@ export default function SignUp() {
 
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link to={`/login${redirectSuffix}`} className="text-primary hover:underline">
+          <Link to="/login" className="text-primary hover:underline">
             Sign in
           </Link>
         </p>
@@ -354,10 +340,10 @@ export default function SignUp() {
                 <button
                   type="button"
                   onClick={handleResendOtp}
-                  disabled={isLoading}
+                  disabled={isLoading || resendCooldown > 0}
                   className="text-primary hover:underline disabled:opacity-50"
                 >
-                  Resend code
+                  {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend code"}
                 </button>
               </p>
 

@@ -22,13 +22,13 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message = error.response?.data?.message || 'An unexpected error occurred';    
+    const message = error.response?.data?.message || 'An unexpected error occurred';
     if (error.response?.status >= 500) {
-        toast.error('Server error: ' + message);
+      toast.error('Server error: ' + message);
     } else if (error.code === 'ERR_NETWORK') {
-        toast.error('Network error. Please check your connection.');
+      toast.error('Network error. Please check your connection.');
     }
-    
+
     return Promise.reject(error);
   }
 );

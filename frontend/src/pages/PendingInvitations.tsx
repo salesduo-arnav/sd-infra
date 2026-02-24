@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { useAuth, Invitation } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, Trash2, Undo2, Mail } from "lucide-react";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
+import { hasRedirectContext } from "@/lib/redirectContext";
 
 export default function PendingInvitations() {
-    const { checkPendingInvites, acceptInvite, declineInvite } = useAuth();
+    const { user, checkPendingInvites, acceptInvite, declineInvite, refreshUser } = useAuth();
     const [invites, setInvites] = useState<Invitation[]>([]);
     const [loading, setLoading] = useState(true);
     const [acceptedIds, setAcceptedIds] = useState<string[]>([]);
@@ -15,8 +16,6 @@ export default function PendingInvitations() {
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState("");
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
-    const redirectUrl = searchParams.get("redirect");
 
     useEffect(() => {
         const fetchInvites = async () => {
@@ -24,10 +23,9 @@ export default function PendingInvitations() {
                 const data = await checkPendingInvites();
                 setInvites(data);
                 if (data.length === 0) {
-                    if (redirectUrl) {
-                        const url = new URL(redirectUrl);
-                        url.searchParams.set("auth_success", "true");
-                        window.location.href = url.toString();
+                    // No pending invites — continue to appropriate destination
+                    if (hasRedirectContext()) {
+                        navigate("/integration-onboarding", { replace: true });
                     } else {
                         navigate('/apps');
                     }
@@ -40,7 +38,7 @@ export default function PendingInvitations() {
             }
         };
         fetchInvites();
-    }, [checkPendingInvites, navigate, redirectUrl]);
+    }, [checkPendingInvites, navigate]);
 
     const handleAction = (inviteId: string, action: 'accept' | 'decline' | 'undo') => {
         if (action === 'accept') {
@@ -74,11 +72,18 @@ export default function PendingInvitations() {
                 await Promise.all(invitesToDecline.map(invite => declineInvite(invite.token)));
             }
 
-            // Redirect to external app if redirect param exists
-            if (redirectUrl) {
-                const url = new URL(redirectUrl);
-                url.searchParams.set("auth_success", "true");
-                window.location.href = url.toString();
+            // Check if user now has an org after accepting invites
+            const hasOrg = user?.memberships && user.memberships.length > 0;
+
+            if (!hasOrg) {
+                // Still no org — must create one first
+                navigate("/create-organisation");
+                return;
+            }
+
+            // Has org — if external redirect, go through integration onboarding
+            if (hasRedirectContext()) {
+                navigate("/integration-onboarding", { replace: true });
                 return;
             }
             navigate('/apps');

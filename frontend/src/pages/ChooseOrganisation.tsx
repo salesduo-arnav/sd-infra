@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,12 +7,11 @@ import { Loader2, Building2, Plus, ArrowRight, UserPlus, Sparkles } from "lucide
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
+import { hasRedirectContext } from "@/lib/redirectContext";
 
 export default function ChooseOrganisation() {
     const { user, switchOrganization, activeOrganization, isLoading: authLoading, checkPendingInvites } = useAuth();
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
-    const redirectUrl = searchParams.get("redirect");
 
     const [isLoading, setIsLoading] = useState(false);
     const [targetOrgId, setTargetOrgId] = useState<string | null>(null);
@@ -33,20 +32,13 @@ export default function ChooseOrganisation() {
     useEffect(() => {
         if (!targetOrgId || activeOrganization?.id !== targetOrgId) return;
 
-        if (redirectUrl) {
-            const url = new URL(redirectUrl, window.location.origin);
-            url.searchParams.set("auth_success", "true");
-            window.location.href = url.toString();
+        if (hasRedirectContext()) {
+            // Route through integration onboarding before going to external app
+            navigate("/integration-onboarding", { replace: true });
         } else {
             navigate("/apps");
         }
-    }, [activeOrganization, targetOrgId, redirectUrl, navigate]);
-
-    const getRedirectSuffix = () => {
-        const params = new URLSearchParams();
-        if (redirectUrl) params.set("redirect", redirectUrl);
-        return params.toString() ? `?${params.toString()}` : "";
-    };
+    }, [activeOrganization, targetOrgId, navigate]);
 
     const handleSelectOrg = (orgId: string) => {
         setIsLoading(true);
@@ -54,8 +46,8 @@ export default function ChooseOrganisation() {
         switchOrganization(orgId);
     };
 
-    const handleCreateNew = () => navigate(`/create-organisation${getRedirectSuffix()}`);
-    const handleAcceptInvite = () => navigate(`/pending-invites${getRedirectSuffix()}`);
+    const handleCreateNew = () => navigate("/create-organisation");
+    const handleAcceptInvite = () => navigate("/pending-invites");
 
     // Loading state
     if (authLoading) {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { Button } from "@/components/ui/button";
@@ -28,8 +28,26 @@ export default function ResetPassword() {
         );
     }
 
+    // Hide token from URL
+    useEffect(() => {
+        if (token) {
+            navigate("/reset-password", { replace: true });
+        }
+    }, [token, navigate]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Password Policy Check
+        const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$/;
+        if (!passwordRegex.test(password)) {
+            toast({
+                variant: "destructive",
+                title: "Weak Password",
+                description: "Password must be at least 8 characters long and contain both letters and numbers."
+            });
+            return;
+        }
 
         if (password !== confirmPassword) {
             toast({

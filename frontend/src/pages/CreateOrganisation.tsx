@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Building2, Sparkles, Users, Shield, ArrowRight, ArrowLeft } from "lucid
 import api from "@/lib/api";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
 import { Link } from "react-router-dom";
+import { hasRedirectContext } from "@/lib/redirectContext";
 
 export default function CreateOrganisation() {
   const [name, setName] = useState("");
@@ -19,15 +20,12 @@ export default function CreateOrganisation() {
   const [error, setError] = useState("");
   const { user, refreshUser, activeOrganization } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const redirectUrl = searchParams.get("redirect");
 
   // State guard: If user already has an org, redirect them.
   // This prevents back-button re-entry into org creation.
   useState(() => {
     if (activeOrganization) {
-      // preserve query params
-      const target = redirectUrl ? `/integration-onboarding?${searchParams.toString()}` : "/apps";
+      const target = hasRedirectContext() ? "/integration-onboarding" : "/apps";
       navigate(target, { replace: true });
     }
   });
@@ -56,11 +54,10 @@ export default function CreateOrganisation() {
       }
 
       await refreshUser();
-      // Redirect to external app if redirect param exists
-      if (redirectUrl) {
-        const url = new URL(redirectUrl, window.location.origin);
-        url.searchParams.set("auth_success", "true");
-        window.location.replace(url.toString());
+
+      // If redirect context exists, go through integration onboarding before external app
+      if (hasRedirectContext()) {
+        navigate("/integration-onboarding", { replace: true });
         return;
       }
 
@@ -237,7 +234,7 @@ export default function CreateOrganisation() {
           You can always update these details later in settings
         </p>
       </form>
-    </SplitScreenLayout>
+    </SplitScreenLayout >
   );
 }
 

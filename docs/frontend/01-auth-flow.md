@@ -100,14 +100,14 @@ Three wrapper components in `App.tsx` control access:
 
 ## Issues Found
 
-1. **`window.location.href` used for navigation** — PublicRoute uses `window.location.href` for redirect, causing a full page reload instead of client-side navigation via React Router.
-2. **No deep link preservation** — When unauthenticated users are redirected to login, the intended destination URL may be lost during the org selection flow.
-3. **Race condition on auth state** — If auth state changes during route evaluation (e.g., session expiry), users may see inconsistent UI.
-4. **No session refresh mechanism** — There's no refresh token or session renewal. Sessions expire after 24 hours with no warning.
-5. **Missing OTP retry logic** — No visible rate limiting or retry count on the OTP resend button. Users can spam the resend button.
-6. **OTP timeout not communicated** — No countdown timer or indication when the OTP expires.
-7. **Password policy not enforced on frontend** — No minimum length, complexity, or strength requirements beyond the HTML `minLength=8` attribute.
-8. **Terms links go nowhere** — SignUp links to `/terms` and `/privacy` which don't exist in the route definitions.
-9. **Reset token visible in URL** — The password reset token remains in the browser URL/history, which could be a security concern on shared computers.
-10. **`localStorage` not cleared on logout** — `activeOrganizationId` may persist in localStorage after logout, causing stale organization selection on next login.
-11. **Generic loading state** — App shows plain "Loading..." text during initial auth check, with no visual polish or skeleton UI.
+- [x] **`window.location.href` used for navigation** — PublicRoute uses `window.location.href` for redirect, causing a full page reload instead of client-side navigation via React Router.
+- [x] **No deep link preservation** — When unauthenticated users are redirected to login, the intended destination URL may be lost during the org selection flow.
+- [ ] **[SKIPPED] Race condition on auth state** — If auth state changes during route evaluation (e.g., session expiry), users may see inconsistent UI. *(Skipped: Already handled, very rare case)*
+- [ ] **[SKIPPED] No session refresh mechanism** — There's no refresh token or session renewal. Sessions expire after 24 hours with no warning. *(Skipped: Can change Cookie TTL if needed)*
+- [x] **Missing OTP retry logic** — No visible rate limiting or retry count on the OTP resend button. Users can spam the resend button.
+- [x] **OTP timeout not communicated** — No countdown timer or indication when the OTP expires.
+- [x] **Password policy not enforced on frontend** — No minimum length, complexity, or strength requirements beyond the HTML `minLength=8` attribute.
+- [x] **Terms links go nowhere** — SignUp links to `/terms` and `/privacy` which don't exist in the route definitions.
+- [x] **Reset token visible in URL** — The password reset token remains in the browser URL/history, which could be a security concern on shared computers.
+- [x] **`localStorage` not cleared on logout** — `activeOrganizationId` may persist in localStorage after logout, causing stale organization selection on next login.
+- [x] **[ALREADY FIXED] Generic loading state** — App shows plain "Loading..." text during initial auth check, with no visual polish or skeleton UI.
