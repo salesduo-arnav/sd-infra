@@ -251,6 +251,11 @@ export const getAuditLogs = async (params?: PaginationParams & { action?: string
   return response.data; // { audit_logs: [], meta: {} }
 };
 
+export const getAuditLogActions = async () => {
+  const response = await api.get('/admin/audit-logs/actions');
+  return response.data;
+};
+
 export const getAuditLogById = async (id: string) => {
   const response = await api.get(`/admin/audit-logs/${id}`);
   return response.data;

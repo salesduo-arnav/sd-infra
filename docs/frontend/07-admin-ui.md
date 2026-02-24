@@ -100,7 +100,7 @@ const { data, isLoading } = useQuery({
 3. **Hard-coded chart colors** — Colors like `#2563eb` are hardcoded instead of using theme variables.
 4. **No data refresh button** — Stale data is cached with no manual refresh option.
 5. **Bundle slug uses `Math.random()`** — Auto-generated slugs use `Math.random().toString(36)` which is non-deterministic and bad for SEO.
-6. **No input validation on plan creation** — Can create plans with $0 price or empty names.
+6. **No input validation on plan creation** — Can create plans with empty names.
 7. **Plan deletion without confirmation** — Some delete actions lack confirmation dialogs.
 8. **DataTable search not debounced** — Every keystroke in search triggers a new API call.
 9. **Action categories hardcoded** — Audit log action categories are hardcoded in the frontend instead of being fetched from the backend.
