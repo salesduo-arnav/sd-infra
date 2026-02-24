@@ -84,10 +84,10 @@ For platform administration pages restricted to superusers.
 
 ## Issues Found
 
-1. **`/design` is unprotected** — The DesignSystem page is accessible without authentication. While it's a development tool, it could expose component structure in production.
-2. **No 404 analytics** — The NotFound page logs to console but doesn't track unknown routes.
-3. **Redirect loops possible** — Edge cases where ProtectedRoute redirects to `/create-organisation` which also uses ProtectedRoute could potentially loop.
-4. **No route-level code splitting** — All pages are imported eagerly, increasing the initial bundle size. React.lazy() and Suspense should be used for route-level code splitting.
-5. **No transition animations** — Route changes are instant with no transition effects.
-6. **Admin routes return 404 for non-superusers** — Instead of showing "Access Denied", non-superusers see a 404, which hides the existence of admin pages (security through obscurity).
-7. **`/accept-invite` is in PublicRoute** — But invitation acceptance requires authentication. The page handles both states internally, which adds complexity.
+1. **`/design` is unprotected** — The DesignSystem page is accessible without authentication. While it's a development tool, it could expose component structure in production. (Will remove in production)
+2. **No 404 analytics** — The NotFound page logs to console but doesn't track unknown routes. (Tracking for 404 not needed currently)
+3. ~~**Redirect loops possible** — Edge cases where ProtectedRoute redirects to `/create-organisation` which also uses ProtectedRoute could potentially loop.~~
+4. **No route-level code splitting** — All pages are imported eagerly, increasing the initial bundle size. React.lazy() and Suspense should be used for route-level code splitting. (Not needed for now)
+5. **No transition animations** — Route changes are instant with no transition effects. (Not needed for now)
+6. **Admin routes return 404 for non-superusers** — Instead of showing "Access Denied", non-superusers see a 404, which hides the existence of admin pages (security through obscurity). (Not needed for now)
+7. **`/accept-invite` is in PublicRoute** — But invitation acceptance requires authentication. The page handles both states internally, which adds complexity. (This is by design so we can show pending invites)
