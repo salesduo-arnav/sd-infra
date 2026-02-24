@@ -142,7 +142,7 @@ SUPERUSER_EMAILS=admin@example.com,super@example.com
 - [x] **`process.exit(1)` on DB connection failure** — Hard exit is not graceful for container orchestration. The container will restart but may lose in-flight requests.
 - [x] **No Redis authentication** — The Redis client configuration doesn't explicitly handle password authentication. If the Redis instance requires a password, it must be included in the URL.
 - [x] **No per-command timeout on Redis** — Individual Redis commands have no timeout, so a slow or unresponsive Redis server could block requests indefinitely.
-- [x] **Superuser email list parsed on every call** — `getSuperuserEmails()` re-parses the environment variable on each invocation instead of caching the result.
+- [x] **[SKIPPED] Superuser email list parsed on every call** — `getSuperuserEmails()` re-parses the environment variable on each invocation instead of caching the result. *(Skipped: Not needed)*
 - [x] **[ALREADY FIXED] SMTP fallback credentials in production** — Mail service defaults to test credentials (`test_user`/`test_pass` at `smtp.ethereal.email`) if SMTP env vars are missing, which would silently fail to deliver emails in production.
 - [x] **No validation of required env vars at startup** — The application doesn't validate that required environment variables are set before starting, leading to cryptic runtime errors.
 - [x] **CORS_ORIGINS parsing** — If `CORS_ORIGINS` is not set, `allowedOrigins` becomes an empty array, which may block all cross-origin requests without a clear error.
