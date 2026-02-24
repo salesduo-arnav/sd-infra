@@ -24,30 +24,9 @@ import {
     X,
     Filter,
 } from "lucide-react";
-import { AuditLog, getAuditLogs } from "@/services/admin.service";
+import { AuditLog, getAuditLogs, getAuditLogActions } from "@/services/admin.service";
 import { format } from "date-fns";
-
-// Action categories for grouped dropdown
-const actionCategories = {
-    "Auth": [
-        "USER_REGISTER", "USER_LOGIN", "USER_LOGOUT", "USER_PASSWORD_RESET",
-        "USER_GOOGLE_AUTH", "USER_LOGIN_OTP_VERIFIED", "USER_SIGNUP_OTP_VERIFIED"
-    ],
-    "User": ["UPDATE_USER", "DELETE_USER"],
-    "Organization": [
-        "CREATE_ORGANIZATION", "UPDATE_ORGANIZATION", "DELETE_ORGANIZATION",
-        "REMOVE_MEMBER", "UPDATE_MEMBER_ROLE", "TRANSFER_OWNERSHIP"
-    ],
-    "Invitation": ["INVITE_MEMBER", "REVOKE_INVITATION", "ACCEPT_INVITATION", "DECLINE_INVITATION"],
-    "Plan": ["CREATE_PLAN", "UPDATE_PLAN", "DELETE_PLAN", "UPSERT_PLAN_LIMIT", "DELETE_PLAN_LIMIT"],
-    "Tool": ["CREATE_TOOL", "UPDATE_TOOL", "DELETE_TOOL"],
-    "Feature": ["CREATE_FEATURE", "UPDATE_FEATURE", "DELETE_FEATURE"],
-    "Bundle": [
-        "CREATE_BUNDLE_GROUP", "UPDATE_BUNDLE_GROUP", "DELETE_BUNDLE_GROUP",
-        "CREATE_BUNDLE", "UPDATE_BUNDLE", "DELETE_BUNDLE",
-        "ADD_PLAN_TO_BUNDLE", "REMOVE_PLAN_FROM_BUNDLE"
-    ],
-};
+import { useQuery } from "@tanstack/react-query";
 
 const entityTypes = [
     "User", "Organization", "OrganizationMember", "Invitation",
@@ -66,7 +45,6 @@ export default function AuditLogs() {
 
     // Search
     const [searchQuery, setSearchQuery] = useState("");
-    const [debouncedSearch, setDebouncedSearch] = useState("");
 
     // Filters
     const [actionFilter, setActionFilter] = useState<string>("all");
@@ -78,13 +56,16 @@ export default function AuditLogs() {
     const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
     const [detailsOpen, setDetailsOpen] = useState(false);
 
-    // Debounce search
+    // Fetch Action Categories
+    const { data: actionCategories } = useQuery({
+        queryKey: ['admin', 'audit-logs', 'actions'],
+        queryFn: getAuditLogActions
+    });
+
+    // Reset page when search or filters change
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedSearch(searchQuery);
-        }, 400);
-        return () => clearTimeout(timer);
-    }, [searchQuery]);
+        setPagination(prev => ({ ...prev, pageIndex: 0 }));
+    }, [searchQuery, actionFilter, entityTypeFilter, startDateTime, endDateTime]);
 
     // Fetch logs
     const fetchLogs = useCallback(async () => {
@@ -103,8 +84,8 @@ export default function AuditLogs() {
                 sort_dir: sortOrder,
             };
 
-            if (debouncedSearch.trim()) {
-                params.search = debouncedSearch.trim();
+            if (searchQuery.trim()) {
+                params.search = searchQuery.trim();
             }
 
             if (actionFilter && actionFilter !== "all") {
@@ -131,16 +112,11 @@ export default function AuditLogs() {
         } finally {
             setLoading(false);
         }
-    }, [pagination, sorting, debouncedSearch, actionFilter, entityTypeFilter, startDateTime, endDateTime]);
+    }, [pagination, sorting, searchQuery, actionFilter, entityTypeFilter, startDateTime, endDateTime]);
 
     useEffect(() => {
         fetchLogs();
     }, [fetchLogs]);
-
-    // Reset page when filters change
-    useEffect(() => {
-        setPagination(prev => ({ ...prev, pageIndex: 0 }));
-    }, [debouncedSearch, actionFilter, entityTypeFilter, startDateTime, endDateTime]);
 
     // Count active filters
     const activeFilterCount = [
@@ -289,12 +265,12 @@ export default function AuditLogs() {
                                 </SelectTrigger>
                                 <SelectContent className="max-h-[300px]">
                                     <SelectItem value="all">All Actions</SelectItem>
-                                    {Object.entries(actionCategories).map(([category, actions]) => (
+                                    {Object.entries(actionCategories || {}).map(([category, actions]) => (
                                         <div key={category}>
                                             <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
                                                 {category}
                                             </div>
-                                            {actions.map((action) => (
+                                            {Array.isArray(actions) && actions.map((action: string) => (
                                                 <SelectItem key={action} value={action}>
                                                     {action.replace(/_/g, " ")}
                                                 </SelectItem>

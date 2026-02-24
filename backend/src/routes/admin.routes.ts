@@ -67,6 +67,7 @@ router.put('/plans/:plan_id/limits', PlanController.upsertPlanLimit);
 router.delete('/plans/:plan_id/limits/:feature_id', PlanController.deletePlanLimit);
 
 // Audit Logs
+router.get('/audit-logs/actions', AuditController.getAuditLogActions);
 router.get('/audit-logs', AuditController.getAuditLogs);
 router.get('/audit-logs/:id', AuditController.getAuditLogById);
 

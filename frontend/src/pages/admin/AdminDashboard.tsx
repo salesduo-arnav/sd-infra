@@ -3,31 +3,49 @@ import {
   Building2,
   DollarSign,
   Activity,
-  Zap
+  Zap,
+  AlertCircle
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getOverviewStats, getRevenueChart, getUserGrowthChart, getToolUsageChart } from "@/services/admin.service";
 import { StatsCard } from "@/components/admin/overview/StatsCard";
 import { OverviewChart } from "@/components/admin/overview/OverviewChart";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+export function StatsCardSkeleton() {
+  return (
+    <Card className="overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-950/50">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-8 w-8 rounded-full" />
+      </CardHeader>
+      <CardContent>
+        <Skeleton className="h-8 w-16 mb-2" />
+        <Skeleton className="h-3 w-32" />
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function AdminDashboard() {
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading, isError: statsError } = useQuery({
     queryKey: ['admin', 'stats', 'overview'],
     queryFn: getOverviewStats
   });
 
-  const { data: revenueData, isLoading: revenueLoading } = useQuery({
+  const { data: revenueData, isLoading: revenueLoading, isError: revenueError } = useQuery({
     queryKey: ['admin', 'stats', 'revenue'],
     queryFn: getRevenueChart
   });
 
-  const { data: userData, isLoading: userLoading } = useQuery({
+  const { data: userData, isLoading: userLoading, isError: userError } = useQuery({
     queryKey: ['admin', 'stats', 'users'],
     queryFn: getUserGrowthChart
   });
 
-  const { data: toolData, isLoading: toolLoading } = useQuery({
+  const { data: toolData, isLoading: toolLoading, isError: toolError } = useQuery({
     queryKey: ['admin', 'stats', 'tools'],
     queryFn: getToolUsageChart
   });
@@ -43,48 +61,64 @@ export default function AdminDashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {statsLoading ? (
-            Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-32 w-full" />)
-          ) : (
-            <>
-              <StatsCard
-                title="Total Users"
-                value={stats?.totalUsers?.toLocaleString() || 0}
-                icon={Users}
-                growth={stats?.userGrowth}
-                growthAbsolute={stats?.userGrowthAbsolute}
-              />
-              <StatsCard
-                title="Active Organizations"
-                value={stats?.totalOrgs?.toLocaleString() || 0}
-                icon={Building2}
-                growth={stats?.orgGrowth}
-                growthAbsolute={stats?.orgGrowthAbsolute}
-              />
-              <StatsCard
-                title="Active Subscriptions"
-                value={stats?.activeSubs?.toLocaleString() || 0}
-                icon={Activity}
-                growth={stats?.activeSubsGrowth}
-                growthAbsolute={stats?.activeSubsGrowthAbsolute}
-              />
-              <StatsCard
-                title="Monthly Recurring Revenue"
-                value={`$${(stats?.mrr || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                description={undefined} // Remove old description to use growth
-                growth={stats?.mrrGrowth}
-                growthAbsolute={stats?.mrrGrowthAbsolute}
-                icon={DollarSign}
-              />
-            </>
-          )}
-        </div>
+        {statsError ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>Failed to load overview statistics. Please try refreshing.</AlertDescription>
+          </Alert>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {statsLoading ? (
+              Array(4).fill(0).map((_, i) => <StatsCardSkeleton key={i} />)
+            ) : (
+              <>
+                <StatsCard
+                  title="Total Users"
+                  value={stats?.totalUsers?.toLocaleString() || 0}
+                  icon={Users}
+                  growth={stats?.userGrowth}
+                  growthAbsolute={stats?.userGrowthAbsolute}
+                />
+                <StatsCard
+                  title="Active Organizations"
+                  value={stats?.totalOrgs?.toLocaleString() || 0}
+                  icon={Building2}
+                  growth={stats?.orgGrowth}
+                  growthAbsolute={stats?.orgGrowthAbsolute}
+                />
+                <StatsCard
+                  title="Active Subscriptions"
+                  value={stats?.activeSubs?.toLocaleString() || 0}
+                  icon={Activity}
+                  growth={stats?.activeSubsGrowth}
+                  growthAbsolute={stats?.activeSubsGrowthAbsolute}
+                />
+                <StatsCard
+                  title="Monthly Recurring Revenue"
+                  value={`$${(stats?.mrr || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  description={undefined} // Remove old description to use growth
+                  growth={stats?.mrrGrowth}
+                  growthAbsolute={stats?.mrrGrowthAbsolute}
+                  icon={DollarSign}
+                />
+              </>
+            )}
+          </div>
+        )}
 
         {/* Charts */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
           <div className="col-span-4">
-            {userLoading ? <Skeleton className="h-[350px] w-full" /> : (
+            {userError ? (
+              <Alert variant="destructive" className="h-[350px] flex flex-col justify-center">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>Failed to load user growth data.</AlertDescription>
+              </Alert>
+            ) : userLoading ? (
+              <Skeleton className="h-[350px] w-full" />
+            ) : (
               <OverviewChart
                 title="User Growth"
                 description="Active user registrations over time"
@@ -96,7 +130,15 @@ export default function AdminDashboard() {
             )}
           </div>
           <div className="col-span-3">
-            {toolLoading ? <Skeleton className="h-[350px] w-full" /> : (
+            {toolError ? (
+              <Alert variant="destructive" className="h-[350px] flex flex-col justify-center">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>Failed to load tool usage data.</AlertDescription>
+              </Alert>
+            ) : toolLoading ? (
+              <Skeleton className="h-[350px] w-full" />
+            ) : (
               <OverviewChart
                 title="Top Tool Usage"
                 description="Most popular AI tools by usage count"
@@ -112,7 +154,15 @@ export default function AdminDashboard() {
 
         {/* Revenue Chart - maybe simpler full width or another row */}
         <div className="grid gap-4 md:grid-cols-1">
-          {revenueLoading ? <Skeleton className="h-[350px] w-full" /> : (
+          {revenueError ? (
+            <Alert variant="destructive" className="h-[350px] flex flex-col justify-center">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>Failed to load revenue data.</AlertDescription>
+            </Alert>
+          ) : revenueLoading ? (
+            <Skeleton className="h-[350px] w-full" />
+          ) : (
             <OverviewChart
               title="Revenue Trend (One-Time)"
               description="Monthly revenue from one-time purchases"

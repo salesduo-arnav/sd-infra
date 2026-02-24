@@ -62,13 +62,9 @@ export default function AdminUsers() {
     }
   }, [deleteDialogOpen]);
 
-  // Debounce search
+  // Debounce search is now handled in DataTable component
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-      setPagination(prev => ({ ...prev, pageIndex: 0 }));
-    }, 500);
-    return () => clearTimeout(timer);
+    setPagination(prev => ({ ...prev, pageIndex: 0 }));
   }, [searchQuery]);
 
   const fetchUsers = useCallback(async () => {
@@ -86,8 +82,8 @@ export default function AdminUsers() {
         sort_dir: sortOrder,
       });
 
-      if (debouncedSearch) {
-        params.append("search", debouncedSearch);
+      if (searchQuery) {
+        params.append("search", searchQuery);
       }
 
       const response = await fetch(`${API_URL}/admin/users?${params.toString()}`, {
@@ -110,7 +106,7 @@ export default function AdminUsers() {
     } finally {
       setLoading(false);
     }
-  }, [pagination, sorting, debouncedSearch]);
+  }, [pagination, sorting, searchQuery]);
 
   useEffect(() => {
     fetchUsers();
@@ -139,10 +135,11 @@ export default function AdminUsers() {
         setConflictOrgs(null);
       } else if (response.status === 409) {
         const result = await response.json();
-        if (result.organizations) {
+        if (result.organizations && result.organizations.length > 0) {
           setConflictOrgs(result.organizations);
         } else {
           console.error("409 response missing organizations", result);
+          setConflictOrgs([]); // Set to empty array to show conflict warning without the list
         }
       }
     } catch (error) {
@@ -289,13 +286,15 @@ export default function AdminUsers() {
               {conflictOrgs ? (
                 <div className="space-y-2">
                   <p className="text-destructive font-semibold">
-                    This user is the sole owner of the following organizations:
+                    This user is the sole owner of {conflictOrgs.length > 0 ? "the following" : "one or more"} organizations.
                   </p>
-                  <ul className="list-disc pl-5 text-sm text-foreground">
-                    {conflictOrgs.map(org => (
-                      <li key={org.id}>{org.name}</li>
-                    ))}
-                  </ul>
+                  {conflictOrgs.length > 0 && (
+                    <ul className="list-disc pl-5 text-sm text-foreground">
+                      {conflictOrgs.map(org => (
+                        <li key={org.id}>{org.name}</li>
+                      ))}
+                    </ul>
+                  )}
                   <p>
                     Deleting this user will also <span className="font-bold text-destructive">permanently delete these organizations</span> and all their data.
                   </p>

@@ -255,6 +255,11 @@ export default function AdminPlans() {
 
   const handlePlanSave = useCallback(async () => {
     try {
+      if (!planFormData.name.trim()) {
+          toast.error("Plan name is required");
+          return;
+      }
+
       if (planFormData.is_trial_plan && planFormData.interval === 'one_time') {
           toast.error("One-time plans cannot be set as trial plans. Please use a recurring interval.");
           return;
@@ -265,7 +270,6 @@ export default function AdminPlans() {
       } else {
         await AdminService.createPlan(planFormData);
       }
-      setIsPlanDialogOpen(false);
       setIsPlanDialogOpen(false);
       fetchPlans();
       fetchBundleGroups(); // Update bundles if plan name changed
@@ -477,7 +481,6 @@ export default function AdminPlans() {
           await Promise.all(promises);
           
           toast.success("Limits updated successfully");
-          setIsLimitDialogOpen(false);
           setIsLimitDialogOpen(false);
           fetchPlans(); // Refresh to get latest limits
           fetchBundleGroups(); // Refresh bundle views that might show limits
