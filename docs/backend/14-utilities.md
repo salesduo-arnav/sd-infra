@@ -119,13 +119,13 @@ Financial and growth metrics calculations used by the admin dashboard.
 
 ## Issues Found
 
-1. **Logger has only console transport** — No file logging is configured. In production, logs are only available through container stdout, with no persistent log files.
-2. **No log rotation** — Since only console transport is used, there's no log rotation strategy.
-3. **No request ID or tracing context** — Logger has no concept of request correlation IDs, making it difficult to trace a single request through log entries.
-4. **`handleError` uses fragile string matching** — Checking `error.message` for substrings like "not found" could produce false positives if an error message coincidentally contains these words.
-5. **No max limit on pagination** — `limit` parameter has no upper bound. A client could request `?limit=999999` and cause a large database query.
-6. **`sortBy` is not validated** — The sort column from user input is passed directly to Sequelize's `order` clause. While Sequelize typically prevents SQL injection, unvalidated column names could cause errors or expose column information.
-7. **`calculateGrowth` returns 100 for new data** — When previous is 0 and current > 0, returns 100%. This is mathematically undefined (infinity) and the choice of 100% should be documented.
-8. **`calculateMRR` silently skips subscriptions without plans** — If a subscription has no associated plan (e.g., bundle-only), it's excluded from MRR without any logging.
-9. **No handling of negative prices in MRR** — If a plan price is negative (credit/refund), it would reduce MRR without any safeguard.
-10. **Timestamp format truncated** — The logger timestamp format includes "ms" in the format string but doesn't actually output milliseconds.
+- [x] **Logger has only console transport** — No file logging is configured. In production, logs are only available through container stdout, with no persistent log files.
+- [x] **No log rotation** — Since only console transport is used, there's no log rotation strategy.
+- [ ] **No request ID or tracing context** — Logger has no concept of request correlation IDs, making it difficult to trace a single request through log entries. *(Skipped: Not needed for now)*
+- [x] **`handleError` uses fragile string matching** — Checking `error.message` for substrings like "not found" could produce false positives if an error message coincidentally contains these words.
+- [x] **No max limit on pagination** — `limit` parameter has no upper bound. A client could request `?limit=999999` and cause a large database query.
+- [x] **`sortBy` is not validated** — The sort column from user input is passed directly to Sequelize's `order` clause. While Sequelize typically prevents SQL injection, unvalidated column names could cause errors or expose column information.
+- [x] **`calculateGrowth` returns 100 for new data** — When previous is 0 and current > 0, returns 100%. This is mathematically undefined (infinity) and the choice of 100% should be documented.
+- [x] **`calculateMRR` silently skips subscriptions without plans** — If a subscription has no associated plan (e.g., bundle-only), it's excluded from MRR without any logging.
+- [x] **No handling of negative prices in MRR** — If a plan price is negative (credit/refund), it would reduce MRR without any safeguard.
+- [x] **Timestamp format truncated** — The logger timestamp format includes "ms" in the format string but doesn't actually output milliseconds.
