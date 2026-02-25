@@ -14,7 +14,7 @@ export class CronService {
         Logger.info('Initializing Cron Jobs...');
 
         // Run every day at 00:00
-        cron.schedule('41 10 * * *', async () => {
+        cron.schedule('00 00 * * *', async () => {
             Logger.info('[Cron] Starting check for past_due subscriptions...');
             await this.checkAndCancelPastDueSubscriptions();
         });
@@ -25,7 +25,7 @@ export class CronService {
     public async checkAndCancelPastDueSubscriptions() {
         try {
             const lockKey = 'cron:lock:checkAndCancelPastDueSubscriptions';
-            
+
             // Acquire lock (NX = Set only if not exists, EX = expire in 300 seconds)
             const acquired = await redisClient.set(lockKey, 'locked', { NX: true, EX: 300 });
 

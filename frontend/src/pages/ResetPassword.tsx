@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,20 @@ export default function ResetPassword() {
     const [confirmPassword, setConfirmPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
-    if (!token) {
+    // Persist token in a ref so it survives URL cleanup
+    const tokenRef = useRef(token);
+    if (token) {
+        tokenRef.current = token;
+    }
+
+    // Hide token from URL
+    useEffect(() => {
+        if (token) {
+            navigate("/reset-password", { replace: true });
+        }
+    }, [token, navigate]);
+
+    if (!tokenRef.current) {
         return (
             <AuthLayout title="Invalid Link" subtitle="This password reset link is invalid or missing.">
                 <Button asChild className="w-full">
@@ -30,6 +43,17 @@ export default function ResetPassword() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Password Policy Check
+        const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$/;
+        if (!passwordRegex.test(password)) {
+            toast({
+                variant: "destructive",
+                title: "Weak Password",
+                description: "Password must be at least 8 characters long and contain both letters and numbers."
+            });
+            return;
+        }
 
         if (password !== confirmPassword) {
             toast({
@@ -44,7 +68,7 @@ export default function ResetPassword() {
             const res = await fetch(`${API_URL}/auth/reset-password`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ token, newPassword: password }),
+                body: JSON.stringify({ token: tokenRef.current, newPassword: password }),
             });
 
             const data = await res.json();

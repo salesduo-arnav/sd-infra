@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from "rea
 import { Layout } from "@/components/layout/Layout";
 import { FullPageLoader } from "@/components/layout/FullPageLoader";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { captureRedirectContext, clearRedirectContext, hasRedirectContext } from "@/lib/redirectContext";
 import { PermissionsProvider } from "@/contexts/PermissionsContext";
 import { usePermissions } from "@/contexts/PermissionsContext";
 import Login from "./pages/Login";
@@ -105,36 +106,40 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, activeOrganization } = useAuth();
   const location = useLocation();
 
-  if (isAuthenticated) {
-    const params = new URLSearchParams(location.search);
-    const redirectUrl = params.get("redirect");
+  // Capture redirect/app params from URL into sessionStorage on every render.
+  // This ensures that whichever entry point the user hits first (login, signup),
+  // the context is persisted before any navigation happens.
+  const params = new URLSearchParams(location.search);
+  captureRedirectContext(params);
 
-    // Already have an active org? Skip choose-org entirely
+  if (isAuthenticated) {
+    // Already have an active org?
     if (activeOrganization) {
-      if (redirectUrl) {
-        const url = new URL(redirectUrl, window.location.origin);
-        url.searchParams.set("auth_success", "true");
-        window.location.href = url.toString();
-        return null;
+      if (hasRedirectContext()) {
+        // External app redirect pending — route through integration onboarding
+        // (it auto-skips and redirects if no integrations are needed)
+        return <Navigate to="/integration-onboarding" replace />;
       }
+      // No external redirect — go to apps
+      clearRedirectContext();
       return <Navigate to="/apps" replace />;
     }
 
     // No memberships at all — need to create an org first
     if (!user?.memberships || user.memberships.length === 0) {
-      return <Navigate to={`/create-organisation${location.search}`} replace />;
+      return <Navigate to="/create-organisation" replace />;
     }
 
     // Has memberships but no active org — go to org selection
-    return <Navigate to={`/choose-organisation${location.search}`} replace />;
+    return <Navigate to="/choose-organisation" replace />;
   }
   return <>{children}</>;
 }
 
 function AppInitializer({ children }: { children: React.ReactNode }) {
-  const { isLoading, isOrgResolving } = useAuth();
+  const { isInitializing, isOrgResolving } = useAuth();
 
-  if (isLoading || isOrgResolving) {
+  if (isInitializing || isOrgResolving) {
     return <FullPageLoader message="Initializing workspace..." />;
   }
 

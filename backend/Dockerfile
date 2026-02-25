@@ -20,6 +20,7 @@ COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/config ./config
 COPY --from=builder /app/.sequelizerc .
 
+RUN mkdir -p /app/logs && chown -R node:node /app/logs
 USER node
 EXPOSE 3000
 # Uses 'npm start' which now runs 'migrate:up' then server

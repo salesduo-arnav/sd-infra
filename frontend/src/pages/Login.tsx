@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthLayout } from "@/components/auth/AuthLayout";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, User } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { OtpInput } from "@/components/auth/OtpInput";
 import { Mail, KeyRound, ArrowLeft, Loader2 } from "lucide-react";
+import { captureRedirectContext, hasRedirectContext } from "@/lib/redirectContext";
 
 type LoginMode = "password" | "otp";
 type OtpState = "idle" | "sent" | "verifying";
@@ -15,59 +16,70 @@ type OtpState = "idle" | "sent" | "verifying";
 export default function Login() {
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get("token");
+
+  // Capture redirect context from URL params into sessionStorage (idempotent)
+  captureRedirectContext(searchParams);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const [loginMode, setLoginMode] = useState<LoginMode>("password");
   const [otpState, setOtpState] = useState<OtpState>("idle");
-  const { login, sendLoginOtp, verifyLoginOtp, isLoading, checkPendingInvites, user, switchOrganization } = useAuth();
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const { login, sendLoginOtp, verifyLoginOtp, isLoading, checkPendingInvites, switchOrganization } = useAuth();
   const navigate = useNavigate();
 
-  const redirectUrl = searchParams.get("redirect");
-  const appParam = searchParams.get("app");
+  // Handle Resend Cooldown
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (resendCooldown > 0) {
+      timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
-  const params = new URLSearchParams();
-  if (redirectUrl) params.set("redirect", redirectUrl);
-  if (appParam) params.set("app", appParam);
-
-  const redirectSuffix = params.toString() ? `?${params.toString()}` : "";
-
-  const handleAuthSuccess = async () => {
+  const handleAuthSuccess = async (loggedInUser: User | void) => {
     // Check for invites first
     try {
       const pending = await checkPendingInvites();
       if (pending && pending.length > 0) {
-        navigate(`/pending-invites${redirectSuffix}`);
+        navigate("/pending-invites");
         return;
       }
     } catch (e) {
       console.error(e);
     }
 
+    if (!loggedInUser) return;
+
+    // No memberships — must create org first
+    if (!loggedInUser.memberships || loggedInUser.memberships.length === 0) {
+      navigate("/create-organisation");
+      return;
+    }
+
     // Auto-select if user has exactly 1 org — skip the chooser
-    if (user?.memberships?.length === 1) {
-      switchOrganization(user.memberships[0].organization.id);
-      if (redirectUrl) {
-        const url = new URL(redirectUrl, window.location.origin);
-        url.searchParams.set("auth_success", "true");
-        window.location.href = url.toString();
+    if (loggedInUser.memberships.length === 1) {
+      switchOrganization(loggedInUser.memberships[0].organization.id);
+      if (hasRedirectContext()) {
+        navigate("/integration-onboarding");
         return;
       }
       navigate("/apps");
       return;
     }
 
-    // Multiple orgs or none — go to chooser/creator
-    navigate(`/choose-organisation${redirectSuffix}`);
+    // Multiple orgs — go to chooser
+    navigate("/choose-organisation");
   };
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     try {
-      await login(email, password, inviteToken || undefined);
-      await handleAuthSuccess();
+      const loggedInUser = await login(email, password, inviteToken || undefined);
+      await handleAuthSuccess(loggedInUser);
     } catch (err) {
       setError("Invalid email or password");
     }
@@ -75,6 +87,7 @@ export default function Login() {
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (resendCooldown > 0) return;
     setError("");
     if (!email) {
       setError("Please enter your email address");
@@ -83,6 +96,7 @@ export default function Login() {
     try {
       await sendLoginOtp(email);
       setOtpState("sent");
+      setResendCooldown(60);
     } catch (err) {
       setError(err.message || "Failed to send OTP");
     }
@@ -97,8 +111,8 @@ export default function Login() {
     }
     try {
       setOtpState("verifying");
-      await verifyLoginOtp(email, otp);
-      await handleAuthSuccess();
+      const loggedInUser = await verifyLoginOtp(email, otp);
+      await handleAuthSuccess(loggedInUser);
     } catch (err) {
       setError(err.message || "Invalid OTP");
       setOtpState("sent");
@@ -291,10 +305,10 @@ export default function Login() {
                     <button
                       type="button"
                       onClick={handleSendOtp}
-                      disabled={isLoading}
+                      disabled={isLoading || resendCooldown > 0}
                       className="text-primary hover:underline disabled:opacity-50"
                     >
-                      Resend OTP
+                      {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend OTP"}
                     </button>
                   </p>
                 </form>
@@ -321,7 +335,7 @@ export default function Login() {
 
         <p className="text-center text-sm text-muted-foreground">
           Don't have an account?{" "}
-          <Link to={`/signup${redirectSuffix}`} className="text-primary hover:underline">
+          <Link to="/signup" className="text-primary hover:underline">
             Sign up
           </Link>
         </p>
