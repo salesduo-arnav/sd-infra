@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +36,7 @@ import {
 import { getToolBySlug } from "@/services/tool.service";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
 import { useOAuthPopup } from "@/hooks/useOAuthPopup";
-import { getRedirectContext, clearRedirectContext, finalizeRedirect } from "@/lib/redirectContext";
+import { captureRedirectContext, getRedirectContext, clearRedirectContext, finalizeRedirect } from "@/lib/redirectContext";
 
 // ------------------------------------------------------------------
 // Data                                                               
@@ -61,6 +61,9 @@ const ALL_INTEGRATIONS = ["sp_api", "ads_api"];
 // ------------------------------------------------------------------ 
 
 export default function IntegrationOnboarding() {
+    const [searchParams] = useSearchParams();
+    captureRedirectContext(searchParams);
+
     // Read redirect context from sessionStorage (sole source of truth)
     const ctx = getRedirectContext();
     const redirectUrl = ctx?.redirect || null;
