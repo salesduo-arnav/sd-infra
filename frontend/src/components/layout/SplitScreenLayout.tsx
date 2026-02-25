@@ -1,5 +1,8 @@
-import { ReactNode } from "react";
+import { ReactNode, useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from 'react-i18next';
+import { supportedLanguages } from '@/i18n';
+import { Globe, Check } from 'lucide-react';
 
 interface SplitScreenLayoutProps {
     children: ReactNode;
@@ -9,6 +12,58 @@ interface SplitScreenLayoutProps {
     logoUrl?: string; // Defaults to "/salesduologo.svg"
     homeUrl?: string; // Defaults to "/"
     contentMaxWidth?: string; // Defaults to "max-w-md"
+}
+
+function LanguageDropdown() {
+    const { i18n, t } = useTranslation();
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    const currentLanguage = supportedLanguages.find(
+        (lang) => lang.code === i18n.language
+    ) || supportedLanguages[0];
+
+    useEffect(() => {
+        function handleClickOutside(e: MouseEvent) {
+            if (ref.current && !ref.current.contains(e.target as Node)) {
+                setOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    return (
+        <div className="relative z-20" ref={ref}>
+            <button
+                onClick={() => setOpen(!open)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white/90 hover:text-white text-sm font-medium transition-all duration-200 backdrop-blur-sm"
+            >
+                <Globe className="h-4 w-4" />
+                <span>{currentLanguage.flag} {currentLanguage.label}</span>
+            </button>
+            {open && (
+                <div className="absolute bottom-full mb-2 left-0 w-48 bg-white rounded-lg shadow-xl border overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+                    {supportedLanguages.map((lang) => (
+                        <button
+                            key={lang.code}
+                            onClick={() => {
+                                i18n.changeLanguage(lang.code);
+                                setOpen(false);
+                            }}
+                            className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                            <span className="text-base">{lang.flag}</span>
+                            <span className="flex-1 text-left font-medium">{lang.label}</span>
+                            {i18n.language === lang.code && (
+                                <Check className="h-4 w-4 text-orange-500" />
+                            )}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
 }
 
 export function SplitScreenLayout({
@@ -53,9 +108,12 @@ export function SplitScreenLayout({
                     {leftContent}
                 </div>
 
-                <p className="text-sm text-white/70 relative z-10">
-                    © {new Date().getFullYear()} SalesDuo. All rights reserved.
-                </p>
+                <div className="flex items-center justify-between relative z-10">
+                    <p className="text-sm text-white/70">
+                        © {new Date().getFullYear()} SalesDuo. All rights reserved.
+                    </p>
+                    <LanguageDropdown />
+                </div>
             </div>
 
             {/* Right side - Content */}

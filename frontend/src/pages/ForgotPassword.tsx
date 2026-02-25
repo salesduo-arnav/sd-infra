@@ -7,12 +7,14 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { API_URL } from "@/lib/api";
+import { useTranslation } from 'react-i18next';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,8 +34,8 @@ export default function ForgotPassword() {
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Something went wrong. Please try again.",
+        title: t('common.error'),
+        description: t('auth.somethingWentWrong'),
       });
     } finally {
       setIsLoading(false);
@@ -43,8 +45,8 @@ export default function ForgotPassword() {
   if (isSubmitted) {
     return (
       <AuthLayout
-        title="Check your email"
-        subtitle="We've sent password reset instructions to your email"
+        title={t('auth.checkYourEmailTitle')}
+        subtitle={t('auth.resetInstructionsSent')}
       >
         <div className="space-y-6">
           <div className="flex items-center justify-center">
@@ -54,14 +56,14 @@ export default function ForgotPassword() {
           </div>
 
           <p className="text-center text-sm text-muted-foreground">
-            If an account exists for <span className="font-medium">{email}</span>,
-            you will receive a password reset link shortly.
+            {t('auth.accountExistsForEmail')} <span className="font-medium">{email}</span>
+            {t('auth.resetLinkSentSuffix')}
           </p>
 
           <Button asChild className="w-full">
             <Link to="/login">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to login
+              {t('auth.backToLogin')}
             </Link>
           </Button>
         </div>
@@ -71,16 +73,16 @@ export default function ForgotPassword() {
 
   return (
     <AuthLayout
-      title="Forgot password?"
-      subtitle="Enter your email and we'll send you a reset link"
+      title={t('auth.forgotPasswordTitle')}
+      subtitle={t('auth.forgotPasswordSubtitle')}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">{t('auth.email')}</Label>
           <Input
             id="email"
             type="email"
-            placeholder="name@example.com"
+            placeholder={t('auth.emailPlaceholder')}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -88,13 +90,13 @@ export default function ForgotPassword() {
         </div>
 
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? "Sending..." : "Send reset link"}
+          {isLoading ? t('auth.sending') : t('auth.sendResetLink')}
         </Button>
 
         <Button asChild variant="ghost" className="w-full">
           <Link to="/login">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to login
+            {t('auth.backToLogin')}
           </Link>
         </Button>
       </form>

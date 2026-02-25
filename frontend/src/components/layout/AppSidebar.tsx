@@ -14,9 +14,12 @@ import {
   Check,
   Plus,
   Activity,
+  Globe,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/contexts/PermissionsContext";
+import { useTranslation } from 'react-i18next';
+import { supportedLanguages } from '@/i18n';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sidebar,
@@ -41,14 +44,18 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
 
 const mainNavItems = [
-  { title: "Apps", url: "/apps", icon: LayoutDashboard },
-  { title: "Organisation", url: "/organisation", icon: Building2 },
-  { title: "Integrations", url: "/integrations", icon: Plug },
-  { title: "Plans", url: "/plans", icon: CreditCard, permission: "plans.view" },
-  { title: "Billing", url: "/billing", icon: Receipt, permission: "billing.view" },
+  { titleKey: "nav.apps", url: "/apps", icon: LayoutDashboard },
+  { titleKey: "nav.organisation", url: "/organisation", icon: Building2 },
+  { titleKey: "nav.integrations", url: "/integrations", icon: Plug },
+  { titleKey: "nav.plans", url: "/plans", icon: CreditCard, permission: "plans.view" },
+  { titleKey: "nav.billing", url: "/billing", icon: Receipt, permission: "billing.view" },
 ];
 
 
@@ -57,6 +64,7 @@ export function AppSidebar() {
   const location = useLocation();
   const { user, logout, isAdmin, activeOrganization, switchOrganization } = useAuth();
   const { hasPermission } = usePermissions();
+  const { t, i18n } = useTranslation();
   const currentPath = location.pathname;
 
   const isActive = (path: string) => {
@@ -112,17 +120,17 @@ export function AppSidebar() {
               </div>
               <div className="flex-1 text-left truncate">
                 <span className="block text-sm font-semibold truncate tracking-tight">
-                  {activeOrganization?.name || "Select Organization"}
+                  {activeOrganization?.name || t('nav.selectOrganization')}
                 </span>
                 <span className="block text-xs text-muted-foreground truncate font-medium">
-                  {user?.memberships?.length || 0} Organizations
+                  {t('nav.organizations', { count: user?.memberships?.length || 0 })}
                 </span>
               </div>
               <ChevronsUpDown className="ml-auto h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-64 shadow-xl border-border/50" align="start" sideOffset={8}>
-            <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-2">Teams</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-2">{t('nav.teams')}</DropdownMenuLabel>
             {user?.memberships?.map((membership) => (
               <DropdownMenuItem
                 key={membership.organization.id}
@@ -146,7 +154,7 @@ export function AppSidebar() {
                 <div className="flex h-8 w-8 items-center justify-center rounded-md border border-dashed bg-transparent shadow-none">
                   <Plus className="h-4 w-4" />
                 </div>
-                <div className="font-medium">Add Organization</div>
+                <div className="font-medium">{t('nav.addOrganization')}</div>
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -155,7 +163,7 @@ export function AppSidebar() {
 
       <SidebarContent className="p-2" onKeyDown={handleKeyDown}>
         <SidebarGroup>
-          <SidebarGroupLabel className="px-3 text-xs font-semibold text-muted-foreground/70 uppercase tracking-widest mt-2 mb-1">Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="px-3 text-xs font-semibold text-muted-foreground/70 uppercase tracking-widest mt-2 mb-1">{t('nav.navigation')}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems.map((item) => {
@@ -164,18 +172,18 @@ export function AppSidebar() {
                   return null;
                 }
                 return (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    className="gap-3 px-3 py-2 transition-all"
-                  >
-                    <Link to={item.url}>
-                      <item.icon className="h-4 w-4 opacity-70" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                  <SidebarMenuItem key={item.titleKey}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(item.url)}
+                      className="gap-3 px-3 py-2 transition-all"
+                    >
+                      <Link to={item.url}>
+                        <item.icon className="h-4 w-4 opacity-70" />
+                        <span>{t(item.titleKey)}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 );
               })}
             </SidebarMenu>
@@ -186,7 +194,7 @@ export function AppSidebar() {
           <>
             <SidebarSeparator className="mx-2 my-2 bg-border/50" />
             <SidebarGroup>
-              <SidebarGroupLabel className="px-3 text-xs font-semibold text-muted-foreground/70 uppercase tracking-widest mt-2 mb-1">Administration</SidebarGroupLabel>
+              <SidebarGroupLabel className="px-3 text-xs font-semibold text-muted-foreground/70 uppercase tracking-widest mt-2 mb-1">{t('nav.administration')}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
@@ -197,7 +205,7 @@ export function AppSidebar() {
                     >
                       <Link to="/admin">
                         <Shield className="h-4 w-4 opacity-70" />
-                        <span>Overview</span>
+                        <span>{t('nav.overview')}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -209,7 +217,7 @@ export function AppSidebar() {
                     >
                       <Link to="/admin/apps">
                         <Package className="h-4 w-4 opacity-70" />
-                        <span>Manage Apps</span>
+                        <span>{t('nav.manageApps')}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -221,7 +229,7 @@ export function AppSidebar() {
                     >
                       <Link to="/admin/plans">
                         <CreditCard className="h-4 w-4 opacity-70" />
-                        <span>Manage Plans & Bundles</span>
+                        <span>{t('nav.managePlans')}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -233,7 +241,7 @@ export function AppSidebar() {
                     >
                       <Link to="/admin/users">
                         <User className="h-4 w-4 opacity-70" />
-                        <span>Manage Users</span>
+                        <span>{t('nav.manageUsers')}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -245,7 +253,7 @@ export function AppSidebar() {
                     >
                       <Link to="/admin/organizations">
                         <Building2 className="h-4 w-4 opacity-70" />
-                        <span>Manage Orgs</span>
+                        <span>{t('nav.manageOrgs')}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -257,7 +265,7 @@ export function AppSidebar() {
                     >
                       <Link to="/admin/audit-logs">
                         <Activity className="h-4 w-4 opacity-70" />
-                        <span>Audit Logs</span>
+                        <span>{t('nav.auditLogs')}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -269,7 +277,7 @@ export function AppSidebar() {
                     >
                       <Link to="/admin/configs">
                         <Settings className="h-4 w-4 opacity-70" />
-                        <span>Configs</span>
+                        <span>{t('nav.configs')}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -281,7 +289,7 @@ export function AppSidebar() {
                     >
                       <Link to="/admin/rbac">
                         <Shield className="h-4 w-4 opacity-70" />
-                        <span>Role Permissions</span>
+                        <span>{t('nav.rolePermissions')}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -323,13 +331,36 @@ export function AppSidebar() {
             <DropdownMenuItem asChild className="cursor-pointer">
               <Link to="/profile" className="flex items-center gap-2 p-2.5">
                 <User className="h-4 w-4 text-muted-foreground" />
-                Profile
+                {t('nav.profile')}
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="gap-2 p-2.5 cursor-pointer">
+                <Globe className="h-4 w-4 text-muted-foreground" />
+                {t('language.switchLanguage')}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuSubContent className="w-48 shadow-xl border-border/50">
+                  {supportedLanguages.map((lang) => (
+                    <DropdownMenuItem
+                      key={lang.code}
+                      onClick={() => i18n.changeLanguage(lang.code)}
+                      className="gap-3 p-2.5 cursor-pointer"
+                    >
+                      <span className="text-base">{lang.flag}</span>
+                      <span className="flex-1 font-medium">{lang.label}</span>
+                      {i18n.language === lang.code && (
+                        <Check className="h-4 w-4 text-primary" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuPortal>
+            </DropdownMenuSub>
             <DropdownMenuSeparator className="bg-border/50" />
             <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive focus:bg-destructive/10 p-2.5 cursor-pointer">
               <LogOut className="h-4 w-4 mr-2" />
-              Sign out
+              {t('auth.signOut')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

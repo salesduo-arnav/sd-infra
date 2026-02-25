@@ -9,6 +9,7 @@ import { GoogleButton } from "@/components/auth/GoogleButton";
 import { OtpInput } from "@/components/auth/OtpInput";
 import { Mail, KeyRound, ArrowLeft, Loader2 } from "lucide-react";
 import { captureRedirectContext, hasRedirectContext } from "@/lib/redirectContext";
+import { useTranslation } from 'react-i18next';
 
 type LoginMode = "password" | "otp";
 type OtpState = "idle" | "sent" | "verifying";
@@ -29,6 +30,7 @@ export default function Login() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const { login, sendLoginOtp, verifyLoginOtp, isLoading, checkPendingInvites, switchOrganization } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   // Handle Resend Cooldown
   useEffect(() => {
@@ -81,7 +83,7 @@ export default function Login() {
       const loggedInUser = await login(email, password, inviteToken || undefined);
       await handleAuthSuccess(loggedInUser);
     } catch (err) {
-      setError("Invalid email or password");
+      setError(t('auth.invalidCredentials'));
     }
   };
 
@@ -90,7 +92,7 @@ export default function Login() {
     if (resendCooldown > 0) return;
     setError("");
     if (!email) {
-      setError("Please enter your email address");
+      setError(t('auth.pleaseEnterEmail'));
       return;
     }
     try {
@@ -98,7 +100,7 @@ export default function Login() {
       setOtpState("sent");
       setResendCooldown(60);
     } catch (err) {
-      setError(err.message || "Failed to send OTP");
+      setError(err.message || t('auth.failedToSendOtp'));
     }
   };
 
@@ -106,7 +108,7 @@ export default function Login() {
     e.preventDefault();
     setError("");
     if (otp.length !== 6) {
-      setError("Please enter the complete 6-digit OTP");
+      setError(t('auth.pleaseEnterCompleteOtp'));
       return;
     }
     try {
@@ -114,7 +116,7 @@ export default function Login() {
       const loggedInUser = await verifyLoginOtp(email, otp);
       await handleAuthSuccess(loggedInUser);
     } catch (err) {
-      setError(err.message || "Invalid OTP");
+      setError(err.message || t('auth.invalidOtp'));
       setOtpState("sent");
     }
   };
@@ -134,8 +136,8 @@ export default function Login() {
 
   return (
     <AuthLayout
-      title="Welcome back"
-      subtitle="Enter your credentials to access your account"
+      title={t('auth.welcomeBack')}
+      subtitle={t('auth.enterCredentials')}
     >
       <div className="space-y-5">
         {/* Mode Toggle */}
@@ -160,7 +162,7 @@ export default function Login() {
               }`}
           >
             <Mail className="h-4 w-4" />
-            Login with OTP
+            {t('auth.loginWithOtp')}
           </button>
         </div>
 
@@ -168,11 +170,11 @@ export default function Login() {
         {loginMode === "password" && (
           <form onSubmit={handlePasswordSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
+              <Label htmlFor="email">{t('auth.emailAddress')}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="name@example.com"
+                placeholder={t('auth.emailPlaceholder')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -181,12 +183,12 @@ export default function Login() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t('auth.password')}</Label>
                 <Link
                   to="/forgot-password"
                   className="text-sm text-primary hover:underline"
                 >
-                  Forgot password?
+                  {t('auth.forgotPassword')}
                 </Link>
               </div>
               <Input
@@ -205,10 +207,10 @@ export default function Login() {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  {t('auth.signingIn')}
                 </>
               ) : (
-                "Sign in"
+                t('auth.signIn')
               )}
             </Button>
           </form>
@@ -220,11 +222,11 @@ export default function Login() {
             {otpState === "idle" && (
               <form onSubmit={handleSendOtp} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="otp-email">Email Address</Label>
+                  <Label htmlFor="otp-email">{t('auth.emailAddress')}</Label>
                   <Input
                     id="otp-email"
                     type="email"
-                    placeholder="name@example.com"
+                    placeholder={t('auth.emailPlaceholder')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -237,12 +239,12 @@ export default function Login() {
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Sending OTP...
+                      {t('auth.sendingOtp')}
                     </>
                   ) : (
                     <>
                       <Mail className="mr-2 h-4 w-4" />
-                      Send OTP
+                      {t('auth.sendOtp')}
                     </>
                   )}
                 </Button>
@@ -257,23 +259,23 @@ export default function Login() {
                   className="flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ArrowLeft className="mr-1 h-4 w-4" />
-                  Change email
+                  {t('auth.changeEmail')}
                 </button>
 
                 <div className="text-center space-y-2">
                   <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-2">
                     <Mail className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="font-medium">Check your email</h3>
+                  <h3 className="font-medium">{t('auth.checkYourEmail')}</h3>
                   <p className="text-sm text-muted-foreground">
-                    We've sent a 6-digit OTP to{" "}
+                    {t('auth.otpSentTo')}{" "}
                     <span className="font-medium text-foreground">{email}</span>
                   </p>
                 </div>
 
                 <form onSubmit={handleVerifyOtp} className="space-y-5">
                   <div className="space-y-2">
-                    <Label className="text-center block">Enter OTP</Label>
+                    <Label className="text-center block">{t('auth.enterOtp')}</Label>
                     <OtpInput
                       value={otp}
                       onChange={setOtp}
@@ -293,22 +295,22 @@ export default function Login() {
                     {otpState === "verifying" ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Verifying...
+                        {t('auth.verifying')}
                       </>
                     ) : (
-                      "Verify & Sign in"
+                      t('auth.verifySignIn')
                     )}
                   </Button>
 
                   <p className="text-center text-sm text-muted-foreground">
-                    Didn't receive the code?{" "}
+                    {t('auth.didntReceiveCode')}{" "}
                     <button
                       type="button"
                       onClick={handleSendOtp}
                       disabled={isLoading || resendCooldown > 0}
                       className="text-primary hover:underline disabled:opacity-50"
                     >
-                      {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend OTP"}
+                      {resendCooldown > 0 ? t('auth.resendIn', { seconds: resendCooldown }) : t('auth.resendOtp')}
                     </button>
                   </p>
                 </form>
@@ -323,7 +325,7 @@ export default function Login() {
           </div>
           <div className="relative flex justify-center text-xs uppercase">
             <span className="bg-background px-2 text-muted-foreground">
-              Or continue with
+              {t('auth.orContinueWith')}
             </span>
           </div>
         </div>
@@ -334,9 +336,9 @@ export default function Login() {
         />
 
         <p className="text-center text-sm text-muted-foreground">
-          Don't have an account?{" "}
+          {t('auth.dontHaveAccount')}{" "}
           <Link to="/signup" className="text-primary hover:underline">
-            Sign up
+            {t('auth.signUp')}
           </Link>
         </p>
       </div>

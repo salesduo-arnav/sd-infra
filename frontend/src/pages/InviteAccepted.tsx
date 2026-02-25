@@ -5,18 +5,20 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2, Building2, ArrowRight, Mail } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
+import { useTranslation } from 'react-i18next';
 
 export default function InviteAccepted() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [inviteDetails, setInviteDetails] = useState<{
     email: string;
     organization_name: string;
   } | null>(null);
-  const [errorMsg, setErrorMsg] = useState("Invalid or expired invitation.");
+  const [errorMsg, setErrorMsg] = useState(t('pages.inviteAccepted.invalidOrExpired'));
 
   useEffect(() => {
     if (!token) {
@@ -91,10 +93,10 @@ export default function InviteAccepted() {
   const leftContent = (
     <div className="relative z-10 w-full">
       <h1 className="text-4xl font-bold text-white mb-4 drop-shadow-sm">
-        Join Your Team
+        {t('pages.inviteAccepted.leftTitle')}
       </h1>
       <p className="text-lg text-white/90">
-        You've been invited to collaborate on SalesDuo. Accept your invitation to get started.
+        {t('pages.inviteAccepted.leftSubtitle')}
       </p>
     </div>
   );
@@ -106,7 +108,7 @@ export default function InviteAccepted() {
           <div className="h-16 w-16 rounded-2xl bg-gradient-to-r from-[#ff9900] to-[#e88800] flex items-center justify-center shadow-lg animate-pulse">
             <Loader2 className="h-8 w-8 text-white animate-spin" />
           </div>
-          <p className="text-muted-foreground">Validating your invitation...</p>
+          <p className="text-muted-foreground">{t('pages.inviteAccepted.validating')}</p>
         </div>
       </div>
     );
@@ -116,8 +118,8 @@ export default function InviteAccepted() {
     return (
       <SplitScreenLayout leftContent={leftContent}>
         <div className="mb-8">
-          <h2 className="text-2xl font-semibold tracking-tight">Invitation Invalid</h2>
-          <p className="mt-2 text-muted-foreground">There was a problem with your invitation link</p>
+          <h2 className="text-2xl font-semibold tracking-tight">{t('pages.inviteAccepted.invalidTitle')}</h2>
+          <p className="mt-2 text-muted-foreground">{t('pages.inviteAccepted.invalidSubtitle')}</p>
         </div>
 
         <div className="flex flex-col items-center justify-center space-y-6 py-8">
@@ -126,18 +128,18 @@ export default function InviteAccepted() {
           </div>
 
           <div className="text-center space-y-2">
-            <p className="text-foreground font-medium">Unable to process invitation</p>
+            <p className="text-foreground font-medium">{t('pages.inviteAccepted.unableToProcess')}</p>
             <p className="text-muted-foreground text-sm max-w-sm">{errorMsg}</p>
           </div>
 
           <div className="w-full space-y-3 pt-4">
             <Button variant="outline" className="w-full h-11" asChild>
-              <Link to="/login">Go to Login</Link>
+              <Link to="/login">{t('pages.inviteAccepted.goToLogin')}</Link>
             </Button>
             <p className="text-center text-sm text-muted-foreground">
-              Need help?{" "}
+              {t('pages.inviteAccepted.needHelp')}{" "}
               <Link to="/contact" className="text-primary hover:underline">
-                Contact Support
+                {t('pages.inviteAccepted.contactSupport')}
               </Link>
             </p>
           </div>
@@ -149,8 +151,8 @@ export default function InviteAccepted() {
   return (
     <SplitScreenLayout leftContent={leftContent}>
       <div className="mb-8">
-        <h2 className="text-2xl font-semibold tracking-tight">You're Invited!</h2>
-        <p className="mt-2 text-muted-foreground">Join {inviteDetails?.organization_name || "the team"} on SalesDuo</p>
+        <h2 className="text-2xl font-semibold tracking-tight">{t('pages.inviteAccepted.youreInvited')}</h2>
+        <p className="mt-2 text-muted-foreground">{t('pages.inviteAccepted.joinTeam', { org: inviteDetails?.organization_name || 'the team' })}</p>
       </div>
 
       <div className="flex flex-col items-center justify-center space-y-6 py-8">
@@ -183,20 +185,20 @@ export default function InviteAccepted() {
 
         <div className="text-center space-y-1">
           <p className="text-muted-foreground">
-            Create your account to join and start collaborating with your team.
+            {t('pages.inviteAccepted.createAccountToJoin')}
           </p>
         </div>
 
         <div className="w-full space-y-3 pt-2">
           <Button className="w-full h-11 text-base" onClick={handleContinue}>
-            {isAuthenticated ? "Join Organization" : "Continue to Sign Up"}
+            {isAuthenticated ? t('pages.inviteAccepted.joinOrganization') : t('pages.inviteAccepted.continueToSignUp')}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
 
           <p className="text-center text-sm text-muted-foreground">
-            Already have an account?{" "}
+            {t('auth.alreadyHaveAccount')}{" "}
             <Link to={`/login?token=${token}`} className="text-primary hover:underline font-medium">
-              Sign in instead
+              {t('pages.inviteAccepted.signInInstead')}
             </Link>
           </p>
         </div>

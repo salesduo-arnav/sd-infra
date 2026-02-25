@@ -19,9 +19,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { useTranslation } from 'react-i18next';
 
 export default function Profile() {
   const { user, refreshUser } = useAuth();
+  const { t } = useTranslation();
   const [name, setName] = useState(user?.full_name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -53,18 +55,18 @@ export default function Profile() {
         throw new Error(data.message || 'Failed to update profile');
       }
 
-      toast.success('Profile updated successfully');
+      toast.success(t('pages.profile.profileUpdated'));
       // Refresh user context to show new name in sidebar/header
       if (refreshUser) await refreshUser();
     } catch (error) {
-      toast.error(error.message || 'Failed to update profile');
+      toast.error(error.message || t('pages.profile.profileUpdateFailed'));
     }
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
-      toast.error("New passwords don't match");
+      toast.error(t('pages.profile.passwordsDontMatch'));
       return;
     }
 
@@ -82,19 +84,19 @@ export default function Profile() {
         throw new Error(data.message || 'Failed to update password');
       }
 
-      toast.success('Password updated successfully');
+      toast.success(t('pages.profile.passwordUpdated'));
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (error) {
-      toast.error(error.message || 'Failed to update password');
+      toast.error(error.message || t('pages.profile.passwordUpdateFailed'));
     }
   };
 
   const handleCreatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
-      toast.error("New passwords don't match");
+      toast.error(t('pages.profile.passwordsDontMatch'));
       return;
     }
 
@@ -112,11 +114,11 @@ export default function Profile() {
         throw new Error(data.message || 'Failed to create password');
       }
 
-      toast.success('Password created successfully');
+      toast.success(t('pages.profile.passwordCreated'));
       setNewPassword("");
       setConfirmPassword("");
     } catch (error) {
-      toast.error(error.message || 'Failed to create password');
+      toast.error(error.message || t('pages.profile.passwordCreateFailed'));
     }
   };
 
@@ -124,9 +126,9 @@ export default function Profile() {
     <>
       <div className="container max-w-4xl py-10 space-y-8 animate-in fade-in duration-500">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Account Settings</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t('pages.profile.title')}</h1>
           <p className="mt-2 text-muted-foreground text-lg">
-            Manage your profile and account preferences
+            {t('pages.profile.subtitle')}
           </p>
         </div>
 
@@ -134,9 +136,9 @@ export default function Profile() {
           {/* Profile Info */}
           <Card>
             <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
+              <CardTitle>{t('pages.profile.profileInfo')}</CardTitle>
               <CardDescription>
-                Update your personal details here
+                {t('pages.profile.profileInfoDesc')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -144,27 +146,27 @@ export default function Profile() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full name</Label>
+                    <Label htmlFor="name">{t('pages.profile.fullName')}</Label>
                     <Input
                       id="name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Enter your full name"
+                      placeholder={t('pages.profile.fullNamePlaceholder')}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">{t('auth.email')}</Label>
                     <Input
                       id="email"
                       type="email"
-                      placeholder="Enter your email address"
+                      placeholder={t('pages.profile.emailPlaceholder')}
                       disabled
                       className="bg-muted"
                     />
                   </div>
                 </div>
 
-                <Button type="submit">Save Changes</Button>
+                <Button type="submit">{t('pages.profile.saveChanges')}</Button>
               </form>
             </CardContent>
           </Card>
@@ -173,82 +175,82 @@ export default function Profile() {
           {user?.has_password ? (
             <Card>
               <CardHeader>
-                <CardTitle>Change Password</CardTitle>
+                <CardTitle>{t('pages.profile.changePassword')}</CardTitle>
                 <CardDescription>
-                  Update your password to keep your account secure
+                  {t('pages.profile.changePasswordDesc')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handlePasswordChange} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="currentPassword">Current password</Label>
+                    <Label htmlFor="currentPassword">{t('pages.profile.currentPassword')}</Label>
                     <Input
                       id="currentPassword"
                       type="password"
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
-                      placeholder="Enter your current password"
+                      placeholder={t('pages.profile.currentPasswordPlaceholder')}
                     />
                   </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="newPassword">New password</Label>
+                      <Label htmlFor="newPassword">{t('pages.profile.newPassword')}</Label>
                       <Input
                         id="newPassword"
                         type="password"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Enter new password"
+                        placeholder={t('pages.profile.newPasswordPlaceholder')}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="confirmPassword">Confirm new password</Label>
+                      <Label htmlFor="confirmPassword">{t('pages.profile.confirmNewPassword')}</Label>
                       <Input
                         id="confirmPassword"
                         type="password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Confirm new password"
+                        placeholder={t('pages.profile.confirmNewPasswordPlaceholder')}
                       />
                     </div>
                   </div>
-                  <Button type="submit">Update Password</Button>
+                  <Button type="submit">{t('pages.profile.updatePassword')}</Button>
                 </form>
               </CardContent>
             </Card>
           ) : (
             <Card>
               <CardHeader>
-                <CardTitle>Set Password</CardTitle>
+                <CardTitle>{t('pages.profile.setPassword')}</CardTitle>
                 <CardDescription>
-                  Set a password to secure your account
+                  {t('pages.profile.setPasswordDesc')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleCreatePassword} className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="newPassword">New password</Label>
+                      <Label htmlFor="newPassword">{t('pages.profile.newPassword')}</Label>
                       <Input
                         id="newPassword"
                         type="password"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Enter new password"
+                        placeholder={t('pages.profile.newPasswordPlaceholder')}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="confirmPassword">Confirm new password</Label>
+                      <Label htmlFor="confirmPassword">{t('pages.profile.confirmNewPassword')}</Label>
                       <Input
                         id="confirmPassword"
                         type="password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Confirm new password"
+                        placeholder={t('pages.profile.confirmNewPasswordPlaceholder')}
                       />
                     </div>
                   </div>
-                  <Button type="submit">Set Password</Button>
+                  <Button type="submit">{t('pages.profile.setPassword')}</Button>
                 </form>
               </CardContent>
             </Card>
@@ -257,35 +259,34 @@ export default function Profile() {
           {/* Danger Zone */}
           <Card className="border-destructive/20">
             <CardHeader>
-              <CardTitle className="text-destructive">Danger Zone</CardTitle>
+              <CardTitle className="text-destructive">{t('pages.profile.dangerZone')}</CardTitle>
               <CardDescription>
-                Irreversible actions for your account
+                {t('pages.profile.dangerZoneDesc')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between rounded-lg border border-destructive/20 p-4">
                 <div>
-                  <p className="font-medium">Delete Account</p>
+                  <p className="font-medium">{t('pages.profile.deleteAccount')}</p>
                   <p className="text-sm text-muted-foreground">
-                    Permanently delete your account and all data
+                    {t('pages.profile.deleteAccountDesc')}
                   </p>
                 </div>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="destructive" size="sm">
-                      Delete Account
+                      {t('pages.profile.deleteAccount')}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogTitle>{t('pages.profile.deleteConfirmTitle')}</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete your account
-                        and remove your data from our servers.
+                        {t('pages.profile.deleteConfirmDesc')}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={async () => {
                           try {
@@ -295,19 +296,19 @@ export default function Profile() {
                             });
 
                             if (res.ok) {
-                              toast.success("Account deleted successfully");
+                              toast.success(t('pages.profile.accountDeleted'));
                               window.location.href = "/login";
                             } else {
                               const data = await res.json();
-                              toast.error(data.message || "Failed to delete account");
+                              toast.error(data.message || t('pages.profile.accountDeleteFailed'));
                             }
                           } catch (error) {
-                            toast.error("Failed to delete account");
+                            toast.error(t('pages.profile.accountDeleteFailed'));
                           }
                         }}
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       >
-                        Delete Account
+                        {t('pages.profile.deleteAccount')}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

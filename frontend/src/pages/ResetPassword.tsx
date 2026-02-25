@@ -7,12 +7,14 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { API_URL } from "@/lib/api";
+import { useTranslation } from 'react-i18next';
 
 export default function ResetPassword() {
     const [searchParams] = useSearchParams();
     const token = searchParams.get("token");
     const navigate = useNavigate();
     const { toast } = useToast();
+    const { t } = useTranslation();
 
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -33,9 +35,9 @@ export default function ResetPassword() {
 
     if (!tokenRef.current) {
         return (
-            <AuthLayout title="Invalid Link" subtitle="This password reset link is invalid or missing.">
+            <AuthLayout title={t('auth.invalidLink')} subtitle={t('auth.invalidLinkSubtitle')}>
                 <Button asChild className="w-full">
-                    <Link to="/forgot-password">Request a new link</Link>
+                    <Link to="/forgot-password">{t('auth.requestNewLink')}</Link>
                 </Button>
             </AuthLayout>
         );
@@ -49,8 +51,8 @@ export default function ResetPassword() {
         if (!passwordRegex.test(password)) {
             toast({
                 variant: "destructive",
-                title: "Weak Password",
-                description: "Password must be at least 8 characters long and contain both letters and numbers."
+                title: t('auth.weakPassword'),
+                description: t('auth.weakPasswordDescription')
             });
             return;
         }
@@ -58,7 +60,7 @@ export default function ResetPassword() {
         if (password !== confirmPassword) {
             toast({
                 variant: "destructive",
-                title: "Passwords do not match",
+                title: t('auth.passwordsDoNotMatch'),
             });
             return;
         }
@@ -78,15 +80,15 @@ export default function ResetPassword() {
             }
 
             toast({
-                title: "Success",
-                description: "Your password has been reset. Please log in.",
+                title: t('common.success'),
+                description: t('auth.passwordResetSuccess'),
             });
 
             navigate("/login");
         } catch (error) {
             toast({
                 variant: "destructive",
-                title: "Error",
+                title: t('common.error'),
                 description: error.message,
             });
         } finally {
@@ -96,12 +98,12 @@ export default function ResetPassword() {
 
     return (
         <AuthLayout
-            title="Reset Password"
-            subtitle="Enter your new password below"
+            title={t('auth.resetPassword')}
+            subtitle={t('auth.resetPasswordSubtitle')}
         >
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                    <Label htmlFor="password">New Password</Label>
+                    <Label htmlFor="password">{t('auth.newPassword')}</Label>
                     <Input
                         id="password"
                         type="password"
@@ -112,7 +114,7 @@ export default function ResetPassword() {
                     />
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
+                    <Label htmlFor="confirmPassword">{t('auth.confirmPassword')}</Label>
                     <Input
                         id="confirmPassword"
                         type="password"
@@ -125,13 +127,13 @@ export default function ResetPassword() {
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Reset Password
+                    {t('auth.resetPassword')}
                 </Button>
 
                 <Button asChild variant="ghost" className="w-full">
                     <Link to="/login">
                         <ArrowLeft className="mr-2 h-4 w-4" />
-                        Back to login
+                        {t('auth.backToLogin')}
                     </Link>
                 </Button>
             </form>
