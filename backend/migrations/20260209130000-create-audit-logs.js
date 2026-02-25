@@ -49,9 +49,13 @@ module.exports = {
 
     // Add index for faster querying
     await queryInterface.addIndex('audit_logs', ['actor_id']);
-    await queryInterface.addIndex('audit_logs', ['entity_type', 'entity_id']);
+    await queryInterface.addIndex('audit_logs', ['entity_type', 'entity_id'], {
+      name: 'audit_logs_entity_type_entity_id',
+    });
     await queryInterface.addIndex('audit_logs', ['action']);
-    await queryInterface.addIndex('audit_logs', ['created_at']);
+    await queryInterface.addIndex('audit_logs', ['created_at'], {
+      name: 'audit_logs_created_at',
+    });
   },
 
   async down(queryInterface, Sequelize) {
