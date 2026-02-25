@@ -76,15 +76,15 @@ Step-by-step integration setup during tool onboarding:
 
 ## Issues Found
 
-1. **Memory leaks from event listeners** — `postMessage` event listeners are added but not cleaned up on component unmount, causing memory leaks.
-2. **Polling intervals not cleared** — `setInterval` used for checking OAuth completion is not cleaned up on unmount.
-3. **Multiple poll timers can stack** — Clicking "connect" multiple times starts multiple polling intervals.
-4. **No popup blocker detection** — Code assumes the OAuth popup opens successfully, with no fallback for blocked popups.
-5. **Simulated OAuth is unsafe** — `popup.document.write()` injects raw HTML into a new window, which could allow XSS if input is not sanitized.
-6. **SP-API connection is simulated** — The SP-API OAuth flow uses a hardcoded `setTimeout(2500)` instead of actual OAuth, meaning no real connection is established.
-7. **Hardcoded polling timeout** — 120-second polling timeout for OAuth completion is not configurable.
-8. **Stale closure in polling** — `orgId` and other state variables referenced in `setInterval` callbacks may be stale.
-9. **Simulated popup HTML hardcoded** — Large HTML strings for simulated OAuth popups are embedded in component files.
-10. **No connection status verification** — After popup closes, the UI assumes connection succeeded without backend verification.
-11. **No progress indication during OAuth** — Users don't see how long the connection process will take.
-12. **Multiple state updates in effects** — State updates are not batched, causing multiple unnecessary re-renders.
+- [x] **Memory leaks from event listeners** — `postMessage` event listeners are added but not cleaned up on component unmount, causing memory leaks.
+- [x] **Polling intervals not cleared** — `setInterval` used for checking OAuth completion is not cleaned up on unmount.
+- [x] **Multiple poll timers can stack** — Clicking "connect" multiple times starts multiple polling intervals.
+- [x] **No popup blocker detection** — Code assumes the OAuth popup opens successfully, with no fallback for blocked popups.
+- [x] **Simulated OAuth is unsafe** — `popup.document.write()` injects raw HTML into a new window, which could allow XSS if input is not sanitized.
+- [x] **[ALREADY FIXED] SP-API connection is simulated** — The SP-API OAuth flow uses a hardcoded `setTimeout(2500)` instead of actual OAuth, meaning no real connection is established.
+- [x] **Hardcoded polling timeout** — 120-second polling timeout for OAuth completion is not configurable.
+- [x] **Stale closure in polling** — `orgId` and other state variables referenced in `setInterval` callbacks may be stale.
+- [x] **Simulated popup HTML hardcoded** — Large HTML strings for simulated OAuth popups are embedded in component files.
+- [x] **No connection status verification** — After popup closes, the UI assumes connection succeeded without backend verification.
+- [ ] **[SKIPPED] No progress indication during OAuth** — Users don't see how long the connection process will take. *(Skipped: Not Needed)*
+- [x] **Multiple state updates in effects** — State updates are not batched, causing multiple unnecessary re-renders.
