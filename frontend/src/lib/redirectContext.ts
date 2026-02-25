@@ -109,10 +109,19 @@ export function finalizeRedirect(): boolean {
     try {
         const url = new URL(ctx.redirect);
         url.searchParams.set("integration_success", "true");
+        
+        // Append the newly selected orgId so microtools can sync their isolated localStorage
+        const activeOrgId = localStorage.getItem("activeOrganizationId");
+        if (activeOrgId) {
+            url.searchParams.set("orgId", activeOrgId);
+        }
+        
         window.location.replace(url.toString());
     } catch {
-        // Invalid URL — try raw
-        window.location.replace(ctx.redirect);
+        // Invalid URL — try raw, appending if possible
+        const activeOrgId = localStorage.getItem("activeOrganizationId");
+        const suffix = activeOrgId ? (ctx.redirect.includes('?') ? `&orgId=${activeOrgId}` : `?orgId=${activeOrgId}`) : '';
+        window.location.replace(ctx.redirect + suffix);
     }
 
     return true;
