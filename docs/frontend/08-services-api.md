@@ -109,11 +109,11 @@ These are baked into the frontend build at compile time (Vite replaces them duri
 
 ## Issues Found
 
-1. **No request timeout** — The Axios instance has no explicit timeout configured. Slow or unresponsive backend calls could hang indefinitely.
-2. **401 handling may cause loops** — If the session expires during a request, the interceptor redirects to login. If the login page also makes an API call that returns 401, this could cause a redirect loop.
-3. **Error messages from backend shown directly** — The response interceptor shows `response.data.message` in toasts without sanitization, potentially exposing internal error details to users.
-4. **`x-organization-id` read from localStorage** — The interceptor reads from `localStorage` on every request. If `localStorage` is out of sync with React state, requests may use the wrong organization.
-5. **No request cancellation** — Long-running requests are not cancelled when components unmount (no AbortController usage).
-6. **No retry logic** — Failed requests are not retried for transient network errors.
-7. **VITE vars are build-time only** — Environment variables are baked in at build time. Changing the API URL requires a full rebuild.
-8. **Service methods don't return typed responses** — Most service methods return `any` from Axios, losing TypeScript type safety.
+- [x] **No request timeout** — The Axios instance has no explicit timeout configured. Slow or unresponsive backend calls could hang indefinitely.
+- [x] **401 handling may cause loops** — If the session expires during a request, the interceptor redirects to login. If the login page also makes an API call that returns 401, this could cause a redirect loop.
+- [x] **Error messages from backend shown directly** — The response interceptor shows `response.data.message` in toasts without sanitization, potentially exposing internal error details to users.
+- [ ] **[SKIPPED] `x-organization-id` read from localStorage** — The interceptor reads from `localStorage` on every request. If `localStorage` is out of sync with React state, requests may use the wrong organization. *(Skipped: Keeping local storage reference for now.)*
+- [ ] **[SKIPPED] No request cancellation** — Long-running requests are not cancelled when components unmount (no AbortController usage). *(Skipped: High effort to thread `AbortController` throughout the codebase. Not needed as such requests are not expected.)*
+- [ ] **[SKIPPED] No retry logic** — Failed requests are not retried for transient network errors. *(Skipped: Not Needed)*
+- [ ] **[SKIPPED] VITE vars are build-time only** — Environment variables are baked in at build time. Changing the API URL requires a full rebuild. *(Skipped: Should be build time only)*
+- [ ] **[SKIPPED] Service methods don't return typed responses** — Most service methods return `any` from Axios, losing TypeScript type safety. *(Skipped: FE types of axios are not needed as such)*
