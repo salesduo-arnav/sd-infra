@@ -90,7 +90,6 @@ describe('Integration Controller API Tests', () => {
                 .send(accountData);
 
             expect(res1.statusCode).toEqual(201);
-            const firstId = res1.body.account.id;
 
             // 2. Second Create (Duplicate)
             const res2 = await request(app)
