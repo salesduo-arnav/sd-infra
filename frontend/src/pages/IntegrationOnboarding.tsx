@@ -450,7 +450,7 @@ export default function IntegrationOnboarding() {
         if (vendorRequired && !vendorSatisfied) {
             return <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">{t('pages.integrationOnboarding.required')}</Badge>;
         }
-        return <Badge variant="secondary" className="text-[10px]">{t('pages.integrationOnboarding.connectAtLeastOne')}</Badge>;
+        return <Badge variant="secondary" className="text-[10px]">{t('pages.integrationOnboarding.connectExactlyOne')}</Badge>;
     };
 
     // ------------------------------------------------------------------------
@@ -458,58 +458,13 @@ export default function IntegrationOnboarding() {
     // ------------------------------------------------------------------------
 
     const leftContent = (
-        <div className="relative z-10 space-y-6">
-            <Badge className="bg-white/20 text-white border-white/30 hover:bg-white/25 mb-4">
-                <Key className="h-3 w-3 mr-1" />
-                {t('pages.integrationOnboarding.secureSetup')}
-            </Badge>
-            <h1 className="text-4xl font-bold text-white mb-3 drop-shadow-sm leading-tight">
-                {t('pages.integrationOnboarding.connectDescription').split('\n').map((line, i) => (
-                    <span key={i}>{line}{i === 0 && <br />}</span>
-                ))}
+        <div className="relative z-10 w-full">
+            <h1 className="text-4xl xl:text-5xl font-bold text-white mb-4 leading-tight">
+                {t('pages.integrationOnboarding.leftTitle')}
             </h1>
-            <p className="text-lg text-white/90 leading-relaxed">
-                {t('pages.integrationOnboarding.connectDescription')}
+            <p className="text-lg text-white/90 max-w-sm">
+                {t('pages.integrationOnboarding.leftSubtitle')}
             </p>
-
-            <div className="pt-4 flex flex-col gap-3">
-                <div className="flex items-center gap-3 text-white/80">
-                    <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
-                        <Globe className="h-4 w-4" />
-                    </div>
-                    <span>{t('pages.integrationOnboarding.selectMarketplace')}</span>
-                </div>
-                {isSpApiRequired && (
-                    <div className="flex items-center gap-3 text-white/80">
-                        <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
-                            <ShoppingCart className="h-4 w-4" />
-                        </div>
-                        <span>{t('pages.integrationOnboarding.connectSpApi')}</span>
-                    </div>
-                )}
-                {isAdsApiRequired && (
-                    <div className="flex items-center gap-3 text-white/80">
-                        <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
-                            <BarChart3 className="h-4 w-4" />
-                        </div>
-                        <span>{t('pages.integrationOnboarding.enableAdsApi')}</span>
-                    </div>
-                )}
-            </div>
-
-            {/* Trust footer */}
-            <div className="relative z-10 pt-4">
-                <div className="flex items-center gap-6 pt-6 border-t border-white/15 text-white/60 text-xs">
-                    <div className="flex items-center gap-1.5">
-                        <Shield className="h-3.5 w-3.5" />
-                        <span>{t('pages.integrationOnboarding.bankGradeSecurity')}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <Lock className="h-3.5 w-3.5" />
-                        <span>{t('pages.integrationOnboarding.isoCertified')}</span>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 
@@ -519,7 +474,7 @@ export default function IntegrationOnboarding() {
             showBrandOnMobile={false}
             contentMaxWidth="max-w-2xl"
         >
-            <div className="space-y-6 pb-6 w-full">
+            <div className="pb-6 w-full">
                 {/* Mobile Logo */}
                 <div className="lg:hidden mb-8 shrink-0">
                     <Link to="/" className="flex items-center gap-2">

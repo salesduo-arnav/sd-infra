@@ -330,6 +330,8 @@
             "initializingCheckout": "安全なチェックアウトを初期化中..."
         },
         "integrationOnboarding": {
+            "leftTitle": "セットアップを完了",
+            "leftSubtitle": "アカウントを接続して、プラットフォームの全機能をご利用ください。",
             "secureSetup": "安全なセットアップ",
             "connectMarketplace": "マーケットプレイス\nアカウントを接続",
             "connectDescription": "Seller CentralまたはVendor Centralアカウントをリンクして、強力な分析と自動化ツールを利用しましょう。",
@@ -362,7 +364,7 @@
             "connect": "接続",
             "required": "必須",
             "bothRequired": "両方必須",
-            "connectAtLeastOne": "少なくとも1つ接続",
+            "connectExactlyOne": "いずれか1つを接続",
             "saving": "保存中...",
             "continueToDashboard": "ダッシュボードに進む",
             "completeAllRequired": "続行するには、マーケットプレイスを選択し、すべての必須サービスを接続してください。",

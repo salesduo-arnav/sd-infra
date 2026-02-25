@@ -330,6 +330,8 @@
             "initializingCheckout": "Sichere Zahlung wird initialisiert..."
         },
         "integrationOnboarding": {
+            "leftTitle": "Einrichtung abschließen",
+            "leftSubtitle": "Verbinden Sie Ihre Konten, um die Plattform vollständig zu nutzen.",
             "secureSetup": "Sichere Einrichtung",
             "connectMarketplace": "Verbinden Sie Ihr\nMarketplace-Konto",
             "connectDescription": "Verknüpfen Sie Ihr Seller Central- oder Vendor Central-Konto, um leistungsstarke Analysen und Automatisierungstools freizuschalten.",
@@ -362,7 +364,7 @@
             "connect": "Verbinden",
             "required": "Erforderlich",
             "bothRequired": "Beide erforderlich",
-            "connectAtLeastOne": "Mindestens eines verbinden",
+            "connectExactlyOne": "Eines davon verbinden",
             "saving": "Speichern...",
             "continueToDashboard": "Weiter zum Dashboard",
             "completeAllRequired": "Bitte wählen Sie einen Marketplace und verbinden Sie alle erforderlichen Dienste, um fortzufahren.",

@@ -82,11 +82,23 @@ export const createTool = async (req: Request, res: Response) => {
         }
 
         if (required_integrations) {
-            const validTypes = Object.values(IntegrationType) as string[];
+            const validTypes = [...Object.values(IntegrationType) as string[], 'sp_api'];
             for (const type of required_integrations) {
                 if (!validTypes.includes(type)) {
                     return res.status(400).json({ message: `Invalid integration type in required_integrations: ${type}` });
                 }
+            }
+
+            // Enforce mutual exclusivity: sp_api (either) cannot coexist with sp_api_sc or sp_api_vc,
+            // and sp_api_sc cannot coexist with sp_api_vc.
+            const hasSpApi = required_integrations.includes('sp_api');
+            const hasSc = required_integrations.includes('sp_api_sc');
+            const hasVc = required_integrations.includes('sp_api_vc');
+            if (hasSpApi && (hasSc || hasVc)) {
+                return res.status(400).json({ message: 'Cannot combine "SP-API (Either)" with a specific Seller Central or Vendor Central requirement' });
+            }
+            if (hasSc && hasVc) {
+                return res.status(400).json({ message: 'Cannot require both Seller Central and Vendor Central — use "SP-API (Either)" instead' });
             }
         }
 
@@ -134,11 +146,21 @@ export const updateTool = async (req: Request, res: Response) => {
         }
 
         if (required_integrations) {
-            const validTypes = Object.values(IntegrationType) as string[];
+            const validTypes = [...Object.values(IntegrationType) as string[], 'sp_api'];
             for (const type of required_integrations) {
                 if (!validTypes.includes(type)) {
                     return res.status(400).json({ message: `Invalid integration type in required_integrations: ${type}` });
                 }
+            }
+
+            const hasSpApi = required_integrations.includes('sp_api');
+            const hasSc = required_integrations.includes('sp_api_sc');
+            const hasVc = required_integrations.includes('sp_api_vc');
+            if (hasSpApi && (hasSc || hasVc)) {
+                return res.status(400).json({ message: 'Cannot combine "SP-API (Either)" with a specific Seller Central or Vendor Central requirement' });
+            }
+            if (hasSc && hasVc) {
+                return res.status(400).json({ message: 'Cannot require both Seller Central and Vendor Central — use "SP-API (Either)" instead' });
             }
         }
 

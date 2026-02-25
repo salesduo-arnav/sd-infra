@@ -330,6 +330,8 @@
       "initializingCheckout": "Initializing secure checkout..."
     },
     "integrationOnboarding": {
+      "leftTitle": "Complete Your Setup",
+      "leftSubtitle": "Connect your accounts to unlock the full platform experience.",
       "secureSetup": "Secure Setup",
       "connectMarketplace": "Connect Your\nMarketplace Account",
       "connectDescription": "Link your Seller Central or Vendor Central account to unlock powerful analytics and automation tools.",
@@ -362,7 +364,7 @@
       "connect": "Connect",
       "required": "Required",
       "bothRequired": "Both Required",
-      "connectAtLeastOne": "Connect at least one",
+      "connectExactlyOne": "Connect any one",
       "saving": "Saving...",
       "continueToDashboard": "Continue to Dashboard",
       "completeAllRequired": "Please select a marketplace and connect all required services to continue.",

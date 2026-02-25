@@ -330,6 +330,8 @@
             "initializingCheckout": "Inicializando pago seguro..."
         },
         "integrationOnboarding": {
+            "leftTitle": "Completa tu configuración",
+            "leftSubtitle": "Conecta tus cuentas para desbloquear toda la experiencia de la plataforma.",
             "secureSetup": "Configuración segura",
             "connectMarketplace": "Conecta tu\ncuenta de marketplace",
             "connectDescription": "Vincula tu cuenta de Seller Central o Vendor Central para desbloquear análisis y herramientas de automatización.",
@@ -362,7 +364,7 @@
             "connect": "Conectar",
             "required": "Requerido",
             "bothRequired": "Ambos requeridos",
-            "connectAtLeastOne": "Conecta al menos uno",
+            "connectExactlyOne": "Conecta uno de los dos",
             "saving": "Guardando...",
             "continueToDashboard": "Continuar al panel",
             "completeAllRequired": "Por favor selecciona un marketplace y conecta todos los servicios requeridos para continuar.",
