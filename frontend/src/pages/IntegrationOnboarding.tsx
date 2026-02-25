@@ -248,7 +248,7 @@ export default function IntegrationOnboarding() {
 
         window.addEventListener("message", handler);
         return () => window.removeEventListener("message", handler);
-    }, [refreshIntegrations]);
+    }, [refreshIntegrations, t]);
 
     // Derive UI visibility flags from requirements
     const isSpApiRequired = requiredIntegrations.some(r => ["sp_api", "sp_api_sc", "sp_api_vc"].includes(r));

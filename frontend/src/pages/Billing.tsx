@@ -85,7 +85,7 @@ export default function Billing() {
     } finally {
       setActionLoading(null);
     }
-  }, [fetchSubscription]);
+  }, [fetchSubscription, t]);
 
   const handleResumeSubscription = useCallback(async (subId: string, stripeSubId: string) => {
     if (!confirm(t('pages.billing.resumeConfirm'))) return;
@@ -100,7 +100,7 @@ export default function Billing() {
     } finally {
       setActionLoading(null);
     }
-  }, [fetchSubscription]);
+  }, [fetchSubscription, t]);
 
   const handleCancelTrial = useCallback(async (subId: string) => {
     if (!confirm(t('pages.billing.cancelTrialConfirm'))) return;
@@ -115,7 +115,7 @@ export default function Billing() {
     } finally {
       setActionLoading(null);
     }
-  }, [fetchSubscription]);
+  }, [fetchSubscription, t]);
 
   const handleManageSubscription = useCallback(async () => {
     setPortalLoading(true);
@@ -130,7 +130,7 @@ export default function Billing() {
     } finally {
       setPortalLoading(false);
     }
-  }, []);
+  }, [t]);
 
 
 
@@ -150,7 +150,7 @@ export default function Billing() {
     } finally {
       setSyncLoading(false);
     }
-  }, [fetchSubscription]);
+  }, [fetchSubscription, t]);
 
   const handleCancelDowngrade = useCallback(async (subId: string) => {
     if (!confirm(t('pages.billing.cancelDowngradeConfirm'))) return;
@@ -165,7 +165,7 @@ export default function Billing() {
     } finally {
       setActionLoading(null);
     }
-  }, [fetchSubscription]);
+  }, [fetchSubscription, t]);
 
   useEffect(() => {
     const init = async () => {

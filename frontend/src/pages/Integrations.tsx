@@ -192,7 +192,7 @@ export default function Integrations() {
     } finally {
       setIsLoadingAccounts(false);
     }
-  }, [orgId]);
+  }, [orgId, t]);
 
   const fetchGlobal = useCallback(async () => {
     if (!orgId) return;
@@ -205,7 +205,7 @@ export default function Integrations() {
     } finally {
       setIsLoadingGlobal(false);
     }
-  }, [orgId]);
+  }, [orgId, t]);
 
   useEffect(() => {
     fetchAccounts();

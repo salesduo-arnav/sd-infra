@@ -40,7 +40,7 @@ export default function PendingInvitations() {
             }
         };
         fetchInvites();
-    }, [checkPendingInvites, navigate]);
+    }, [checkPendingInvites, navigate, t]);
 
     const handleAction = (inviteId: string, action: 'accept' | 'decline' | 'undo') => {
         if (action === 'accept') {

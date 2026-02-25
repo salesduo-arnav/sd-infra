@@ -98,7 +98,7 @@ export default function Plans() {
     };
 
     fetchData();
-  }, [activeOrganization]);
+  }, [activeOrganization, t]);
 
   const allBundles = bundles;
 

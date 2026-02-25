@@ -121,7 +121,7 @@ export function SplitScreenLayout({
 
             {/* Right side - scrollable content pane */}
             <div className={`flex w-full lg:w-1/2 lg:ml-auto flex-col h-full overflow-y-auto ${rightContentClassName || ""}`}>
-                <div className={`mx-auto w-full flex flex-col min-h-full px-6 py-8 sm:px-8 lg:px-16 ${contentMaxWidth}`}>
+                <div className={`mx-auto w-full flex flex-col min-h-full px-0 py-8 ${contentMaxWidth}`}>
                     {/* Mobile Brand Header */}
                     {showBrandOnMobile && (
                         <div className="lg:hidden mb-8 shrink-0 flex items-center w-full">

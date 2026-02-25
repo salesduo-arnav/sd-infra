@@ -67,7 +67,7 @@ export default function CheckoutPage() {
     } finally {
       setLoading(false);
     }
-  }, [cartItems, planId, bundleId, interval]);
+  }, [cartItems, planId, bundleId, interval, t]);
 
   useEffect(() => {
     if ((!planId && !bundleId && (!cartItems || cartItems.length === 0))) {
@@ -77,7 +77,7 @@ export default function CheckoutPage() {
 
     // Auto-initialize checkout session
     initializeCheckout();
-  }, [planId, bundleId, cartItems, initializeCheckout]);
+  }, [planId, bundleId, cartItems, initializeCheckout, t]);
 
   if (!stripePromise) {
     return (

@@ -157,7 +157,7 @@ export default function Organisation() {
       console.error("Failed to fetch data", error);
       toast.error(t('pages.organisation.failedToLoadData'));
     }
-  }, [activeOrganization]);
+  }, [activeOrganization, t]);
 
   // Ref for AbortController
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -210,7 +210,7 @@ export default function Organisation() {
         setMembersLoading(false);
       }
     }
-  }, [activeOrganization, pagination, sorting, searchQuery]);
+  }, [activeOrganization, pagination, sorting, searchQuery, t]);
 
   useEffect(() => {
     fetchOrgData();
