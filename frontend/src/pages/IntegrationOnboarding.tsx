@@ -118,7 +118,7 @@ export default function IntegrationOnboarding() {
     // Fetch required integrations from backend based on app slug
     const fetchRequirements = useCallback(async () => {
         if (!appId) {
-            setRequiredIntegrations(ALL_INTEGRATIONS);
+            setRequiredIntegrations([]);
             setIsLoadingRequirements(false);
             return;
         }
@@ -519,9 +519,9 @@ export default function IntegrationOnboarding() {
             showBrandOnMobile={false}
             contentMaxWidth="max-w-2xl"
         >
-            <div className="space-y-6">
+            <div className="space-y-6 pb-6 w-full">
                 {/* Mobile Logo */}
-                <div className="lg:hidden mb-10">
+                <div className="lg:hidden mb-8 shrink-0">
                     <Link to="/" className="flex items-center gap-2">
                         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-[#ff9900] to-[#e88800]">
                             <Package className="h-5 w-5 text-white" />
@@ -540,7 +540,15 @@ export default function IntegrationOnboarding() {
                     </button>
                     <h2 className="text-2xl font-semibold tracking-tight">{t('pages.integrationOnboarding.integrationSetup')}</h2>
                     <p className="text-muted-foreground mt-1">{t('pages.integrationOnboarding.configureSettings')}</p>
-                    {appId && <Badge variant="outline" className="mt-2">{t('pages.integrationOnboarding.connectingTo', { app: appId })}</Badge>}
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        {appId && <Badge variant="outline">{t('pages.integrationOnboarding.connectingTo', { app: appId })}</Badge>}
+                        {activeOrganization?.name && (
+                            <Badge variant="secondary" className="bg-primary/5 text-primary">
+                                <Building2 className="mr-1 h-3 w-3" />
+                                {activeOrganization.name}
+                            </Badge>
+                        )}
+                    </div>
                 </div>
 
                 {isLoadingRequirements ? (

@@ -9,7 +9,7 @@ import { Building2, Sparkles, Users, Shield, ArrowRight, ArrowLeft } from "lucid
 import api from "@/lib/api";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
 import { Link } from "react-router-dom";
-import { hasRedirectContext } from "@/lib/redirectContext";
+import { hasRedirectContext, getAppSlug, finalizeRedirect } from "@/lib/redirectContext";
 import { useTranslation } from 'react-i18next';
 
 export default function CreateOrganisation() {
@@ -27,8 +27,18 @@ export default function CreateOrganisation() {
   // This prevents back-button re-entry into org creation.
   useState(() => {
     if (activeOrganization) {
-      const target = hasRedirectContext() ? "/integration-onboarding" : "/apps";
-      navigate(target, { replace: true });
+      if (hasRedirectContext()) {
+        const appId = getAppSlug();
+        if (!appId) {
+          if (!finalizeRedirect()) {
+            navigate("/apps", { replace: true });
+          }
+          return;
+        }
+        navigate("/integration-onboarding", { replace: true });
+        return;
+      }
+      navigate("/apps", { replace: true });
     }
   });
 
@@ -62,6 +72,13 @@ export default function CreateOrganisation() {
 
       // If redirect context exists, go through integration onboarding before external app
       if (hasRedirectContext()) {
+        const appId = getAppSlug();
+        if (!appId) {
+          if (!finalizeRedirect()) {
+            navigate("/apps", { replace: true });
+          }
+          return;
+        }
         navigate("/integration-onboarding", { replace: true });
         return;
       }

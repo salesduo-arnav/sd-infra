@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { OtpInput } from "@/components/auth/OtpInput";
 import { Check, X, Lock, Mail, ArrowLeft, Loader2 } from "lucide-react";
-import { captureRedirectContext, hasRedirectContext } from "@/lib/redirectContext";
+import { captureRedirectContext, hasRedirectContext, getAppSlug, finalizeRedirect } from "@/lib/redirectContext";
 import {
   Dialog,
   DialogContent,
@@ -80,6 +80,13 @@ export default function SignUp() {
     if (hasRedirectContext()) {
       if (user.memberships!.length === 1) {
         switchOrganization(user.memberships![0].organization.id);
+      }
+      const appId = getAppSlug();
+      if (!appId) {
+        if (!finalizeRedirect()) {
+          navigate("/apps");
+        }
+        return;
       }
       navigate("/integration-onboarding");
       return;

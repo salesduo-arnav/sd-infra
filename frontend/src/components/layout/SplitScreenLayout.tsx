@@ -43,7 +43,7 @@ function LanguageDropdown() {
                 <span>{currentLanguage.flag} {currentLanguage.label}</span>
             </button>
             {open && (
-                <div className="absolute bottom-full mb-2 left-0 w-48 bg-white rounded-lg shadow-xl border overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+                <div className="absolute bottom-full mb-2 left-0 w-48 bg-white rounded-lg shadow-xl border overflow-y-auto animate-in fade-in slide-in-from-bottom-2 duration-200">
                     {supportedLanguages.map((lang) => (
                         <button
                             key={lang.code}
@@ -76,11 +76,11 @@ export function SplitScreenLayout({
     contentMaxWidth = "max-w-md"
 }: SplitScreenLayoutProps) {
     return (
-        <div className="min-h-screen flex text-foreground bg-background">
-            {/* Left side - Branding with Gradient */}
-            <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#ff9900] via-[#e88800] to-[#cc7700] flex-col justify-between p-12 relative overflow-hidden">
+        <div className="h-screen w-full flex flex-col lg:flex-row text-foreground bg-background overflow-hidden">
+            {/* Left side - Branding with Gradient (fixed panel) */}
+            <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#ff9900] via-[#e88800] to-[#cc7700] relative lg:fixed lg:inset-y-0 lg:left-0 lg:h-screen z-0">
                 {/* Decorative Elements */}
-                <div className="absolute inset-0 overflow-hidden">
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
                     {/* Large circle */}
                     <div className="absolute -top-24 -right-24 w-96 h-96 bg-white/10 rounded-full blur-sm" />
                     {/* Medium circle */}
@@ -100,28 +100,31 @@ export function SplitScreenLayout({
                     </div>
                 </div>
 
-                <Link to={homeUrl} className="flex items-center gap-2 h-20 w-20 relative z-10">
-                    <img src={logoUrl} alt="SalesDuo" className="drop-shadow-lg" />
-                </Link>
+                {/* Left side content container */}
+                <div className="relative z-10 w-full h-full flex flex-col justify-between p-8 lg:p-12">
+                    <Link to={homeUrl} className="flex items-center gap-2 h-20 w-20 shrink-0 mb-8">
+                        <img src={logoUrl} alt="SalesDuo" className="drop-shadow-lg" />
+                    </Link>
 
-                <div className="relative z-10 w-full">
-                    {leftContent}
-                </div>
+                    <div className="w-full flex-1 flex flex-col justify-center shrink-0 py-8">
+                        {leftContent}
+                    </div>
 
-                <div className="flex items-center justify-between relative z-10">
-                    <p className="text-sm text-white/70">
-                        © {new Date().getFullYear()} SalesDuo. All rights reserved.
-                    </p>
-                    <LanguageDropdown />
+                    <div className="flex items-center justify-between shrink-0 mt-8">
+                        <p className="text-sm text-white/70">
+                            © {new Date().getFullYear()} SalesDuo. All rights reserved.
+                        </p>
+                        <LanguageDropdown />
+                    </div>
                 </div>
             </div>
 
-            {/* Right side - Content */}
-            <div className={`flex w-full lg:w-1/2 flex-col justify-center px-8 py-12 lg:px-16 ${rightContentClassName}`}>
-                <div className={`mx-auto w-full ${contentMaxWidth}`}>
+            {/* Right side - scrollable content pane */}
+            <div className={`flex w-full lg:w-1/2 lg:ml-auto flex-col h-full overflow-y-auto ${rightContentClassName || ""}`}>
+                <div className={`mx-auto w-full flex flex-col min-h-full px-6 py-8 sm:px-8 lg:px-16 ${contentMaxWidth}`}>
                     {/* Mobile Brand Header */}
                     {showBrandOnMobile && (
-                        <div className="lg:hidden mb-8">
+                        <div className="lg:hidden mb-8 shrink-0 flex items-center w-full">
                             <Link to={homeUrl} className="flex items-center gap-2">
                                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-[#ff9900] to-[#e88800]">
                                     <img src={logoUrl} alt="SalesDuo" className="h-6 w-auto brightness-0 invert" />
@@ -131,7 +134,9 @@ export function SplitScreenLayout({
                         </div>
                     )}
 
-                    {children}
+                    <div className="flex flex-col justify-center w-full my-auto py-8">
+                        {children}
+                    </div>
                 </div>
             </div>
         </div>

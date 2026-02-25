@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { OtpInput } from "@/components/auth/OtpInput";
 import { Mail, KeyRound, ArrowLeft, Loader2 } from "lucide-react";
-import { captureRedirectContext, hasRedirectContext } from "@/lib/redirectContext";
+import { captureRedirectContext, hasRedirectContext, getAppSlug, finalizeRedirect } from "@/lib/redirectContext";
 import { useTranslation } from 'react-i18next';
 
 type LoginMode = "password" | "otp";
@@ -65,6 +65,13 @@ export default function Login() {
     if (loggedInUser.memberships.length === 1) {
       switchOrganization(loggedInUser.memberships[0].organization.id);
       if (hasRedirectContext()) {
+        const appId = getAppSlug();
+        if (!appId) {
+          if (!finalizeRedirect()) {
+            navigate("/apps");
+          }
+          return;
+        }
         navigate("/integration-onboarding");
         return;
       }

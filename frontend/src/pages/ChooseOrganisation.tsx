@@ -45,43 +45,48 @@ export default function ChooseOrganisation() {
                 if (hasRedirectContext()) {
                     const appId = getAppSlug();
 
-                    if (appId) {
-                        try {
-                            const [tool, accounts] = await Promise.all([
-                                getToolBySlug(appId),
-                                getIntegrationAccounts(targetOrgId)
-                            ]);
-
-                            const requiredIntegrations = tool.required_integrations || [];
-
-                            // If no requirements, or they are all met, we can skip onboarding
-                            if (requiredIntegrations.length === 0) {
-                                if (!finalizeRedirect()) {
-                                    navigate("/apps");
-                                }
-                                return;
-                            }
-
-                            const connectedTypes = new Set(
-                                accounts.filter(a => a.status === 'connected').map(a => a.integration_type as string)
-                            );
-
-                            const hasSpApi = connectedTypes.has('sp_api_sc') || connectedTypes.has('sp_api_vc');
-                            const allMet = requiredIntegrations.every(req => {
-                                if (req === 'sp_api') return hasSpApi;
-                                return connectedTypes.has(req);
-                            });
-
-                            if (allMet) {
-                                if (!finalizeRedirect()) {
-                                    navigate("/apps");
-                                }
-                                return;
-                            }
-                        } catch (error) {
-                            console.error("Failed to check integrations during org switch", error);
-                            // Fall through to onboarding on error
+                    if (!appId) {
+                        if (!finalizeRedirect()) {
+                            navigate("/apps");
                         }
+                        return;
+                    }
+
+                    try {
+                        const [tool, accounts] = await Promise.all([
+                            getToolBySlug(appId),
+                            getIntegrationAccounts(targetOrgId)
+                        ]);
+
+                        const requiredIntegrations = tool.required_integrations || [];
+
+                        // If no requirements, or they are all met, we can skip onboarding
+                        if (requiredIntegrations.length === 0) {
+                            if (!finalizeRedirect()) {
+                                navigate("/apps");
+                            }
+                            return;
+                        }
+
+                        const connectedTypes = new Set(
+                            accounts.filter(a => a.status === 'connected').map(a => a.integration_type as string)
+                        );
+
+                        const hasSpApi = connectedTypes.has('sp_api_sc') || connectedTypes.has('sp_api_vc');
+                        const allMet = requiredIntegrations.every(req => {
+                            if (req === 'sp_api') return hasSpApi;
+                            return connectedTypes.has(req);
+                        });
+
+                        if (allMet) {
+                            if (!finalizeRedirect()) {
+                                navigate("/apps");
+                            }
+                            return;
+                        }
+                    } catch (error) {
+                        console.error("Failed to check integrations during org switch", error);
+                        // Fall through to onboarding on error
                     }
 
                     // Route through integration onboarding if requirements not met or error
