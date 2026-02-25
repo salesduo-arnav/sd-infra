@@ -81,7 +81,7 @@ describe('Integration Controller API Tests', () => {
             expect(res.body.account.status).toEqual(IntegrationStatus.DISCONNECTED);
         });
 
-        it('should be idempotent: subsequent creations should return existing account', async () => {
+        it('should return 409 Conflict for exact duplicate creations', async () => {
             // 1. First Create
             const res1 = await request(app)
                 .post('/integrations/accounts')
@@ -99,11 +99,9 @@ describe('Integration Controller API Tests', () => {
                 .set('x-organization-id', orgId)
                 .send(accountData);
 
-            // Expect success, not error
-            expect(res2.statusCode).toEqual(201); // or 200 depending on implementation, usually 201 or 200 for idempotent
-            // In the controller we enter `IntegrationAccount.create` path which returns 201 usually vs `return existing` might still be returned as is.
-            // Let's check the ID
-            expect(res2.body.account.id).toEqual(firstId);
+            // Expect error
+            expect(res2.statusCode).toEqual(409);
+            expect(res2.body.message).toEqual('Account already exists');
 
             // Verify only one entry in DB
             const count = await IntegrationAccount.count({
@@ -116,7 +114,7 @@ describe('Integration Controller API Tests', () => {
             expect(count).toEqual(1);
         });
 
-        it('should allow same name for different integration type', async () => {
+        it('should prevent Seller Central and Vendor Central in the same account group', async () => {
             // 1. Create Seller Central
             await request(app)
                 .post('/integrations/accounts')
@@ -132,10 +130,11 @@ describe('Integration Controller API Tests', () => {
                 .set('x-organization-id', orgId)
                 .send(vcData);
 
-            expect(res.statusCode).toEqual(201);
+            expect(res.statusCode).toEqual(409);
+            expect(res.body.message).toContain('An Amazon entity cannot have both Seller Central and Vendor Central');
 
             const count = await IntegrationAccount.count({ where: { organization_id: orgId } });
-            expect(count).toEqual(2);
+            expect(count).toEqual(1);
         });
     });
 });

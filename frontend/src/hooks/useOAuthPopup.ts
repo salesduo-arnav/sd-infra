@@ -57,11 +57,6 @@ export const useOAuthPopup = () => {
 
             let isResolved = false;
 
-            // Variables for intervals and timeout
-            let pollInterval: NodeJS.Timeout;
-            let checkPopup: NodeJS.Timeout;
-            let timeoutId: NodeJS.Timeout;
-
             const cleanup = () => {
                 if (isResolved) return;
                 isResolved = true;
@@ -106,7 +101,7 @@ export const useOAuthPopup = () => {
             window.addEventListener("message", handleMessage);
 
             // Polling fallback (Robustness)
-            pollInterval = setInterval(async () => {
+            const pollInterval = setInterval(async () => {
                 if (!orgId) return;
                 try {
                     const accounts = await getIntegrationAccounts(orgId);
@@ -126,12 +121,12 @@ export const useOAuthPopup = () => {
             }, 2000);
 
             // Timeout
-            timeoutId = setTimeout(() => {
+            const timeoutId = setTimeout(() => {
                 doResolve(false);
             }, timeoutMs);
 
             // Popup Closed Monitor
-            checkPopup = setInterval(() => {
+            const checkPopup = setInterval(() => {
                 if (popup.closed) {
                     // Give a small grace period for final poll or message
                     setTimeout(() => {
