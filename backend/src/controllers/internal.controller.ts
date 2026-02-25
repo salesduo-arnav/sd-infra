@@ -70,7 +70,7 @@ export const getEntitlements = async (req: Request, res: Response) => {
 
 export const trackUsage = async (req: Request, res: Response) => {
     try {
-        const { tool_id, user_id, organization_id, action } = req.body;
+        const { tool_id, user_id, organization_id } = req.body;
 
         if (!tool_id || !organization_id) {
             return res.status(400).json({ message: 'tool_id and organization_id are required' });
