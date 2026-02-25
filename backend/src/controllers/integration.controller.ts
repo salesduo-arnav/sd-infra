@@ -90,15 +90,38 @@ export const createIntegrationAccount = async (req: Request, res: Response) => {
         }
 
         const account = await sequelize.transaction(async (t) => {
-            // Check for duplicate
+            // Check for exact duplicate
             const existing = await IntegrationAccount.findOne({
-                where: { organization_id: orgId, marketplace: resolvedMarketplace, account_name, integration_type },
+                where: { organization_id: orgId, marketplace: resolvedMarketplace, account_name, region, integration_type },
                 transaction: t,
             });
 
             if (existing) {
-                // Idempotent behavior: Return existing account instead of error
-                return existing;
+                return res.status(409).json({ message: 'Account already exists' });
+            }
+
+            // SC/VC mutual exclusivity: an account group cannot have both
+            const conflictingType =
+                integration_type === IntegrationType.SP_API_SC ? IntegrationType.SP_API_VC :
+                    integration_type === IntegrationType.SP_API_VC ? IntegrationType.SP_API_SC :
+                        null;
+
+            if (conflictingType) {
+                const conflict = await IntegrationAccount.findOne({
+                    where: {
+                        organization_id: orgId,
+                        marketplace: resolvedMarketplace,
+                        account_name,
+                        region,
+                        integration_type: conflictingType,
+                    },
+                    transaction: t,
+                });
+
+                if (conflict) {
+                    const label = conflictingType === IntegrationType.SP_API_SC ? 'Seller Central' : 'Vendor Central';
+                    return res.status(409).json({ message: `This account group already has ${label}. An Amazon entity cannot have both Seller Central and Vendor Central.` });
+                }
             }
 
             return await IntegrationAccount.create(
