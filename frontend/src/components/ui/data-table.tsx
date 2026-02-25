@@ -29,6 +29,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { useDebounce } from "@/hooks/use-debounce"
 
 // ============================================================================
 // EXPORTED HELPER COMPONENTS - Use these to build your columns easily
@@ -158,19 +159,17 @@ export function DataTable<TData, TValue>({
     })
 
     const [localQuery, setLocalQuery] = React.useState(searchQuery)
+    const debouncedLocalQuery = useDebounce(localQuery)
 
     React.useEffect(() => {
         setLocalQuery(searchQuery)
     }, [searchQuery])
 
     React.useEffect(() => {
-        const timer = setTimeout(() => {
-            if (localQuery !== searchQuery) {
-                onSearchChange(localQuery)
-            }
-        }, 400)
-        return () => clearTimeout(timer)
-    }, [localQuery, onSearchChange, searchQuery])
+        if (debouncedLocalQuery !== searchQuery) {
+            onSearchChange(debouncedLocalQuery)
+        }
+    }, [debouncedLocalQuery, onSearchChange, searchQuery])
 
     return (
         <div className="w-full">

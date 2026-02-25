@@ -96,7 +96,6 @@ export default function Organisation() {
   });
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [membersLoading, setMembersLoading] = useState(true);
 
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -126,13 +125,9 @@ export default function Organisation() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
-  // Debounce search
+  // Reset pagination on search change
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-      setPagination(prev => ({ ...prev, pageIndex: 0 }));
-    }, 500);
-    return () => clearTimeout(timer);
+    setPagination(prev => ({ ...prev, pageIndex: 0 }));
   }, [searchQuery]);
 
   // Fetch org details and invitations
@@ -189,8 +184,8 @@ export default function Organisation() {
         sortOrder: sortOrder,
       });
 
-      if (debouncedSearch) {
-        params.append("search", debouncedSearch);
+      if (searchQuery) {
+        params.append("search", searchQuery);
       }
 
       const res = await fetch(`${API_URL}/organizations/members?${params.toString()}`, {
@@ -213,7 +208,7 @@ export default function Organisation() {
         setMembersLoading(false);
       }
     }
-  }, [activeOrganization, pagination, sorting, debouncedSearch]);
+  }, [activeOrganization, pagination, sorting, searchQuery]);
 
   useEffect(() => {
     fetchOrgData();
