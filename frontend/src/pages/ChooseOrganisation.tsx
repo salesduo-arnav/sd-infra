@@ -1,17 +1,23 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { getIntegrationAccounts } from "@/services/integration.service";
+import { getToolBySlug } from "@/services/tool.service";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Building2, Plus, ArrowRight, UserPlus, Sparkles } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
-import { hasRedirectContext } from "@/lib/redirectContext";
+import { hasRedirectContext, captureRedirectContext, getAppSlug, finalizeRedirect } from "@/lib/redirectContext";
 
 export default function ChooseOrganisation() {
     const { user, switchOrganization, activeOrganization, isLoading: authLoading, checkPendingInvites } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+
+    // Capture any incoming redirect instructions (e.g. from a micro-tool's IntegrationGuard)
+    captureRedirectContext(searchParams);
 
     const [isLoading, setIsLoading] = useState(false);
     const [targetOrgId, setTargetOrgId] = useState<string | null>(null);
@@ -32,12 +38,63 @@ export default function ChooseOrganisation() {
     useEffect(() => {
         if (!targetOrgId || activeOrganization?.id !== targetOrgId) return;
 
-        if (hasRedirectContext()) {
-            // Route through integration onboarding before going to external app
-            navigate("/integration-onboarding", { replace: true });
-        } else {
-            navigate("/apps");
-        }
+        const handleRedirect = async () => {
+            try {
+                if (hasRedirectContext()) {
+                    const appId = getAppSlug();
+
+                    if (appId) {
+                        try {
+                            const [tool, accounts] = await Promise.all([
+                                getToolBySlug(appId),
+                                getIntegrationAccounts(targetOrgId)
+                            ]);
+
+                            const requiredIntegrations = tool.required_integrations || [];
+
+                            // If no requirements, or they are all met, we can skip onboarding
+                            if (requiredIntegrations.length === 0) {
+                                if (!finalizeRedirect()) {
+                                    navigate("/apps");
+                                }
+                                return;
+                            }
+
+                            const connectedTypes = new Set(
+                                accounts.filter(a => a.status === 'connected').map(a => a.integration_type as string)
+                            );
+
+                            const hasSpApi = connectedTypes.has('sp_api_sc') || connectedTypes.has('sp_api_vc');
+                            const allMet = requiredIntegrations.every(req => {
+                                if (req === 'sp_api') return hasSpApi;
+                                return connectedTypes.has(req);
+                            });
+
+                            if (allMet) {
+                                if (!finalizeRedirect()) {
+                                    navigate("/apps");
+                                }
+                                return;
+                            }
+                        } catch (error) {
+                            console.error("Failed to check integrations during org switch", error);
+                            // Fall through to onboarding on error
+                        }
+                    }
+
+                    // Route through integration onboarding if requirements not met or error
+                    navigate("/integration-onboarding", { replace: true });
+                } else {
+                    navigate("/apps");
+                }
+            } finally {
+                // Always clear the loading state so the spinner doesn't get stuck
+                setIsLoading(false);
+                setTargetOrgId(null);
+            }
+        };
+
+        handleRedirect();
     }, [activeOrganization, targetOrgId, navigate]);
 
     const handleSelectOrg = (orgId: string) => {

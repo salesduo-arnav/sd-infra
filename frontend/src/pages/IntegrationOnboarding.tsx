@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,8 @@ import {
     ExternalLink,
     Store,
     Building2,
-    Package
+    Package,
+    ArrowLeft,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -63,14 +64,36 @@ const ALL_INTEGRATIONS = ["sp_api", "ads_api"];
 export default function IntegrationOnboarding() {
     const [searchParams] = useSearchParams();
     captureRedirectContext(searchParams);
+    const navigate = useNavigate();
 
     // Read redirect context from sessionStorage (sole source of truth)
     const ctx = getRedirectContext();
     const redirectUrl = ctx?.redirect || null;
     const appId = ctx?.app || null;
-    const { activeOrganization } = useAuth();
-    const orgId = activeOrganization?.id || "";
+    const { activeOrganization, switchOrganization } = useAuth();
     const { openOAuthPopup } = useOAuthPopup();
+
+    // Sync org from URL param
+    useEffect(() => {
+        const urlOrgId = searchParams.get("orgId");
+        if (urlOrgId && urlOrgId !== activeOrganization?.id) {
+            localStorage.setItem("activeOrganizationId", urlOrgId);
+            switchOrganization(urlOrgId);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Derive orgId reactively from auth context
+    const orgId = activeOrganization?.id || searchParams.get("orgId") || "";
+
+    // Build URL for "switch org" back button
+    const switchOrgUrl = (() => {
+        const params = new URLSearchParams();
+        if (redirectUrl) params.set("redirect", redirectUrl);
+        if (appId) params.set("app", appId);
+        const qs = params.toString();
+        return `/choose-organisation${qs ? `?${qs}` : ""}`;
+    })();
 
     // State
     const [accountName, setAccountName] = useState<string>("");
@@ -504,6 +527,13 @@ export default function IntegrationOnboarding() {
                 </div>
 
                 <div className="mb-8">
+                    <button
+                        onClick={() => navigate(switchOrgUrl)}
+                        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 group"
+                    >
+                        <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
+                        Switch Organisation
+                    </button>
                     <h2 className="text-2xl font-semibold tracking-tight">Integration Setup</h2>
                     <p className="text-muted-foreground mt-1">Configure your Amazon integration settings.</p>
                     {appId && <Badge variant="outline" className="mt-2">Connecting to: {appId}</Badge>}
