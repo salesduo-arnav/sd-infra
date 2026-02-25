@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +36,7 @@ import {
 import { getToolBySlug } from "@/services/tool.service";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
 import { useOAuthPopup } from "@/hooks/useOAuthPopup";
-import { getRedirectContext, clearRedirectContext, finalizeRedirect } from "@/lib/redirectContext";
+import { captureRedirectContext, getRedirectContext, clearRedirectContext, finalizeRedirect } from "@/lib/redirectContext";
 
 // ------------------------------------------------------------------
 // Data                                                               
@@ -61,6 +61,9 @@ const ALL_INTEGRATIONS = ["sp_api", "ads_api"];
 // ------------------------------------------------------------------ 
 
 export default function IntegrationOnboarding() {
+    const [searchParams] = useSearchParams();
+    captureRedirectContext(searchParams);
+
     // Read redirect context from sessionStorage (sole source of truth)
     const ctx = getRedirectContext();
     const redirectUrl = ctx?.redirect || null;
@@ -72,9 +75,6 @@ export default function IntegrationOnboarding() {
     // State
     const [accountName, setAccountName] = useState<string>("");
     const [marketplace, setMarketplace] = useState<string>("");
-    const [isSellerConnected, setIsSellerConnected] = useState(false);
-    const [isVendorConnected, setIsVendorConnected] = useState(false);
-    const [isAdsConnected, setIsAdsConnected] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
     // Required integrations from backend
@@ -119,28 +119,10 @@ export default function IntegrationOnboarding() {
         try {
             const fetchedAccounts = await getIntegrationAccounts(orgId);
             setAccounts(fetchedAccounts);
-
-            // 1. Update Connection Status from Session IDs
-            const sellerId = createdAccountIds['sp_api_sc'];
-            const vendorId = createdAccountIds['sp_api_vc'];
-            const adsId = createdAccountIds['ads_api'];
-
-            // Helper to find if an account type is connected
-            const isConnected = (type: string) => {
-                if (createdAccountIds[type]) {
-                    return fetchedAccounts.find((a: IntegrationAccount) => a.id === createdAccountIds[type])?.status === 'connected';
-                }
-                return false;
-            };
-
-            if (isConnected('sp_api_sc')) setIsSellerConnected(true);
-            if (isConnected('sp_api_vc')) setIsVendorConnected(true);
-            if (isConnected('ads_api')) setIsAdsConnected(true);
-
         } catch (error) {
             console.error("Failed to refresh integrations", error);
         }
-    }, [orgId, createdAccountIds]);
+    }, [orgId]);
 
     useEffect(() => {
         fetchRequirements();
@@ -207,11 +189,6 @@ export default function IntegrationOnboarding() {
 
         group.forEach(a => {
             newIds[a.integration_type] = a.id;
-            if (a.status === 'connected') {
-                if (a.integration_type === 'sp_api_sc') setIsSellerConnected(true);
-                if (a.integration_type === 'sp_api_vc') setIsVendorConnected(true);
-                if (a.integration_type === 'ads_api') setIsAdsConnected(true);
-            }
             resumedAny = true;
         });
 
@@ -260,9 +237,22 @@ export default function IntegrationOnboarding() {
     const isSellerCentralRequired = requiredIntegrations.includes("sp_api_sc");
     const isVendorCentralRequired = requiredIntegrations.includes("sp_api_vc");
 
-    // Visibility flags for rows
-    const showSellerRow = requiredIntegrations.includes('sp_api') || isSellerCentralRequired;
-    const showVendorRow = requiredIntegrations.includes('sp_api') || isVendorCentralRequired;
+    // Derived connection states (Issue #12)
+    const isConnected = (type: string) => {
+        const id = createdAccountIds[type];
+        if (id) {
+            return accounts.find(a => a.id === id)?.status === 'connected';
+        }
+        return false;
+    };
+
+    const isSellerConnected = !!isConnected('sp_api_sc');
+    const isVendorConnected = !!isConnected('sp_api_vc');
+    const isAdsConnected = !!isConnected('ads_api');
+
+    // Visibility flags for rows. Enforce mutual exclusivity: hide the other if one is connected.
+    const showSellerRow = (requiredIntegrations.includes('sp_api') || isSellerCentralRequired) && !isVendorConnected;
+    const showVendorRow = (requiredIntegrations.includes('sp_api') || isVendorCentralRequired) && !isSellerConnected;
 
     // Satisfaction map: each slug → whether it's fulfilled
     const satisfiedMap: Record<string, boolean> = {
@@ -336,7 +326,7 @@ export default function IntegrationOnboarding() {
 
                 if (success) {
                     toast.success("Integration connected successfully!");
-                    setIsAdsConnected(true);
+                    await refreshIntegrations();
                 } else {
                     toast.error("Failed to connect integration");
                 }
@@ -360,8 +350,7 @@ export default function IntegrationOnboarding() {
 
                 if (success) {
                     toast.success("Integration connected successfully!");
-                    if (type === 'seller') setIsSellerConnected(true);
-                    if (type === 'vendor') setIsVendorConnected(true);
+                    await refreshIntegrations();
                 } else {
                     toast.error("Failed to connect integration");
                 }

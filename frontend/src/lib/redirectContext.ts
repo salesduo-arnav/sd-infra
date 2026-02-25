@@ -108,7 +108,7 @@ export function finalizeRedirect(): boolean {
 
     try {
         const url = new URL(ctx.redirect);
-        url.searchParams.set("auth_success", "true");
+        url.searchParams.set("integration_success", "true");
         window.location.replace(url.toString());
     } catch {
         // Invalid URL — try raw

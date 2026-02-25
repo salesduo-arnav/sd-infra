@@ -103,17 +103,44 @@ const INTEGRATION_TYPES = [
 ];
 
 const GLOBAL_SERVICES = [
-  {
-    key: "slack",
-    name: "Slack",
-    description: "Get notifications and alerts directly in your Slack workspace.",
-    icon: MessageSquare,
-    color: "text-green-600 bg-green-50",
-  },
+  // {
+  //   key: "slack",
+  //   name: "Slack",
+  //   description: "Get notifications and alerts directly in your Slack workspace.",
+  //   icon: MessageSquare,
+  //   color: "text-green-600 bg-green-50",
+  // },
 ];
 
 const getRegion = (id: string) => REGIONS.find((r) => r.id === id);
 const getIntegrationType = (id: string) => INTEGRATION_TYPES.find((t) => t.value === id);
+
+// Simulated OAuth popup helper
+const renderSimulatedOAuthPopup = (popup: Window, typeName: string) => {
+  const doc = popup.document;
+  doc.open();
+  doc.write("<!DOCTYPE html><html><head><title>Connecting...</title></head><body></body></html>");
+  doc.close();
+
+  const style = doc.createElement("style");
+  style.textContent = `
+    body { font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f9fafb; color: #111; margin: 0; }
+    .loader { border: 4px solid #f3f3f3; border-top: 4px solid #ff9900; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  `;
+  doc.head.appendChild(style);
+
+  const loader = doc.createElement("div");
+  loader.className = "loader";
+
+  const heading = doc.createElement("h2");
+  heading.textContent = `Connecting to ${typeName}...`;
+
+  const text = doc.createElement("p");
+  text.textContent = "Please wait while we verify your credentials.";
+
+  doc.body.append(loader, heading, text);
+};
 
 // ------------------------------------------------------------------------
 // Component
@@ -229,23 +256,7 @@ export default function Integrations() {
       );
 
       if (popup) {
-        popup.document.write(`
-          <html>
-          <head>
-            <title>Connecting...</title>
-            <style>
-              body { font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f9fafb; color: #111; margin: 0; }
-              .loader { border: 4px solid #f3f3f3; border-top: 4px solid #ff9900; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
-              @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-            </style>
-          </head>
-          <body>
-            <div class="loader"></div>
-            <h2>Connecting to ${typeName}...</h2>
-            <p>Please wait while we verify your credentials.</p>
-          </body>
-          </html>
-        `);
+        renderSimulatedOAuthPopup(popup, typeName);
 
         setTimeout(() => {
           if (!popup.closed) popup.close();
@@ -538,6 +549,8 @@ export default function Integrations() {
       if (next.has(type)) {
         next.delete(type);
       } else {
+        if (type === 'sp_api_sc') next.delete('sp_api_vc');
+        if (type === 'sp_api_vc') next.delete('sp_api_sc');
         next.add(type);
       }
       return next;
@@ -837,6 +850,13 @@ export default function Integrations() {
                     </Card>
                   );
                 })}
+                {GLOBAL_SERVICES.length === 0 && (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-muted-foreground">
+                      No integrations available.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>

@@ -124,11 +124,18 @@ export function ManageIntegrationDialog({
                         const isConnected = account?.status === "connected";
                         const isLoading = loadingAction?.startsWith(type.key);
 
+                        const hasSC = accounts.some(a => a.integration_type === "sp_api_sc");
+                        const hasVC = accounts.some(a => a.integration_type === "sp_api_vc");
+
+                        const isDisabledMutual =
+                            (!isPresent && type.key === "sp_api_sc" && hasVC) ||
+                            (!isPresent && type.key === "sp_api_vc" && hasSC);
+
                         return (
                             <div
                                 key={type.key}
                                 className="flex items-center justify-between p-4 rounded-lg border bg-card/50 hover:bg-card transition-colors"
-                                style={{ opacity: isLoading ? 0.7 : 1 }}
+                                style={{ opacity: isLoading || isDisabledMutual ? 0.7 : 1 }}
                             >
                                 <div className="flex items-start gap-4">
                                     <div className={`p-2 rounded-lg bg-orange-50 text-orange-600`}>
@@ -149,7 +156,8 @@ export function ManageIntegrationDialog({
                                             variant="outline"
                                             size="sm"
                                             onClick={() => handleAction(`${type.key}-add`, () => onAddAccount(type.key))}
-                                            disabled={!!loadingAction}
+                                            disabled={!!loadingAction || isDisabledMutual}
+                                            title={isDisabledMutual ? "An Amazon entity cannot have both Seller and Vendor Central on the same account group." : ""}
                                         >
                                             {loadingAction === `${type.key}-add` ? (
                                                 <Loader2 className="h-4 w-4 animate-spin mr-2" />

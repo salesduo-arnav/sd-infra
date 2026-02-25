@@ -1,3 +1,4 @@
+import { useEffect, useRef, useCallback } from "react";
 import { getIntegrationAccounts } from "@/services/integration.service";
 import { toast } from "sonner";
 
@@ -10,10 +11,23 @@ interface OAuthPopupOptions {
     height: number;
     successType: string;
     errorType: string;
+    timeoutMs?: number;
 }
 
 export const useOAuthPopup = () => {
-    const openOAuthPopup = ({
+    // Keep track of active cleanups to run on unmount (Issue #1, #2)
+    const activeCleanups = useRef<Set<() => void>>(new Set());
+
+    useEffect(() => {
+        // Run all cleanups on unmount
+        const cleanups = activeCleanups.current;
+        return () => {
+            cleanups.forEach(cleanup => cleanup());
+            cleanups.clear();
+        };
+    }, []);
+
+    const openOAuthPopup = useCallback(({
         orgId,
         accountId,
         url,
@@ -22,6 +36,7 @@ export const useOAuthPopup = () => {
         height,
         successType,
         errorType,
+        timeoutMs = 120000,
     }: OAuthPopupOptions): Promise<boolean> => {
         return new Promise((resolve) => {
             const left = window.screen.width / 2 - width / 2;
@@ -33,7 +48,8 @@ export const useOAuthPopup = () => {
                 `width=${width},height=${height},top=${top},left=${left}`
             );
 
-            if (!popup) {
+            // Issue #4: Popup blocker detection
+            if (!popup || popup.closed || typeof popup.closed === 'undefined') {
                 toast.error("Please allow popups to connect integrations.");
                 resolve(false);
                 return;
@@ -48,7 +64,9 @@ export const useOAuthPopup = () => {
                 clearInterval(pollInterval);
                 clearInterval(checkPopup);
                 clearTimeout(timeoutId);
+                activeCleanups.current.delete(cleanup);
             };
+            activeCleanups.current.add(cleanup);
 
             const doResolve = (result: boolean) => {
                 cleanup();
@@ -56,10 +74,23 @@ export const useOAuthPopup = () => {
             };
 
             // Listener for postMessage (Immediate feedback)
-            const handleMessage = (event: MessageEvent) => {
+            const handleMessage = async (event: MessageEvent) => {
                 if (event.data?.type === successType) {
                     console.log(`[Frontend] ${title} Auth Success:`, event.data);
-                    doResolve(true);
+
+                    // Issue #10: Verify connection status before resolving
+                    try {
+                        const accounts = await getIntegrationAccounts(orgId);
+                        const updatedAccount = accounts.find((a) => a.id === accountId);
+                        if (updatedAccount?.status === "connected") {
+                            doResolve(true);
+                        } else {
+                            toast.error(`Backend verification failed for ${title}`);
+                            doResolve(false);
+                        }
+                    } catch (e) {
+                        doResolve(true); // Fallback to true if API fails but we got success message
+                    }
                 } else if (event.data?.type === errorType) {
                     console.error(`[Frontend] ${title} Auth Error:`, event.data);
                     toast.error(event.data?.message || `Failed to connect ${title}`);
@@ -70,7 +101,7 @@ export const useOAuthPopup = () => {
             window.addEventListener("message", handleMessage);
 
             // Polling fallback (Robustness)
-            const pollInterval: NodeJS.Timeout = setInterval(async () => {
+            const pollInterval = setInterval(async () => {
                 if (!orgId) return;
                 try {
                     const accounts = await getIntegrationAccounts(orgId);
@@ -89,13 +120,13 @@ export const useOAuthPopup = () => {
                 }
             }, 2000);
 
-            // Timeout (2 minutes)
-            const timeoutId: NodeJS.Timeout = setTimeout(() => {
+            // Timeout
+            const timeoutId = setTimeout(() => {
                 doResolve(false);
-            }, 120000);
+            }, timeoutMs);
 
             // Popup Closed Monitor
-            const checkPopup: NodeJS.Timeout = setInterval(() => {
+            const checkPopup = setInterval(() => {
                 if (popup.closed) {
                     // Give a small grace period for final poll or message
                     setTimeout(() => {
@@ -106,7 +137,7 @@ export const useOAuthPopup = () => {
                 }
             }, 1000);
         });
-    };
+    }, []);
 
     return { openOAuthPopup };
 };
