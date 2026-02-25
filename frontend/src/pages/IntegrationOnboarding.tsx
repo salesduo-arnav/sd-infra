@@ -234,10 +234,6 @@ export default function IntegrationOnboarding() {
     const isSellerCentralRequired = requiredIntegrations.includes("sp_api_sc");
     const isVendorCentralRequired = requiredIntegrations.includes("sp_api_vc");
 
-    // Visibility flags for rows
-    const showSellerRow = requiredIntegrations.includes('sp_api') || isSellerCentralRequired;
-    const showVendorRow = requiredIntegrations.includes('sp_api') || isVendorCentralRequired;
-
     // Derived connection states (Issue #12)
     const isConnected = (type: string) => {
         const id = createdAccountIds[type];
@@ -250,6 +246,10 @@ export default function IntegrationOnboarding() {
     const isSellerConnected = !!isConnected('sp_api_sc');
     const isVendorConnected = !!isConnected('sp_api_vc');
     const isAdsConnected = !!isConnected('ads_api');
+
+    // Visibility flags for rows. Enforce mutual exclusivity: hide the other if one is connected.
+    const showSellerRow = (requiredIntegrations.includes('sp_api') || isSellerCentralRequired) && !isVendorConnected;
+    const showVendorRow = (requiredIntegrations.includes('sp_api') || isVendorCentralRequired) && !isSellerConnected;
 
     // Satisfaction map: each slug → whether it's fulfilled
     const satisfiedMap: Record<string, boolean> = {

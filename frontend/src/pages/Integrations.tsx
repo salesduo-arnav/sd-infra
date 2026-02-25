@@ -549,6 +549,8 @@ export default function Integrations() {
       if (next.has(type)) {
         next.delete(type);
       } else {
+        if (type === 'sp_api_sc') next.delete('sp_api_vc');
+        if (type === 'sp_api_vc') next.delete('sp_api_sc');
         next.add(type);
       }
       return next;
