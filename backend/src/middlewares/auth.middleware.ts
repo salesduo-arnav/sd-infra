@@ -26,8 +26,13 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         const session = JSON.parse(sessionData);
 
         // Security check: Session binding to IP and User-Agent
-        if (session.ip && session.userAgent && (session.ip !== req.ip || session.userAgent !== req.headers['user-agent'])) {
-            Logger.warn('Session binding failed', { sessionId, expectedIp: session.ip, actualIp: req.ip });
+        const isLocalhost = (ip: string) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(ip);
+        const reqIp = req.ip || '';
+        const ipMatch = session.ip === reqIp || (isLocalhost(session.ip) && isLocalhost(reqIp));
+        const uaMatch = session.userAgent === req.headers['user-agent'];
+
+        if (session.ip && session.userAgent && (!ipMatch || !uaMatch)) {
+            Logger.warn('Session binding failed', { sessionId, expectedIp: session.ip, actualIp: req.ip, expectedUa: session.userAgent, actualUa: req.headers['user-agent'] });
             await redisClient.del(`session:${sessionId}`);
             res.clearCookie('session_id');
             return res.status(401).json({ message: 'Session invalid' });

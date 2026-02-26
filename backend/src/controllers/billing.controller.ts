@@ -11,6 +11,7 @@ import { SubStatus } from '../models/enums';
 import sequelize from '../config/db';
 import { Op } from 'sequelize';
 import { AuditService } from '../services/audit.service';
+import { entitlementService } from '../services/entitlement.service';
 import { SystemConfig } from '../models/system_config';
 import Logger from '../utils/logger';
 
@@ -806,6 +807,13 @@ class BillingController {
                 current_period_end: trialEnd,
                 cancel_at_period_end: false,
             });
+
+            // Provision entitlements for the newly created trial subscription
+            try {
+                await entitlementService.provisionEntitlementsForPlan(organization.id, trialPlan.id);
+            } catch (provErr) {
+                Logger.error(`[Billing] Error provisioning entitlements during trial start for org ${organization.id}:`, provErr);
+            }
 
             await AuditService.log({
                 actorId: req.user?.id,

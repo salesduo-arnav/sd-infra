@@ -68,6 +68,66 @@ export const getEntitlements = async (req: Request, res: Response) => {
     }
 };
 
+export const consumeEntitlement = async (req: Request, res: Response) => {
+    try {
+        const { id: organization_id } = req.params;
+        const { feature_slug, amount = 1 } = req.body;
+
+        if (!feature_slug) {
+            return res.status(400).json({ message: 'feature_slug is required in body' });
+        }
+
+        // Find the entitlement for this org and feature slug
+        const entitlement = await OrganizationEntitlement.findOne({
+            where: { organization_id },
+            include: [{
+                model: Feature,
+                as: 'feature',
+                where: { slug: feature_slug },
+                required: true
+            }]
+        });
+
+        if (!entitlement) {
+            // If they don't have an entitlement row, they don't have access
+            return res.status(200).json({
+                allowed: false,
+                reason: 'no_entitlement',
+                message: 'No entitlement found for this feature.'
+            });
+        }
+
+        const currentUsage = entitlement.usage_amount || 0;
+        const limit = entitlement.limit_amount;
+
+        // Check if limit is exceeded (null limit means unlimited)
+        if (limit !== null && limit !== undefined && (currentUsage + amount) > limit) {
+            return res.status(200).json({
+                allowed: false,
+                reason: 'limit_exceeded',
+                usage_amount: currentUsage,
+                limit_amount: limit,
+                feature: entitlement.feature
+            });
+        }
+
+        // Increment usage
+        await entitlement.increment('usage_amount', { by: amount });
+        
+        // Reload to get updated values
+        await entitlement.reload();
+
+        res.status(200).json({
+            allowed: true,
+            usage_amount: entitlement.usage_amount,
+            limit_amount: entitlement.limit_amount,
+            feature: entitlement.feature
+        });
+    } catch (error) {
+        handleError(res, error, 'Internal: Consume Entitlement Error');
+    }
+};
+
 export const trackUsage = async (req: Request, res: Response) => {
     try {
         const { tool_id, user_id, organization_id } = req.body;
