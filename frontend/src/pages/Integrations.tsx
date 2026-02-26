@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -150,6 +151,7 @@ export default function Integrations() {
   const { activeOrganization } = useAuth();
   const orgId = activeOrganization?.id || "";
   const { openOAuthPopup } = useOAuthPopup();
+  const { t } = useTranslation();
 
   // Account-level state
   const [accounts, setAccounts] = useState<IntegrationAccount[]>([]);
@@ -186,11 +188,11 @@ export default function Integrations() {
       const data = await getIntegrationAccounts(orgId);
       setAccounts(data);
     } catch {
-      toast.error("Failed to load integration accounts");
+      toast.error(t('pages.integrations.failedToLoadAccounts'));
     } finally {
       setIsLoadingAccounts(false);
     }
-  }, [orgId]);
+  }, [orgId, t]);
 
   const fetchGlobal = useCallback(async () => {
     if (!orgId) return;
@@ -199,11 +201,11 @@ export default function Integrations() {
       const data = await getGlobalIntegrations(orgId);
       setGlobalIntegrations(data);
     } catch {
-      toast.error("Failed to load global integrations");
+      toast.error(t('pages.integrations.failedToLoadGlobal'));
     } finally {
       setIsLoadingGlobal(false);
     }
-  }, [orgId]);
+  }, [orgId, t]);
 
   useEffect(() => {
     fetchAccounts();
@@ -263,7 +265,7 @@ export default function Integrations() {
           resolve(true);
         }, 2500);
       } else {
-        toast.error("Please allow popups to connect integrations.");
+        toast.error(t('pages.integrations.allowPopups'));
         resolve(false);
       }
     });
@@ -300,15 +302,15 @@ export default function Integrations() {
 
   const handleAddAccount = async () => {
     if (!newAccountName.trim()) {
-      toast.error("Please enter an account name");
+      toast.error(t('pages.integrations.pleaseEnterName'));
       return;
     }
     if (!newRegion) {
-      toast.error("Please select a region");
+      toast.error(t('pages.integrations.pleaseSelectRegion'));
       return;
     }
     if (selectedTypes.size === 0) {
-      toast.error("Please select at least one integration type");
+      toast.error(t('pages.integrations.pleaseSelectType'));
       return;
     }
 
@@ -325,12 +327,12 @@ export default function Integrations() {
         });
       }
 
-      toast.success("Integration account(s) created successfully");
+      toast.success(t('pages.integrations.accountCreated'));
       resetDialog();
       fetchAccounts();
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
-      toast.error(err.response?.data?.message || "Failed to create integration account");
+      toast.error(err.response?.data?.message || t('pages.integrations.failedToCreate'));
     } finally {
       setIsCreating(false);
     }
@@ -341,9 +343,9 @@ export default function Integrations() {
     try {
       await deleteIntegrationAccount(orgId, id);
       setAccounts((prev) => prev.filter((a) => a.id !== id));
-      toast.success("Integration account removed");
+      toast.success(t('pages.integrations.accountRemoved'));
     } catch {
-      toast.error("Failed to delete integration account");
+      toast.error(t('pages.integrations.failedToDelete'));
     } finally {
       setActionLoading(null);
     }
@@ -354,9 +356,9 @@ export default function Integrations() {
     try {
       const updated = await disconnectIntegrationAccount(orgId, id);
       setAccounts((prev) => prev.map((a) => (a.id === id ? updated : a)));
-      toast.success("Integration disconnected");
+      toast.success(t('pages.integrations.integrationDisconnected'));
     } catch {
-      toast.error("Failed to disconnect");
+      toast.error(t('pages.integrations.failedToDisconnect'));
     } finally {
       setActionLoading(null);
     }
@@ -393,10 +395,10 @@ export default function Integrations() {
       }
 
       if (success) {
-        toast.success("Integration reconnected!");
+        toast.success(t('pages.integrations.integrationReconnected'));
       }
     } catch {
-      toast.error("Failed to reconnect");
+      toast.error(t('pages.integrations.failedToReconnect'));
     } finally {
       setActionLoading(null);
     }
@@ -456,7 +458,7 @@ export default function Integrations() {
         region: manageGroup.region,
         integration_type: type,
       });
-      toast.success("Integration account created");
+      toast.success(t('pages.integrations.accountCreated').replace('(s)', ''));
       await fetchAccounts(); // Refresh list
 
       // Update local managed group state
@@ -468,7 +470,7 @@ export default function Integrations() {
 
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
-      toast.error(err.response?.data?.message || "Failed to create integration");
+      toast.error(err.response?.data?.message || t('pages.integrations.failedToCreate'));
     }
   };
 
@@ -492,7 +494,7 @@ export default function Integrations() {
       }
 
       if (success) {
-        toast.success("Integration connected!");
+        toast.success(t('pages.integrations.connected').concat('!'));
         await fetchAccounts();
 
         // Update local state
@@ -504,7 +506,7 @@ export default function Integrations() {
       }
       return success;
     } catch {
-      toast.error("Failed to connect");
+      toast.error(t('pages.integrations.failedToDisconnect').replace('disconnect', 'connect'));
       return false;
     }
   };
@@ -512,7 +514,7 @@ export default function Integrations() {
   const handleDisconnectIntegration = async (account: IntegrationAccount) => {
     try {
       await disconnectIntegrationAccount(orgId, account.id);
-      toast.success("Disconnected successfully");
+      toast.success(t('pages.integrations.integrationDisconnected').replace('disconnected', 'ed successfully'));
       await fetchAccounts();
       // Update local state
       const updatedAccounts = await getIntegrationAccounts(orgId);
@@ -521,14 +523,14 @@ export default function Integrations() {
       );
       setManageGroup(prev => prev ? { ...prev, accounts: newGroupAccounts } : null);
     } catch {
-      toast.error("Failed to disconnect");
+      toast.error(t('pages.integrations.failedToDisconnect'));
     }
   };
 
   const handleDeleteIntegration = async (account: IntegrationAccount) => {
     try {
       await deleteIntegrationAccount(orgId, account.id);
-      toast.success("Integration deleted");
+      toast.success(t('pages.integrations.integrationDeleted'));
       await fetchAccounts();
       // Update local state
       const updatedAccounts = await getIntegrationAccounts(orgId);
@@ -537,7 +539,7 @@ export default function Integrations() {
       );
       setManageGroup(prev => prev ? { ...prev, accounts: newGroupAccounts } : null);
     } catch {
-      toast.error("Failed to delete");
+      toast.error(t('pages.integrations.failedToDelete'));
     }
   };
 
@@ -604,9 +606,9 @@ export default function Integrations() {
     <>
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Integrations</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t('pages.integrations.title')}</h1>
           <p className="text-muted-foreground mt-2">
-            Manage your connected services and integration accounts
+            {t('pages.integrations.subtitle')}
           </p>
         </div>
 
@@ -614,11 +616,11 @@ export default function Integrations() {
           <TabsList>
             <TabsTrigger value="account-level">
               <Store className="h-4 w-4 mr-2" />
-              Account Level Integrations
+              {t('pages.integrations.accountLevelTab')}
             </TabsTrigger>
             <TabsTrigger value="global">
               <Globe className="h-4 w-4 mr-2" />
-              Global Integrations
+              {t('pages.integrations.globalTab')}
             </TabsTrigger>
           </TabsList>
 
@@ -626,14 +628,14 @@ export default function Integrations() {
           <TabsContent value="account-level" className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold">Marketplace Integration Accounts</h2>
+                <h2 className="text-lg font-semibold">{t('pages.integrations.marketplaceAccounts')}</h2>
                 <p className="text-sm text-muted-foreground">
-                  Connect and manage your Seller Central, Vendor Central, and Advertising accounts.
+                  {t('pages.integrations.marketplaceAccountsDesc')}
                 </p>
               </div>
               <Button onClick={() => setIsAddDialogOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
-                Add Account
+                {t('pages.integrations.addAccount')}
               </Button>
             </div>
 
@@ -649,13 +651,13 @@ export default function Integrations() {
                   <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mb-4">
                     <Plug className="h-7 w-7 text-muted-foreground" />
                   </div>
-                  <h3 className="font-semibold text-lg mb-1">No integration accounts yet</h3>
+                  <h3 className="font-semibold text-lg mb-1">{t('pages.integrations.noAccountsYet')}</h3>
                   <p className="text-sm text-muted-foreground mb-6 max-w-sm">
-                    Add your first marketplace account to start syncing orders, inventory, and advertising data.
+                    {t('pages.integrations.noAccountsDesc')}
                   </p>
                   <Button onClick={() => setIsAddDialogOpen(true)}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Account
+                    {t('pages.integrations.addAccount')}
                   </Button>
                 </CardContent>
               </Card>
@@ -664,10 +666,10 @@ export default function Integrations() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Account Name</TableHead>
-                      <TableHead>Marketplace</TableHead>
-                      <TableHead>Region</TableHead>
-                      <TableHead>Integration Type</TableHead>
+                      <TableHead>{t('pages.integrations.accountName')}</TableHead>
+                      <TableHead>{t('pages.integrations.marketplace')}</TableHead>
+                      <TableHead>{t('pages.integrations.region')}</TableHead>
+                      <TableHead>{t('pages.integrations.integrationType')}</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -758,7 +760,7 @@ export default function Integrations() {
                                 });
                               }}
                             >
-                              Manage
+                              {t('pages.integrations.manage')}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -773,9 +775,9 @@ export default function Integrations() {
           {/* ============ TAB 2: Global Integrations ============ */}
           <TabsContent value="global" className="space-y-6">
             <div>
-              <h2 className="text-lg font-semibold">Global Integrations</h2>
+              <h2 className="text-lg font-semibold">{t('pages.integrations.globalTitle')}</h2>
               <p className="text-sm text-muted-foreground">
-                Connect third-party services that work across your organization.
+                {t('pages.integrations.globalDesc')}
               </p>
             </div>
 
@@ -866,17 +868,16 @@ export default function Integrations() {
         <Dialog open={isAddDialogOpen} onOpenChange={(open) => !open && resetDialog()}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>Add Integration Account</DialogTitle>
+              <DialogTitle>{t('pages.integrations.addIntegrationAccount')}</DialogTitle>
               <DialogDescription>
-                Connect a new marketplace account to your organization. You can select
-                multiple integration types.
+                {t('pages.integrations.addIntegrationDesc')}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-5 py-2">
               {/* Account Name */}
               <div className="space-y-2">
-                <Label htmlFor="accountName">Account Name</Label>
+                <Label htmlFor="accountName">{t('pages.integrations.accountName')}</Label>
                 <Input
                   id="accountName"
                   placeholder='e.g. "US Main Account"'
@@ -887,7 +888,7 @@ export default function Integrations() {
 
               {/* Region */}
               <div className="space-y-2">
-                <Label>Region</Label>
+                <Label>{t('pages.integrations.region')}</Label>
                 <Select value={newRegion} onValueChange={setNewRegion}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Choose a region..." />
@@ -905,7 +906,7 @@ export default function Integrations() {
 
               {/* Integration Types */}
               <div className="space-y-3">
-                <Label>Integration Types</Label>
+                <Label>{t('pages.integrations.integrationTypes')}</Label>
                 <div className="grid gap-3">
                   {INTEGRATION_TYPES.map((type) => {
                     const isSelected = selectedTypes.has(type.value);
@@ -945,7 +946,7 @@ export default function Integrations() {
               </Button>
               <Button onClick={handleAddAccount} disabled={isCreating}>
                 {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Account(s)
+                {t('pages.integrations.createAccounts')}
               </Button>
             </DialogFooter>
           </DialogContent>

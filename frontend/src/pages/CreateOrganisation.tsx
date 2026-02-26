@@ -9,7 +9,8 @@ import { Building2, Sparkles, Users, Shield, ArrowRight, ArrowLeft } from "lucid
 import api from "@/lib/api";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
 import { Link } from "react-router-dom";
-import { hasRedirectContext } from "@/lib/redirectContext";
+import { hasRedirectContext, getAppSlug, finalizeRedirect } from "@/lib/redirectContext";
+import { useTranslation } from 'react-i18next';
 
 export default function CreateOrganisation() {
   const [name, setName] = useState("");
@@ -20,13 +21,24 @@ export default function CreateOrganisation() {
   const [error, setError] = useState("");
   const { user, refreshUser, activeOrganization } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   // State guard: If user already has an org, redirect them.
   // This prevents back-button re-entry into org creation.
   useState(() => {
     if (activeOrganization) {
-      const target = hasRedirectContext() ? "/integration-onboarding" : "/apps";
-      navigate(target, { replace: true });
+      if (hasRedirectContext()) {
+        const appId = getAppSlug();
+        if (!appId) {
+          if (!finalizeRedirect()) {
+            navigate("/apps", { replace: true });
+          }
+          return;
+        }
+        navigate("/integration-onboarding", { replace: true });
+        return;
+      }
+      navigate("/apps", { replace: true });
     }
   });
 
@@ -60,6 +72,13 @@ export default function CreateOrganisation() {
 
       // If redirect context exists, go through integration onboarding before external app
       if (hasRedirectContext()) {
+        const appId = getAppSlug();
+        if (!appId) {
+          if (!finalizeRedirect()) {
+            navigate("/apps", { replace: true });
+          }
+          return;
+        }
         navigate("/integration-onboarding", { replace: true });
         return;
       }
@@ -81,10 +100,10 @@ export default function CreateOrganisation() {
     <div className="space-y-8">
       <div>
         <h1 className="text-4xl font-bold text-white mb-4 drop-shadow-sm">
-          Set Up Your Organization
+          {t('pages.createOrganisation.leftTitle')}
         </h1>
         <p className="text-lg text-white/90">
-          Create your workspace and start managing your Amazon business more effectively.
+          {t('pages.createOrganisation.leftSubtitle')}
         </p>
       </div>
 
@@ -95,8 +114,8 @@ export default function CreateOrganisation() {
             <Users className="h-5 w-5" />
           </div>
           <div>
-            <p className="font-medium">Team Collaboration</p>
-            <p className="text-sm text-white/70">Invite team members to work together</p>
+            <p className="font-medium">{t('pages.createOrganisation.teamCollab')}</p>
+            <p className="text-sm text-white/70">{t('pages.createOrganisation.teamCollabDesc')}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 text-white/90">
@@ -104,8 +123,8 @@ export default function CreateOrganisation() {
             <Sparkles className="h-5 w-5" />
           </div>
           <div>
-            <p className="font-medium">Powerful Tools</p>
-            <p className="text-sm text-white/70">Access listing optimization & more</p>
+            <p className="font-medium">{t('pages.createOrganisation.powerfulTools')}</p>
+            <p className="text-sm text-white/70">{t('pages.createOrganisation.powerfulToolsDesc')}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 text-white/90">
@@ -113,8 +132,8 @@ export default function CreateOrganisation() {
             <Shield className="h-5 w-5" />
           </div>
           <div>
-            <p className="font-medium">Enterprise Security</p>
-            <p className="text-sm text-white/70">Your data is safe and secure</p>
+            <p className="font-medium">{t('pages.createOrganisation.enterpriseSecurity')}</p>
+            <p className="text-sm text-white/70">{t('pages.createOrganisation.enterpriseSecurityDesc')}</p>
           </div>
         </div>
       </div>
@@ -136,19 +155,19 @@ export default function CreateOrganisation() {
         {user?.memberships && user.memberships.length > 0 && (
           <Button variant="ghost" className="mb-4 pl-0 hover:bg-transparent hover:text-primary" onClick={() => navigate("/choose-organisation")}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Organization Selection
+            {t('pages.createOrganisation.backToOrgSelection')}
           </Button>
         )}
-        <h2 className="text-2xl font-semibold tracking-tight">Create Organisation</h2>
-        <p className="mt-2 text-muted-foreground">Set up your workspace to get started</p>
+        <h2 className="text-2xl font-semibold tracking-tight">{t('pages.createOrganisation.title')}</h2>
+        <p className="mt-2 text-muted-foreground">{t('pages.createOrganisation.subtitle')}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
-          <Label htmlFor="name">Organisation Name</Label>
+          <Label htmlFor="name">{t('pages.createOrganisation.orgName')}</Label>
           <Input
             id="name"
-            placeholder="Acme Inc."
+            placeholder={t('pages.createOrganisation.orgNamePlaceholder')}
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
@@ -157,24 +176,24 @@ export default function CreateOrganisation() {
 
         <div className="space-y-2">
           <Label htmlFor="website">
-            Website <span className="text-muted-foreground font-normal">(Optional)</span>
+            {t('pages.createOrganisation.website')} <span className="text-muted-foreground font-normal">({t('common.optional')})</span>
           </Label>
           <Input
             id="website"
-            placeholder="https://acme.com"
+            placeholder={t('pages.createOrganisation.websitePlaceholder')}
             value={website}
             onChange={(e) => setWebsite(e.target.value)}
           />
           <p className="text-xs text-muted-foreground">
-            Add your company website to personalize your workspace
+            {t('pages.createOrganisation.websiteHint')}
           </p>
         </div>
 
         <div className="space-y-2">
-          <Label>Invite Team Members <span className="text-muted-foreground font-normal">(Optional)</span></Label>
+          <Label>{t('pages.createOrganisation.inviteTeam')} <span className="text-muted-foreground font-normal">({t('common.optional')})</span></Label>
           <div className="flex gap-2">
             <Input
-              placeholder="colleague@example.com"
+              placeholder={t('pages.createOrganisation.invitePlaceholder')}
               value={newInvite}
               onChange={(e) => setNewInvite(e.target.value)}
               onKeyDown={(e) => {
@@ -185,7 +204,7 @@ export default function CreateOrganisation() {
               }}
             />
             <Button type="button" variant="outline" onClick={addInvite}>
-              Add
+              {t('pages.createOrganisation.add')}
             </Button>
           </div>
 
@@ -212,7 +231,7 @@ export default function CreateOrganisation() {
             </div>
           )}
           <p className="text-xs text-muted-foreground">
-            They will receive an email invitation to join your organization
+            {t('pages.createOrganisation.inviteHint')}
           </p>
         </div>
 
@@ -224,17 +243,17 @@ export default function CreateOrganisation() {
 
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? (
-            "Creating..."
+            t('pages.createOrganisation.creating')
           ) : (
             <>
-              Create Organisation
+              {t('pages.createOrganisation.createOrganisation')}
               <ArrowRight className="ml-2 h-4 w-4" />
             </>
           )}
         </Button>
 
         <p className="text-center text-sm text-muted-foreground">
-          You can always update these details later in settings
+          {t('pages.createOrganisation.updateLater')}
         </p>
       </form>
     </SplitScreenLayout >

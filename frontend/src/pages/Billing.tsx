@@ -7,7 +7,7 @@ import { Download, CreditCard, Loader2, MoreHorizontal, AlertCircle, RefreshCcw 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import api from "@/lib/api"; 
+import api from "@/lib/api";
 import { toast } from "sonner";
 import * as BillingService from "@/services/billing.service";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,9 +18,11 @@ import { BillingAlert } from "@/components/billing/BillingAlert";
 import { getSubscriptionColumns, invoiceColumns, oneTimePurchaseColumns } from "@/components/billing/columns";
 import { OneTimePurchase } from "@/types/subscription";
 import { BillingSkeleton } from "@/components/billing/BillingSkeleton";
+import { useTranslation } from 'react-i18next';
 
 export default function Billing() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [oneTimePurchases, setOneTimePurchases] = useState<OneTimePurchase[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,9 +46,9 @@ export default function Billing() {
   const [gracePeriodDays, setGracePeriodDays] = useState(3);
 
   useEffect(() => {
-     api.get('/billing/config').then(res => {
-         if (res.data.gracePeriodDays) setGracePeriodDays(res.data.gracePeriodDays);
-     }).catch(err => console.error("Failed to fetch billing config", err));
+    api.get('/billing/config').then(res => {
+      if (res.data.gracePeriodDays) setGracePeriodDays(res.data.gracePeriodDays);
+    }).catch(err => console.error("Failed to fetch billing config", err));
   }, []);
 
 
@@ -71,49 +73,49 @@ export default function Billing() {
   }, []);
 
   const handleCancelSubscription = useCallback(async (subId: string, stripeSubId: string) => {
-    if (!confirm("Are you sure you want to cancel? Your subscription will remain active until the end of the billing period.")) return;
+    if (!confirm(t('pages.billing.cancelConfirm'))) return;
     setActionLoading(subId);
     try {
-        await api.post(`/billing/subscription/${stripeSubId}/cancel`);
-        toast.success("Subscription cancelled successfully");
-        fetchSubscription();
+      await api.post(`/billing/subscription/${stripeSubId}/cancel`);
+      toast.success(t('pages.billing.subscriptionCancelled'));
+      fetchSubscription();
     } catch (error) {
-        console.error("Failed to cancel subscription", error);
-        toast.error("Failed to cancel subscription");
+      console.error("Failed to cancel subscription", error);
+      toast.error(t('pages.billing.failedToCancel'));
     } finally {
-        setActionLoading(null);
+      setActionLoading(null);
     }
-  }, [fetchSubscription]);
+  }, [fetchSubscription, t]);
 
   const handleResumeSubscription = useCallback(async (subId: string, stripeSubId: string) => {
-    if (!confirm("Are you sure you want to resume this subscription? You will be billed again at the next renewal date.")) return;
+    if (!confirm(t('pages.billing.resumeConfirm'))) return;
     setActionLoading(subId);
     try {
-        await api.post(`/billing/subscription/${stripeSubId}/resume`);
-        toast.success("Subscription resumed successfully");
-        fetchSubscription();
+      await api.post(`/billing/subscription/${stripeSubId}/resume`);
+      toast.success(t('pages.billing.subscriptionResumed'));
+      fetchSubscription();
     } catch (error) {
-        console.error("Failed to resume subscription", error);
-        toast.error("Failed to resume subscription");
+      console.error("Failed to resume subscription", error);
+      toast.error(t('pages.billing.failedToResume'));
     } finally {
-        setActionLoading(null);
+      setActionLoading(null);
     }
-  }, [fetchSubscription]);
+  }, [fetchSubscription, t]);
 
   const handleCancelTrial = useCallback(async (subId: string) => {
-    if (!confirm("Are you sure you want to end your trial immediately? You will lose access to paid features.")) return;
+    if (!confirm(t('pages.billing.cancelTrialConfirm'))) return;
     setActionLoading(subId);
     try {
-        await BillingService.cancelTrial(subId);
-        toast.success("Trial cancelled successfully");
-        fetchSubscription();
+      await BillingService.cancelTrial(subId);
+      toast.success(t('pages.billing.trialCancelled'));
+      fetchSubscription();
     } catch (error) {
-        console.error("Failed to cancel trial", error);
-        toast.error("Failed to cancel trial");
+      console.error("Failed to cancel trial", error);
+      toast.error(t('pages.billing.failedToCancelTrial'));
     } finally {
-        setActionLoading(null);
+      setActionLoading(null);
     }
-  }, [fetchSubscription]);
+  }, [fetchSubscription, t]);
 
   const handleManageSubscription = useCallback(async () => {
     setPortalLoading(true);
@@ -124,99 +126,99 @@ export default function Billing() {
       }
     } catch (error) {
       console.error("Failed to create portal session", error);
-      toast.error("Failed to open billing portal");
+      toast.error(t('pages.billing.failedToOpenPortal'));
     } finally {
       setPortalLoading(false);
     }
-  }, []);
+  }, [t]);
 
 
 
   const handleSyncSubscription = useCallback(async (manual = true) => {
     setSyncLoading(true);
     try {
-        await api.post(`/billing/sync`);
-        if (manual) {
-            toast.success("Subscription status synced with Stripe");
-        }
-        await fetchSubscription();
+      await api.post(`/billing/sync`);
+      if (manual) {
+        toast.success(t('pages.billing.subscriptionSynced'));
+      }
+      await fetchSubscription();
     } catch (error) {
-        console.error("Failed to sync subscription", error);
-        if (manual) {
-            toast.error("Failed to sync subscription status");
-        }
+      console.error("Failed to sync subscription", error);
+      if (manual) {
+        toast.error(t('pages.billing.failedToSync'));
+      }
     } finally {
-        setSyncLoading(false);
+      setSyncLoading(false);
     }
-  }, [fetchSubscription]);
+  }, [fetchSubscription, t]);
 
   const handleCancelDowngrade = useCallback(async (subId: string) => {
-    if (!confirm("Are you sure you want to cancel the scheduled downgrade? Your current plan will continue.")) return;
+    if (!confirm(t('pages.billing.cancelDowngradeConfirm'))) return;
     setActionLoading(subId);
     try {
-        await BillingService.cancelDowngrade(subId);
-        toast.success("Scheduled downgrade cancelled successfully");
-        fetchSubscription();
+      await BillingService.cancelDowngrade(subId);
+      toast.success(t('pages.billing.downgradeCancelled'));
+      fetchSubscription();
     } catch (error) {
-        console.error("Failed to cancel downgrade", error);
-        toast.error("Failed to cancel scheduled downgrade");
+      console.error("Failed to cancel downgrade", error);
+      toast.error(t('pages.billing.failedToCancelDowngrade'));
     } finally {
-        setActionLoading(null);
+      setActionLoading(null);
     }
-  }, [fetchSubscription]);
+  }, [fetchSubscription, t]);
 
   useEffect(() => {
     const init = async () => {
-        const params = new URLSearchParams(window.location.search);
-        const isSuccess = params.get('success') === 'true';
-        const isCanceled = params.get('canceled') === 'true';
+      const params = new URLSearchParams(window.location.search);
+      const isSuccess = params.get('success') === 'true';
+      const isCanceled = params.get('canceled') === 'true';
 
-        // Clear the query params immediately to prevent double toasts on re-navigation
-        if (isSuccess || isCanceled) {
-            const newUrl = window.location.pathname;
-            window.history.replaceState({}, '', newUrl);
-        }
-        
-        // Sync status to handle potential race conditions
-        await handleSyncSubscription(false);
+      // Clear the query params immediately to prevent double toasts on re-navigation
+      if (isSuccess || isCanceled) {
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }
 
-        const invoicePromise = fetchInvoices();
-        let subPromise;
+      // Sync status to handle potential race conditions
+      await handleSyncSubscription(false);
 
-        if (isSuccess) {
-            subPromise = (async () => {
-                 try {
-                    // Re-fetch to ensure we have the absolute latest state after sync
-                    const response = await api.get(`/billing`);
-                    const subs = response.data.subscriptions;
-                    setSubscriptions(subs);
-                    setOneTimePurchases(response.data.oneTimePurchases || []);
-                    
-                    if (subs.length > 0) {
-                        const latestSub = subs[0];
-                        if (latestSub.status === 'canceled' && latestSub.cancellation_reason === 'duplicate_card') {
-                            toast.error("Trial blocked: A subscription for this tool was already used with this card.", {
-                                duration: 8000,
-                            });
-                        } else {
-                             toast.success("Subscription updated successfully");
-                        }
-                    } else {
-                        toast.success("Subscription updated successfully");
-                    }
-                 } catch (e) {
-                     console.error("Failed to check subscription status", e);
-                 }
-            })();
-        } else {
-            // Already synced, resolve immediately
-            subPromise = Promise.resolve(); 
-        }
+      const invoicePromise = fetchInvoices();
+      let subPromise;
 
-        await Promise.all([subPromise, invoicePromise]);
-        setLoading(false);
+      if (isSuccess) {
+        subPromise = (async () => {
+          try {
+            // Re-fetch to ensure we have the absolute latest state after sync
+            const response = await api.get(`/billing`);
+            const subs = response.data.subscriptions;
+            setSubscriptions(subs);
+            setOneTimePurchases(response.data.oneTimePurchases || []);
+
+            if (subs.length > 0) {
+              const latestSub = subs[0];
+              if (latestSub.status === 'canceled' && latestSub.cancellation_reason === 'duplicate_card') {
+                toast.error("Trial blocked: A subscription for this tool was already used with this card.", {
+                  duration: 8000,
+                });
+              } else {
+                toast.success("Subscription updated successfully");
+              }
+            } else {
+              toast.success("Subscription updated successfully");
+            }
+          } catch (e) {
+            console.error("Failed to check subscription status", e);
+          }
+        })();
+      } else {
+        // Already synced, resolve immediately
+        subPromise = Promise.resolve();
+      }
+
+      await Promise.all([subPromise, invoicePromise]);
+      setLoading(false);
     };
-    
+
     if (activeOrganization) {
       init();
     }
@@ -225,20 +227,20 @@ export default function Billing() {
   // --- Subscriptions ---
 
   const subscriptionColumns = useMemo(() => getSubscriptionColumns({
-      actionLoading,
-      portalLoading,
-      onManage: handleManageSubscription,
-      onCancel: handleCancelSubscription,
-      onResume: handleResumeSubscription,
-      onCancelTrial: handleCancelTrial,
-      onCancelDowngrade: handleCancelDowngrade,
-      onNavigate: (path) => navigate(path)
+    actionLoading,
+    portalLoading,
+    onManage: handleManageSubscription,
+    onCancel: handleCancelSubscription,
+    onResume: handleResumeSubscription,
+    onCancelTrial: handleCancelTrial,
+    onCancelDowngrade: handleCancelDowngrade,
+    onNavigate: (path) => navigate(path)
   }), [actionLoading, portalLoading, navigate, handleManageSubscription, handleCancelSubscription, handleResumeSubscription, handleCancelTrial, handleCancelDowngrade]);
 
   const filteredSubscriptions = useMemo(() => {
     let result = [...subscriptions];
     if (subStatusFilter && subStatusFilter !== 'all') {
-        result = result.filter(sub => sub.status === subStatusFilter);
+      result = result.filter(sub => sub.status === subStatusFilter);
     }
     return result;
   }, [subscriptions, subStatusFilter]);
@@ -262,7 +264,7 @@ export default function Billing() {
   const otpPageCount = Math.ceil(oneTimePurchases.length / otpPagination.pageSize);
 
   // --- Invoices ---
-  
+
   // Use imported invoiceColumns
   const columns = invoiceColumns;
 
@@ -272,32 +274,32 @@ export default function Billing() {
 
 
     if (searchQuery) {
-        const lowerQuery = searchQuery.toLowerCase();
-        result = result.filter(inv => 
-            inv.number?.toLowerCase().includes(lowerQuery) || 
-            inv.status?.toLowerCase().includes(lowerQuery)
-        );
+      const lowerQuery = searchQuery.toLowerCase();
+      result = result.filter(inv =>
+        inv.number?.toLowerCase().includes(lowerQuery) ||
+        inv.status?.toLowerCase().includes(lowerQuery)
+      );
     }
 
     if (sorting.length > 0) {
-        const { id, desc } = sorting[0];
-        result.sort((a, b) => {
-            let aValue = a[id];
-            let bValue = b[id];
-            
-            // Handle specific column types if needed
-            if (id === 'amount_due' || id === 'created') {
-                aValue = Number(aValue);
-                bValue = Number(bValue);
-            } else {
-                aValue = String(aValue).toLowerCase();
-                bValue = String(bValue).toLowerCase();
-            }
+      const { id, desc } = sorting[0];
+      result.sort((a, b) => {
+        let aValue = a[id];
+        let bValue = b[id];
 
-            if (aValue < bValue) return desc ? 1 : -1;
-            if (aValue > bValue) return desc ? -1 : 1;
-            return 0;
-        });
+        // Handle specific column types if needed
+        if (id === 'amount_due' || id === 'created') {
+          aValue = Number(aValue);
+          bValue = Number(bValue);
+        } else {
+          aValue = String(aValue).toLowerCase();
+          bValue = String(bValue).toLowerCase();
+        }
+
+        if (aValue < bValue) return desc ? 1 : -1;
+        if (aValue > bValue) return desc ? -1 : 1;
+        return 0;
+      });
     }
 
     return result;
@@ -311,123 +313,123 @@ export default function Billing() {
   const pageCount = Math.ceil(filteredAndSortedInvoices.length / pagination.pageSize);
 
   if (loading) {
-     return <BillingSkeleton />
+    return <BillingSkeleton />
   }
 
   return (
     <>
       <div className="container py-8">
         <div className="mb-8 flex items-center justify-between">
-            <div>
-                <h1 className="text-3xl font-bold">Billing & Invoices</h1>
-                <p className="mt-2 text-muted-foreground">
-                    Manage your subscriptions and view billing history
-                </p>
-            </div>
-            {/* Billing Actions */}
-            <div className="flex gap-2">
-                <Button onClick={() => handleSyncSubscription(true)} disabled={syncLoading} variant="outline" size="icon" title="Sync Status">
-                     <RefreshCcw className={`h-4 w-4 ${syncLoading ? 'animate-spin' : ''}`} />
-                </Button>
-                <Button onClick={handleManageSubscription} disabled={portalLoading} variant="outline">
-                    {portalLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Billing Portal
-                </Button>
-            </div>
+          <div>
+            <h1 className="text-3xl font-bold">{t('pages.billing.title')}</h1>
+            <p className="mt-2 text-muted-foreground">
+              {t('pages.billing.subtitle')}
+            </p>
+          </div>
+          {/* Billing Actions */}
+          <div className="flex gap-2">
+            <Button onClick={() => handleSyncSubscription(true)} disabled={syncLoading} variant="outline" size="icon" title="Sync Status">
+              <RefreshCcw className={`h-4 w-4 ${syncLoading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button onClick={handleManageSubscription} disabled={portalLoading} variant="outline">
+              {portalLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {t('pages.billing.billingPortal')}
+            </Button>
+          </div>
         </div>
 
         {subscriptions.find(sub => sub.status === 'past_due') && (
-            <BillingAlert
-                subscription={subscriptions.find(s => s.status === 'past_due')}
-                onManage={handleManageSubscription}
-                onCancel={handleCancelSubscription}
-                isLoading={portalLoading}
-                actionLoading={actionLoading === subscriptions.find(s => s.status === 'past_due')?.id}
-                gracePeriodDays={gracePeriodDays}
-            />
+          <BillingAlert
+            subscription={subscriptions.find(s => s.status === 'past_due')}
+            onManage={handleManageSubscription}
+            onCancel={handleCancelSubscription}
+            isLoading={portalLoading}
+            actionLoading={actionLoading === subscriptions.find(s => s.status === 'past_due')?.id}
+            gracePeriodDays={gracePeriodDays}
+          />
         )}
 
         <Card className="mb-8">
-            <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                    <CardTitle>Your Subscriptions</CardTitle>
-                    <CardDescription>Manage your active plans and bundles</CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                     <span className="text-sm text-muted-foreground hidden sm:inline-block">Filter by status:</span>
-                     <Select value={subStatusFilter} onValueChange={setSubStatusFilter}>
-                        <SelectTrigger className="w-[140px]">
-                            <SelectValue placeholder="Filter" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="trialing">Trialing</SelectItem>
-                            <SelectItem value="past_due">Past Due</SelectItem>
-                            <SelectItem value="canceled">Canceled</SelectItem>
-                            <SelectItem value="all">All</SelectItem>
-                        </SelectContent>
-                     </Select>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <DataTable
-                    columns={subscriptionColumns}
-                    data={paginatedSubscriptions}
-                    pageCount={subPageCount}
-                    pagination={subPagination}
-                    onPaginationChange={setSubPagination}
-                    sorting={subSorting}
-                    onSortingChange={setSubSorting}
-                    isLoading={loading}
-                    searchQuery=""
-                    onSearchChange={() => {}}
-                />
-            </CardContent>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>{t('pages.billing.yourSubscriptions')}</CardTitle>
+              <CardDescription>{t('pages.billing.yourSubscriptionsDesc')}</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground hidden sm:inline-block">{t('pages.billing.filterByStatus')}</span>
+              <Select value={subStatusFilter} onValueChange={setSubStatusFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">{t('common.active')}</SelectItem>
+                  <SelectItem value="trialing">{t('pages.billing.trialing')}</SelectItem>
+                  <SelectItem value="past_due">{t('pages.billing.pastDue')}</SelectItem>
+                  <SelectItem value="canceled">{t('pages.billing.canceled')}</SelectItem>
+                  <SelectItem value="all">{t('pages.billing.all')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              columns={subscriptionColumns}
+              data={paginatedSubscriptions}
+              pageCount={subPageCount}
+              pagination={subPagination}
+              onPaginationChange={setSubPagination}
+              sorting={subSorting}
+              onSortingChange={setSubSorting}
+              isLoading={loading}
+              searchQuery=""
+              onSearchChange={() => { }}
+            />
+          </CardContent>
         </Card>
 
         {/* One-Time Purchases */}
         {oneTimePurchases.length > 0 && (
-            <Card className="mb-8">
-                <CardHeader>
-                    <CardTitle>One-Time Purchases</CardTitle>
-                    <CardDescription>Your lifetime plans and bundles</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <DataTable
-                        columns={oneTimePurchaseColumns}
-                        data={paginatedOtp}
-                        pageCount={otpPageCount}
-                        pagination={otpPagination}
-                        onPaginationChange={setOtpPagination}
-                        sorting={otpSorting}
-                        onSortingChange={setOtpSorting}
-                        isLoading={loading}
-                        searchQuery=""
-                        onSearchChange={() => {}}
-                    />
-                </CardContent>
-            </Card>
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>{t('pages.billing.oneTimePurchases')}</CardTitle>
+              <CardDescription>{t('pages.billing.oneTimePurchasesDesc')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DataTable
+                columns={oneTimePurchaseColumns}
+                data={paginatedOtp}
+                pageCount={otpPageCount}
+                pagination={otpPagination}
+                onPaginationChange={setOtpPagination}
+                sorting={otpSorting}
+                onSortingChange={setOtpSorting}
+                isLoading={loading}
+                searchQuery=""
+                onSearchChange={() => { }}
+              />
+            </CardContent>
+          </Card>
         )}
 
         {/* Billing History */}
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle>Billing History</CardTitle>
-            <CardDescription>Download your past invoices</CardDescription>
+            <CardTitle>{t('pages.billing.billingHistory')}</CardTitle>
+            <CardDescription>{t('pages.billing.billingHistoryDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <DataTable
-                columns={columns}
-                data={paginatedInvoices}
-                pageCount={pageCount}
-                pagination={pagination}
-                onPaginationChange={setPagination}
-                sorting={sorting}
-                onSortingChange={setSorting}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                placeholder="Search invoices..."
-                isLoading={loading}
+              columns={columns}
+              data={paginatedInvoices}
+              pageCount={pageCount}
+              pagination={pagination}
+              onPaginationChange={setPagination}
+              sorting={sorting}
+              onSortingChange={setSorting}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              placeholder={t('pages.billing.searchInvoices')}
+              isLoading={loading}
             />
           </CardContent>
         </Card>

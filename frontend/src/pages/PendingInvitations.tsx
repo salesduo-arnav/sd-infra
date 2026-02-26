@@ -6,6 +6,7 @@ import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/comp
 import { Check, Trash2, Undo2, Mail } from "lucide-react";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
 import { hasRedirectContext } from "@/lib/redirectContext";
+import { useTranslation } from 'react-i18next';
 
 export default function PendingInvitations() {
     const { user, checkPendingInvites, acceptInvite, declineInvite, refreshUser } = useAuth();
@@ -16,6 +17,7 @@ export default function PendingInvitations() {
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState("");
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     useEffect(() => {
         const fetchInvites = async () => {
@@ -32,13 +34,13 @@ export default function PendingInvitations() {
                 }
             } catch (err) {
                 console.error(err);
-                setError("Failed to load invitations");
+                setError(t('pages.pendingInvitations.failedToLoad'));
             } finally {
                 setLoading(false);
             }
         };
         fetchInvites();
-    }, [checkPendingInvites, navigate]);
+    }, [checkPendingInvites, navigate, t]);
 
     const handleAction = (inviteId: string, action: 'accept' | 'decline' | 'undo') => {
         if (action === 'accept') {
@@ -89,7 +91,7 @@ export default function PendingInvitations() {
             navigate('/apps');
         } catch (error) {
             console.error(error);
-            setError("Failed to process some invitations. Please try again.");
+            setError(t('pages.pendingInvitations.failedToProcess'));
             setProcessing(false);
         }
     };
@@ -97,10 +99,10 @@ export default function PendingInvitations() {
     const leftContent = (
         <div className="relative z-10 w-full">
             <h1 className="text-4xl font-bold text-white mb-4 drop-shadow-sm">
-                Join Your Team
+                {t('pages.pendingInvitations.leftTitle')}
             </h1>
             <p className="text-lg text-white/90">
-                Collaborate with your organization members and access shared resources.
+                {t('pages.pendingInvitations.leftSubtitle')}
             </p>
         </div>
     );
@@ -109,10 +111,10 @@ export default function PendingInvitations() {
         return (
             <SplitScreenLayout leftContent={leftContent}>
                 <div className="mb-8">
-                    <h2 className="text-2xl font-semibold tracking-tight">Checking Invitations</h2>
-                    <p className="mt-2 text-muted-foreground">Please wait...</p>
+                    <h2 className="text-2xl font-semibold tracking-tight">{t('pages.pendingInvitations.checkingInvitations')}</h2>
+                    <p className="mt-2 text-muted-foreground">{t('pages.pendingInvitations.pleaseWait')}</p>
                 </div>
-                <div className="flex justify-center p-8">Loading...</div>
+                <div className="flex justify-center p-8">{t('common.loading')}</div>
             </SplitScreenLayout>
         );
     }
@@ -124,8 +126,8 @@ export default function PendingInvitations() {
     return (
         <SplitScreenLayout leftContent={leftContent}>
             <div className="mb-8">
-                <h2 className="text-2xl font-semibold tracking-tight">Pending Invitations</h2>
-                <p className="mt-2 text-muted-foreground">You have been invited to join these organizations.</p>
+                <h2 className="text-2xl font-semibold tracking-tight">{t('pages.pendingInvitations.title')}</h2>
+                <p className="mt-2 text-muted-foreground">{t('pages.pendingInvitations.subtitle')}</p>
             </div>
 
             <div className="space-y-4">
@@ -141,7 +143,7 @@ export default function PendingInvitations() {
                                 <div className="flex justify-between items-start">
                                     <div>
                                         <CardTitle className="text-lg">{invite.organization.name}</CardTitle>
-                                        <CardDescription>Role: {invite.role.name}</CardDescription>
+                                        <CardDescription>{t('pages.pendingInvitations.role')} {invite.role.name}</CardDescription>
                                     </div>
                                     {isAccepted && <Check className="h-5 w-5 text-green-600" />}
                                     {isDeclined && <Trash2 className="h-5 w-5 text-destructive" />}
@@ -155,7 +157,7 @@ export default function PendingInvitations() {
                                         className="w-full text-muted-foreground border-dashed"
                                     >
                                         <Undo2 className="mr-2 h-4 w-4" />
-                                        Undo Accept
+                                        {t('pages.pendingInvitations.undoAccept')}
                                     </Button>
                                 ) : isDeclined ? (
                                     <Button
@@ -164,7 +166,7 @@ export default function PendingInvitations() {
                                         className="w-full text-muted-foreground border-dashed"
                                     >
                                         <Undo2 className="mr-2 h-4 w-4" />
-                                        Undo Decline
+                                        {t('pages.pendingInvitations.undoDecline')}
                                     </Button>
                                 ) : (
                                     <div className="grid grid-cols-2 gap-3 w-full">
@@ -172,13 +174,13 @@ export default function PendingInvitations() {
                                             onClick={() => handleAction(invite.id, 'accept')}
                                             className="bg-none bg-green-500/70 hover:bg-green-500/90 text-white"
                                         >
-                                            Accept
+                                            {t('pages.pendingInvitations.accept')}
                                         </Button>
                                         <Button
                                             onClick={() => handleAction(invite.id, 'decline')}
                                             className="bg-none bg-red-500/70 hover:bg-red-500/90 text-white"
                                         >
-                                            Decline
+                                            {t('pages.pendingInvitations.decline')}
                                         </Button>
                                     </div>
                                 )}
@@ -193,7 +195,7 @@ export default function PendingInvitations() {
                         className="w-full"
                         disabled={processing}
                     >
-                        {processing ? "Processing..." : "Continue"}
+                        {processing ? t('pages.pendingInvitations.processing') : t('pages.pendingInvitations.continue')}
                     </Button>
                 </div>
             </div>

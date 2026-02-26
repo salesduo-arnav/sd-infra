@@ -10,10 +10,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
 import { hasRedirectContext, captureRedirectContext, getAppSlug, finalizeRedirect } from "@/lib/redirectContext";
+import { useTranslation } from 'react-i18next';
 
 export default function ChooseOrganisation() {
     const { user, switchOrganization, activeOrganization, isLoading: authLoading, checkPendingInvites } = useAuth();
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const [searchParams] = useSearchParams();
 
     // Capture any incoming redirect instructions (e.g. from a micro-tool's IntegrationGuard)
@@ -43,43 +45,48 @@ export default function ChooseOrganisation() {
                 if (hasRedirectContext()) {
                     const appId = getAppSlug();
 
-                    if (appId) {
-                        try {
-                            const [tool, accounts] = await Promise.all([
-                                getToolBySlug(appId),
-                                getIntegrationAccounts(targetOrgId)
-                            ]);
-
-                            const requiredIntegrations = tool.required_integrations || [];
-
-                            // If no requirements, or they are all met, we can skip onboarding
-                            if (requiredIntegrations.length === 0) {
-                                if (!finalizeRedirect()) {
-                                    navigate("/apps");
-                                }
-                                return;
-                            }
-
-                            const connectedTypes = new Set(
-                                accounts.filter(a => a.status === 'connected').map(a => a.integration_type as string)
-                            );
-
-                            const hasSpApi = connectedTypes.has('sp_api_sc') || connectedTypes.has('sp_api_vc');
-                            const allMet = requiredIntegrations.every(req => {
-                                if (req === 'sp_api') return hasSpApi;
-                                return connectedTypes.has(req);
-                            });
-
-                            if (allMet) {
-                                if (!finalizeRedirect()) {
-                                    navigate("/apps");
-                                }
-                                return;
-                            }
-                        } catch (error) {
-                            console.error("Failed to check integrations during org switch", error);
-                            // Fall through to onboarding on error
+                    if (!appId) {
+                        if (!finalizeRedirect()) {
+                            navigate("/apps");
                         }
+                        return;
+                    }
+
+                    try {
+                        const [tool, accounts] = await Promise.all([
+                            getToolBySlug(appId),
+                            getIntegrationAccounts(targetOrgId)
+                        ]);
+
+                        const requiredIntegrations = tool.required_integrations || [];
+
+                        // If no requirements, or they are all met, we can skip onboarding
+                        if (requiredIntegrations.length === 0) {
+                            if (!finalizeRedirect()) {
+                                navigate("/apps");
+                            }
+                            return;
+                        }
+
+                        const connectedTypes = new Set(
+                            accounts.filter(a => a.status === 'connected').map(a => a.integration_type as string)
+                        );
+
+                        const hasSpApi = connectedTypes.has('sp_api_sc') || connectedTypes.has('sp_api_vc');
+                        const allMet = requiredIntegrations.every(req => {
+                            if (req === 'sp_api') return hasSpApi;
+                            return connectedTypes.has(req);
+                        });
+
+                        if (allMet) {
+                            if (!finalizeRedirect()) {
+                                navigate("/apps");
+                            }
+                            return;
+                        }
+                    } catch (error) {
+                        console.error("Failed to check integrations during org switch", error);
+                        // Fall through to onboarding on error
                     }
 
                     // Route through integration onboarding if requirements not met or error
@@ -126,7 +133,7 @@ export default function ChooseOrganisation() {
                 Welcome back,<br />{user.full_name}
             </h1>
             <p className="text-lg text-white/90 max-w-sm">
-                Select an organization to continue, or create a new one.
+                {t('pages.chooseOrganisation.leftSubtitle')}
             </p>
         </div>
     );
@@ -143,7 +150,7 @@ export default function ChooseOrganisation() {
                 <div className="text-center lg:text-left space-y-1">
                     <h2 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2 justify-center lg:justify-start">
                         <Building2 className="h-6 w-6 text-primary hidden sm:inline-block" />
-                        Choose Organization
+                        {t('pages.chooseOrganisation.title')}
                     </h2>
                     <p className="text-muted-foreground text-sm sm:text-base">
                         You belong to <span className="font-semibold text-foreground">{memberships.length}</span>{" "}
@@ -159,7 +166,7 @@ export default function ChooseOrganisation() {
                                 <UserPlus className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                             </div>
                             <div className="min-w-0">
-                                <p className="font-semibold text-blue-900 dark:text-blue-100 text-sm">Pending Invitations</p>
+                                <p className="font-semibold text-blue-900 dark:text-blue-100 text-sm">{t('pages.chooseOrganisation.pendingInvitations')}</p>
                                 <p className="text-xs text-blue-700 dark:text-blue-300 truncate">
                                     You have {pendingInvites.length} pending invite{pendingInvites.length !== 1 ? "s" : ""}
                                 </p>
@@ -171,7 +178,7 @@ export default function ChooseOrganisation() {
                             className="shrink-0 bg-white dark:bg-blue-900 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-800"
                             onClick={handleAcceptInvite}
                         >
-                            View
+                            {t('pages.chooseOrganisation.view')}
                         </Button>
                     </div>
                 )}
@@ -227,7 +234,7 @@ export default function ChooseOrganisation() {
                                     <Sparkles className="h-6 w-6 text-muted-foreground" />
                                 </div>
                                 <p className="text-muted-foreground text-sm">
-                                    You're not a member of any organization yet.
+                                    {t('pages.chooseOrganisation.notMember')}
                                 </p>
                             </div>
                         )}
@@ -241,7 +248,7 @@ export default function ChooseOrganisation() {
                     onClick={handleCreateNew}
                 >
                     <Plus className="h-5 w-5 mr-2 group-hover:rotate-90 transition-transform" />
-                    Create New Organization
+                    {t('pages.chooseOrganisation.createNew')}
                 </Button>
             </div>
         </SplitScreenLayout>

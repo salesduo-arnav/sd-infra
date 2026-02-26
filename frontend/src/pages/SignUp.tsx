@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { OtpInput } from "@/components/auth/OtpInput";
 import { Check, X, Lock, Mail, ArrowLeft, Loader2 } from "lucide-react";
-import { captureRedirectContext, hasRedirectContext } from "@/lib/redirectContext";
+import { captureRedirectContext, hasRedirectContext, getAppSlug, finalizeRedirect } from "@/lib/redirectContext";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useTranslation } from 'react-i18next';
 
 type SignupState = "form" | "otp-sent" | "verifying";
 
@@ -42,6 +43,7 @@ export default function SignUp() {
 
   const { sendSignupOtp, verifySignupOtp, isLoading, checkPendingInvites, switchOrganization } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   // Handle Resend Cooldown
   useEffect(() => {
@@ -79,6 +81,13 @@ export default function SignUp() {
       if (user.memberships!.length === 1) {
         switchOrganization(user.memberships![0].organization.id);
       }
+      const appId = getAppSlug();
+      if (!appId) {
+        if (!finalizeRedirect()) {
+          navigate("/apps");
+        }
+        return;
+      }
       navigate("/integration-onboarding");
       return;
     }
@@ -93,12 +102,12 @@ export default function SignUp() {
     // Password Policy Check
     const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$/;
     if (!passwordRegex.test(password)) {
-      setError("Password must be at least 8 characters long and contain both letters and numbers.");
+      setError(t('auth.weakPasswordDescription'));
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError(t('auth.passwordsDoNotMatch'));
       return;
     }
 
@@ -122,7 +131,7 @@ export default function SignUp() {
     setError("");
 
     if (otp.length !== 6) {
-      setError("Please enter the complete 6-digit OTP");
+      setError(t('auth.pleaseEnterCompleteOtp'));
       return;
     }
 
@@ -163,19 +172,19 @@ export default function SignUp() {
 
   return (
     <AuthLayout
-      title="Create an account"
-      subtitle="Create an account to get started"
+      title={t('auth.createAccount')}
+      subtitle={t('auth.createAccountSubtitle')}
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Personal Information Section */}
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="fullName">Full Name</Label>
+              <Label htmlFor="fullName">{t('auth.fullName')}</Label>
               <Input
                 id="fullName"
                 type="text"
-                placeholder="John Doe"
+                placeholder={t('auth.fullNamePlaceholder')}
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
@@ -184,12 +193,12 @@ export default function SignUp() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('auth.email')}</Label>
             <div className="relative">
               <Input
                 id="email"
                 type="email"
-                placeholder="name@example.com"
+                placeholder={t('auth.emailPlaceholder')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 readOnly={!!inviteEmail}
@@ -206,7 +215,7 @@ export default function SignUp() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t('auth.password')}</Label>
               <Input
                 id="password"
                 type="password"
@@ -217,7 +226,7 @@ export default function SignUp() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Label htmlFor="confirmPassword">{t('auth.confirmPassword')}</Label>
               <div className="relative">
                 <Input
                   id="confirmPassword"
@@ -256,10 +265,10 @@ export default function SignUp() {
           {isLoading && signupState === "form" ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Sending verification...
+              {t('auth.signingUp')}
             </>
           ) : (
-            "Create account"
+            t('auth.createAccount')
           )}
         </Button>
 
@@ -269,7 +278,7 @@ export default function SignUp() {
           </div>
           <div className="relative flex justify-center text-xs uppercase">
             <span className="bg-background px-2 text-muted-foreground">
-              Or continue with
+              {t('auth.orContinueWith')}
             </span>
           </div>
         </div>
@@ -282,9 +291,9 @@ export default function SignUp() {
         />
 
         <p className="text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
+          {t('auth.alreadyHaveAccount')}{" "}
           <Link to="/login" className="text-primary hover:underline">
-            Sign in
+            {t('auth.signIn')}
           </Link>
         </p>
       </form>
@@ -298,16 +307,16 @@ export default function SignUp() {
                 <Mail className="h-8 w-8 text-primary" />
               </div>
             </div>
-            <DialogTitle className="text-center">Verify your email</DialogTitle>
+            <DialogTitle className="text-center">{t('auth.verifyEmail')}</DialogTitle>
             <DialogDescription className="text-center">
-              We've sent a 6-digit verification code to{" "}
+              {t('auth.verifyEmailDescription')}{" "}
               <span className="font-medium text-foreground">{email}</span>
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleVerifyOtp} className="space-y-6 py-4">
             <div className="space-y-2">
-              <Label className="text-center block">Enter verification code</Label>
+              <Label className="text-center block">{t('auth.enterVerificationCode')}</Label>
               <OtpInput
                 value={otp}
                 onChange={setOtp}
@@ -328,22 +337,22 @@ export default function SignUp() {
                 {signupState === "verifying" ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating account...
+                    {t('auth.verifyingEmail')}
                   </>
                 ) : (
-                  "Verify & Create Account"
+                  t('auth.verifyEmail_button')
                 )}
               </Button>
 
               <p className="text-center text-sm text-muted-foreground">
-                Didn't receive the code?{" "}
+                {t('auth.didntReceiveCode')}{" "}
                 <button
                   type="button"
                   onClick={handleResendOtp}
                   disabled={isLoading || resendCooldown > 0}
                   className="text-primary hover:underline disabled:opacity-50"
                 >
-                  {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend code"}
+                  {resendCooldown > 0 ? t('auth.resendCodeIn', { seconds: resendCooldown }) : t('auth.resendCode')}
                 </button>
               </p>
 
@@ -353,7 +362,7 @@ export default function SignUp() {
                 className="w-full flex items-center justify-center text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ArrowLeft className="mr-1 h-4 w-4" />
-                Back to sign up
+                {t('common.back')}
               </button>
             </div>
           </form>

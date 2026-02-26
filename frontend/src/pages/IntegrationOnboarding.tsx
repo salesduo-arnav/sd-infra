@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -62,6 +63,7 @@ const ALL_INTEGRATIONS = ["sp_api", "ads_api"];
 // ------------------------------------------------------------------ 
 
 export default function IntegrationOnboarding() {
+    const { t } = useTranslation();
     const [searchParams] = useSearchParams();
     captureRedirectContext(searchParams);
     const navigate = useNavigate();
@@ -80,7 +82,7 @@ export default function IntegrationOnboarding() {
             localStorage.setItem("activeOrganizationId", urlOrgId);
             switchOrganization(urlOrgId);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Derive orgId reactively from auth context
@@ -116,7 +118,7 @@ export default function IntegrationOnboarding() {
     // Fetch required integrations from backend based on app slug
     const fetchRequirements = useCallback(async () => {
         if (!appId) {
-            setRequiredIntegrations(ALL_INTEGRATIONS);
+            setRequiredIntegrations([]);
             setIsLoadingRequirements(false);
             return;
         }
@@ -217,7 +219,7 @@ export default function IntegrationOnboarding() {
 
         if (resumedAny) {
             setCreatedAccountIds(prev => ({ ...prev, ...newIds }));
-            toast.success(`Resumed setup for "${resumeAccount.account_name}"`);
+            toast.success(t('pages.integrationOnboarding.resumedSetup', { name: resumeAccount.account_name }));
             setResumeAccount(null); // Dismiss after resuming
         }
     };
@@ -231,7 +233,7 @@ export default function IntegrationOnboarding() {
             // Handle any auth success (ADS_AUTH_SUCCESS, SP_API_AUTH_SUCCESS, etc.)
             if (type.endsWith('_AUTH_SUCCESS')) {
                 console.log("[Frontend] Auth Success detected:", type);
-                toast.success("Integration connected successfully!");
+                toast.success(t('pages.integrationOnboarding.integrationConnected'));
                 refreshIntegrations();
                 setConnecting(null);
             }
@@ -239,14 +241,14 @@ export default function IntegrationOnboarding() {
             // Handle any auth error
             if (type.endsWith('_AUTH_ERROR')) {
                 console.error("[Frontend] Auth Error detected:", event.data.message);
-                toast.error(event.data.message || "Failed to connect integration");
+                toast.error(event.data.message || t('pages.integrationOnboarding.failedToConnect'));
                 setConnecting(null);
             }
         };
 
         window.addEventListener("message", handler);
         return () => window.removeEventListener("message", handler);
-    }, [refreshIntegrations]);
+    }, [refreshIntegrations, t]);
 
     // Derive UI visibility flags from requirements
     const isSpApiRequired = requiredIntegrations.some(r => ["sp_api", "sp_api_sc", "sp_api_vc"].includes(r));
@@ -302,7 +304,7 @@ export default function IntegrationOnboarding() {
     // Handlers
     const handleConnect = async (type: "seller" | "vendor" | "ads") => {
         if (!accountName.trim() || !marketplace) {
-            toast.error("Please fill in Account Name and select a Marketplace first.");
+            toast.error(t('pages.integrationOnboarding.fillAccountDetails'));
             return;
         }
 
@@ -382,7 +384,7 @@ export default function IntegrationOnboarding() {
 
         } catch (error: unknown) {
             const err = error as { response?: { data?: { message?: string } } };
-            toast.error(err.response?.data?.message || "Failed to create integration account");
+            toast.error(err.response?.data?.message || t('pages.integrationOnboarding.failedToCreate'));
             setConnecting(null);
         }
     };
@@ -440,15 +442,15 @@ export default function IntegrationOnboarding() {
     // ------------------------------------------------------------------------
     const RequirementBadge = ({ sellerRequired, sellerSatisfied, vendorRequired, vendorSatisfied }: { sellerRequired: boolean, sellerSatisfied: boolean, vendorRequired: boolean, vendorSatisfied: boolean }) => {
         if (sellerRequired && !sellerSatisfied && vendorRequired && !vendorSatisfied) {
-            return <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Both Required</Badge>;
+            return <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">{t('pages.integrationOnboarding.bothRequired')}</Badge>;
         }
         if (sellerRequired && !sellerSatisfied) {
-            return <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Required</Badge>;
+            return <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">{t('pages.integrationOnboarding.required')}</Badge>;
         }
         if (vendorRequired && !vendorSatisfied) {
-            return <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">Required</Badge>;
+            return <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary hover:bg-primary/20">{t('pages.integrationOnboarding.required')}</Badge>;
         }
-        return <Badge variant="secondary" className="text-[10px]">Connect at least one</Badge>;
+        return <Badge variant="secondary" className="text-[10px]">{t('pages.integrationOnboarding.connectExactlyOne')}</Badge>;
     };
 
     // ------------------------------------------------------------------------
@@ -456,56 +458,13 @@ export default function IntegrationOnboarding() {
     // ------------------------------------------------------------------------
 
     const leftContent = (
-        <div className="relative z-10 space-y-6">
-            <Badge className="bg-white/20 text-white border-white/30 hover:bg-white/25 mb-4">
-                <Key className="h-3 w-3 mr-1" />
-                Secure Setup
-            </Badge>
-            <h1 className="text-4xl font-bold text-white mb-3 drop-shadow-sm leading-tight">
-                Connect Your<br />Marketplace Account
+        <div className="relative z-10 w-full">
+            <h1 className="text-4xl xl:text-5xl font-bold text-white mb-4 leading-tight">
+                {t('pages.integrationOnboarding.leftTitle')}
             </h1>
-            <p className="text-lg text-white/90 leading-relaxed">
-                Link your Seller Central or Vendor Central account to unlock powerful analytics and automation tools.
+            <p className="text-lg text-white/90 max-w-sm">
+                {t('pages.integrationOnboarding.leftSubtitle')}
             </p>
-
-            <div className="pt-4 flex flex-col gap-3">
-                <div className="flex items-center gap-3 text-white/80">
-                    <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
-                        <Globe className="h-4 w-4" />
-                    </div>
-                    <span>Select your primary marketplace</span>
-                </div>
-                {isSpApiRequired && (
-                    <div className="flex items-center gap-3 text-white/80">
-                        <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
-                            <ShoppingCart className="h-4 w-4" />
-                        </div>
-                        <span>Connect SP-API (Seller or Vendor)</span>
-                    </div>
-                )}
-                {isAdsApiRequired && (
-                    <div className="flex items-center gap-3 text-white/80">
-                        <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
-                            <BarChart3 className="h-4 w-4" />
-                        </div>
-                        <span>Enable Advertising API</span>
-                    </div>
-                )}
-            </div>
-
-            {/* Trust footer */}
-            <div className="relative z-10 pt-4">
-                <div className="flex items-center gap-6 pt-6 border-t border-white/15 text-white/60 text-xs">
-                    <div className="flex items-center gap-1.5">
-                        <Shield className="h-3.5 w-3.5" />
-                        <span>Bank-grade Security</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <Lock className="h-3.5 w-3.5" />
-                        <span>ISO 27001 Certified</span>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 
@@ -515,9 +474,9 @@ export default function IntegrationOnboarding() {
             showBrandOnMobile={false}
             contentMaxWidth="max-w-2xl"
         >
-            <div className="space-y-6">
+            <div className="pb-6 w-full">
                 {/* Mobile Logo */}
-                <div className="lg:hidden mb-10">
+                <div className="lg:hidden mb-8 shrink-0">
                     <Link to="/" className="flex items-center gap-2">
                         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-[#ff9900] to-[#e88800]">
                             <Package className="h-5 w-5 text-white" />
@@ -532,17 +491,25 @@ export default function IntegrationOnboarding() {
                         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 group"
                     >
                         <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
-                        Switch Organisation
+                        {t('pages.integrationOnboarding.switchOrganisation')}
                     </button>
-                    <h2 className="text-2xl font-semibold tracking-tight">Integration Setup</h2>
-                    <p className="text-muted-foreground mt-1">Configure your Amazon integration settings.</p>
-                    {appId && <Badge variant="outline" className="mt-2">Connecting to: {appId}</Badge>}
+                    <h2 className="text-2xl font-semibold tracking-tight">{t('pages.integrationOnboarding.integrationSetup')}</h2>
+                    <p className="text-muted-foreground mt-1">{t('pages.integrationOnboarding.configureSettings')}</p>
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        {appId && <Badge variant="outline">{t('pages.integrationOnboarding.connectingTo', { app: appId })}</Badge>}
+                        {activeOrganization?.name && (
+                            <Badge variant="secondary" className="bg-primary/5 text-primary">
+                                <Building2 className="mr-1 h-3 w-3" />
+                                {activeOrganization.name}
+                            </Badge>
+                        )}
+                    </div>
                 </div>
 
                 {isLoadingRequirements ? (
                     <div className="flex flex-col items-center justify-center py-16">
                         <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-                        <p className="text-sm text-muted-foreground">Loading integration requirements...</p>
+                        <p className="text-sm text-muted-foreground">{t('pages.integrationOnboarding.loadingRequirements')}</p>
                     </div>
                 ) : (
                     <div className="space-y-8">
@@ -550,7 +517,7 @@ export default function IntegrationOnboarding() {
                         {/* 1. Account Name */}
                         <div className="space-y-3">
                             <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                1. Account Name
+                                {t('pages.integrationOnboarding.accountName')}
                             </label>
                             <Input
                                 placeholder='e.g. "US Main Account"'
@@ -564,7 +531,7 @@ export default function IntegrationOnboarding() {
                         {/* 2. Marketplace Selection */}
                         <div className="space-y-3">
                             <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                2. Select Region
+                                {t('pages.integrationOnboarding.selectRegion')}
                             </label>
                             <Select
                                 value={marketplace}
@@ -572,7 +539,7 @@ export default function IntegrationOnboarding() {
                                 disabled={isFormLocked}
                             >
                                 <SelectTrigger className="w-full h-11">
-                                    <SelectValue placeholder="Choose a region..." />
+                                    <SelectValue placeholder={t('pages.integrationOnboarding.chooseRegion')} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {MARKETPLACES.map((m) => (
@@ -594,14 +561,14 @@ export default function IntegrationOnboarding() {
                                             <Package className="h-4 w-4" />
                                         </div>
                                         <div>
-                                            <h4 className="font-medium text-sm text-blue-900">Existing Account Found</h4>
+                                            <h4 className="font-medium text-sm text-blue-900">{t('pages.integrationOnboarding.existingAccountFound')}</h4>
                                             <p className="text-xs text-blue-700">
                                                 An account matching <strong>"{resumeAccount.account_name}"</strong> in this region already exists.
                                             </p>
                                         </div>
                                     </div>
                                     <Button size="sm" onClick={handleResume} className="bg-blue-600 hover:bg-blue-700 text-white border-none whitespace-nowrap ml-4">
-                                        Sync Status
+                                        {t('pages.integrationOnboarding.syncStatus')}
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -609,7 +576,7 @@ export default function IntegrationOnboarding() {
 
                         <div className="space-y-3">
                             <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                3. Connect Services
+                                {t('pages.integrationOnboarding.connectServices')}
                             </label>
 
                             <div className="grid gap-4">
@@ -624,9 +591,9 @@ export default function IntegrationOnboarding() {
                                                 <div className="flex-1 space-y-4">
                                                     <div>
                                                         <div className="flex items-center justify-between">
-                                                            <h3 className="font-medium">Amazon Selling Partner API</h3>
+                                                            <h3 className="font-medium">{t('pages.integrationOnboarding.spApiTitle')}</h3>
                                                             {isSpApiMet ? (
-                                                                <Badge className="bg-green-100 text-green-600 text-[10px]">Connected</Badge>
+                                                                <Badge className="bg-green-100 text-green-600 text-[10px]">{t('pages.integrationOnboarding.connected')}</Badge>
                                                             ) : (
                                                                 <RequirementBadge
                                                                     sellerRequired={isSellerCentralRequired}
@@ -637,7 +604,7 @@ export default function IntegrationOnboarding() {
                                                             )}
                                                         </div>
                                                         <p className="text-sm text-muted-foreground mt-1">
-                                                            Syncs orders, inventory, and catalog data.
+                                                            {t('pages.integrationOnboarding.spApiDescription')}
                                                         </p>
                                                     </div>
 
@@ -646,7 +613,7 @@ export default function IntegrationOnboarding() {
                                                             <div className="flex items-center justify-between p-2.5 rounded-lg border bg-card">
                                                                 <div className="flex items-center gap-2.5">
                                                                     <Store className="h-4 w-4 text-muted-foreground" />
-                                                                    <span className="text-sm font-medium">Seller Central</span>
+                                                                    <span className="text-sm font-medium">{t('pages.integrationOnboarding.sellerCentral')}</span>
                                                                 </div>
                                                                 {renderConnectionButton(
                                                                     "seller",
@@ -662,7 +629,7 @@ export default function IntegrationOnboarding() {
                                                                 <div className="flex items-center gap-2.5">
                                                                     <Building2 className="h-4 w-4 text-muted-foreground" />
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className="text-sm font-medium">Vendor Central</span>
+                                                                        <span className="text-sm font-medium">{t('pages.integrationOnboarding.vendorCentral')}</span>
                                                                     </div>
                                                                 </div>
                                                                 {renderConnectionButton(
@@ -691,11 +658,11 @@ export default function IntegrationOnboarding() {
                                                 <div className="flex-1 space-y-4">
                                                     <div>
                                                         <div className="flex items-center justify-between">
-                                                            <h3 className="font-medium">Amazon Advertising API</h3>
-                                                            <Badge variant="secondary" className={`text-[10px] ${isAdsConnected ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}>{isAdsConnected ? 'Connected' : 'Required'}</Badge>
+                                                            <h3 className="font-medium">{t('pages.integrationOnboarding.adsApiTitle')}</h3>
+                                                            <Badge variant="secondary" className={`text-[10px] ${isAdsConnected ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}>{isAdsConnected ? t('pages.integrationOnboarding.connected') : t('pages.integrationOnboarding.required')}</Badge>
                                                         </div>
                                                         <p className="text-sm text-muted-foreground mt-1">
-                                                            Access PPC campaigns and advertising performance metrics.
+                                                            {t('pages.integrationOnboarding.adsApiDescription')}
                                                         </p>
                                                     </div>
 
@@ -729,12 +696,12 @@ export default function IntegrationOnboarding() {
                                         Saving...
                                     </>
                                 ) : (
-                                    "Continue to Dashboard"
+                                    t('pages.integrationOnboarding.continueToDashboard')
                                 )}
                             </Button>
                             {!isComplete && (
                                 <p className="text-center text-xs text-muted-foreground mt-3">
-                                    Please select a marketplace and connect all required services to continue.
+                                    {t('pages.integrationOnboarding.completeAllRequired')}
                                 </p>
                             )}
                         </div>
