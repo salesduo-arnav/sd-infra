@@ -130,7 +130,7 @@ export default function ChooseOrganisation() {
     const leftContent = (
         <div className="relative z-10 w-full">
             <h1 className="text-4xl xl:text-5xl font-bold text-white mb-4 leading-tight">
-                Welcome back,<br />{user.full_name}
+                {t('pages.chooseOrganisation.leftTitle')}<br />{user.full_name}
             </h1>
             <p className="text-lg text-white/90 max-w-sm">
                 {t('pages.chooseOrganisation.leftSubtitle')}

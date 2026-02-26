@@ -340,15 +340,15 @@ export function AppSidebar() {
                 {t('language.switchLanguage')}
               </DropdownMenuSubTrigger>
               <DropdownMenuPortal>
-                <DropdownMenuSubContent className="w-48 shadow-xl border-border/50">
+                <DropdownMenuSubContent className="w-48 shadow-xl border-border/50 overflow-y-auto">
                   {supportedLanguages.map((lang) => (
                     <DropdownMenuItem
                       key={lang.code}
                       onClick={() => i18n.changeLanguage(lang.code)}
-                      className="gap-3 p-2.5 cursor-pointer"
+                      className="gap-3 p-1 cursor-pointer"
                     >
                       <span className="text-base">{lang.flag}</span>
-                      <span className="flex-1 font-medium">{lang.label}</span>
+                      <span className="flex-1 font-normal">{lang.label}</span>
                       {i18n.language === lang.code && (
                         <Check className="h-4 w-4 text-primary" />
                       )}
