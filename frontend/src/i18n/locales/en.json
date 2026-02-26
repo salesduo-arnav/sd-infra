@@ -30,6 +30,10 @@
     "yes": "Yes",
     "no": "No"
   },
+  "authLayout": {
+    "leftTitle": "Supercharge Your Amazon Business",
+    "leftSubtitle": "All-in-one platform for listing optimization, image editing, and more tools to grow your Amazon seller business."
+  },
   "auth": {
     "signIn": "Sign in",
     "signUp": "Sign up",
@@ -508,6 +512,15 @@
     "spanish": "Español",
     "french": "Français",
     "german": "Deutsch",
-    "japanese": "日本語"
+    "japanese": "日本語",
+    "portuguese": "Português",
+    "italian": "Italiano",
+    "dutch": "Nederlands",
+    "polish": "Polski",
+    "swedish": "Svenska",
+    "turkish": "Türkçe",
+    "chinese": "中文 (简体)",
+    "arabic": "العربية",
+    "hindi": "हिन्दी"
   }
 }

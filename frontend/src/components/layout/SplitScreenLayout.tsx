@@ -51,7 +51,7 @@ function LanguageDropdown() {
                                 i18n.changeLanguage(lang.code);
                                 setOpen(false);
                             }}
-                            className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                            className="flex items-center gap-3 w-full px-2 py-1 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                         >
                             <span className="text-base">{lang.flag}</span>
                             <span className="flex-1 text-left font-medium">{lang.label}</span>

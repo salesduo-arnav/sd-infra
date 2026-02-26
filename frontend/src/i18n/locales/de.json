@@ -30,6 +30,10 @@
         "yes": "Ja",
         "no": "Nein"
     },
+    "authLayout": {
+        "leftTitle": "Boosten Sie Ihr Amazon Geschäft",
+        "leftSubtitle": "All-in-One-Plattform für Listing-Optimierung, Bildbearbeitung und weitere Tools zum Ausbau Ihres Amazon-Verkäufergeschäfts."
+    },
     "auth": {
         "signIn": "Anmelden",
         "signUp": "Registrieren",
@@ -508,6 +512,15 @@
         "spanish": "Español",
         "french": "Français",
         "german": "Deutsch",
-        "japanese": "日本語"
+        "japanese": "日本語",
+        "portuguese": "Português",
+        "italian": "Italiano",
+        "dutch": "Nederlands",
+        "polish": "Polski",
+        "swedish": "Svenska",
+        "turkish": "Türkçe",
+        "chinese": "中文 (简体)",
+        "arabic": "العربية",
+        "hindi": "हिन्दी"
     }
 }

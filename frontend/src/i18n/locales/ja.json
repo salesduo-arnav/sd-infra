@@ -30,6 +30,10 @@
         "yes": "はい",
         "no": "いいえ"
     },
+    "authLayout": {
+        "leftTitle": "Amazon ビジネスを強化する",
+        "leftSubtitle": "リスティングの最適化、画像編集、Amazon セラービジネスを成長させるためのオールインワンプラットフォーム。"
+    },
     "auth": {
         "signIn": "サインイン",
         "signUp": "サインアップ",
@@ -508,6 +512,15 @@
         "spanish": "Español",
         "french": "Français",
         "german": "Deutsch",
-        "japanese": "日本語"
+        "japanese": "日本語",
+        "portuguese": "Português",
+        "italian": "Italiano",
+        "dutch": "Nederlands",
+        "polish": "Polski",
+        "swedish": "Svenska",
+        "turkish": "Türkçe",
+        "chinese": "中文 (简体)",
+        "arabic": "العربية",
+        "hindi": "हिन्दी"
     }
 }

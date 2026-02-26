@@ -30,6 +30,10 @@
         "yes": "Sí",
         "no": "No"
     },
+    "authLayout": {
+        "leftTitle": "Potencia Tu Negocio en Amazon",
+        "leftSubtitle": "Plataforma todo en uno para optimización de listados, edición de imágenes y más herramientas para hacer crecer tu negocio de ventas en Amazon."
+    },
     "auth": {
         "signIn": "Iniciar sesión",
         "signUp": "Registrarse",
@@ -508,6 +512,15 @@
         "spanish": "Español",
         "french": "Français",
         "german": "Deutsch",
-        "japanese": "日本語"
+        "japanese": "日本語",
+        "portuguese": "Português",
+        "italian": "Italiano",
+        "dutch": "Nederlands",
+        "polish": "Polski",
+        "swedish": "Svenska",
+        "turkish": "Türkçe",
+        "chinese": "中文 (简体)",
+        "arabic": "العربية",
+        "hindi": "हिन्दी"
     }
 }

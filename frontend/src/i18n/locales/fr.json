@@ -30,6 +30,10 @@
         "yes": "Oui",
         "no": "Non"
     },
+    "authLayout": {
+        "leftTitle": "Boostez Votre Entreprise Amazon",
+        "leftSubtitle": "Plateforme tout-en-un pour l'optimisation des annonces, l'édition d'images et d'autres outils pour développer votre activité de vendeur Amazon."
+    },
     "auth": {
         "signIn": "Se connecter",
         "signUp": "S'inscrire",
@@ -508,6 +512,15 @@
         "spanish": "Español",
         "french": "Français",
         "german": "Deutsch",
-        "japanese": "日本語"
+        "japanese": "日本語",
+        "portuguese": "Português",
+        "italian": "Italiano",
+        "dutch": "Nederlands",
+        "polish": "Polski",
+        "swedish": "Svenska",
+        "turkish": "Türkçe",
+        "chinese": "中文 (简体)",
+        "arabic": "العربية",
+        "hindi": "हिन्दी"
     }
 }
