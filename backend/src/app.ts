@@ -21,6 +21,9 @@ import './models'; // Initialize associations
 
 const app = express();
 
+// Trust proxy for correct IP resolution behind BFF/Load Balancers
+app.set('trust proxy', 1);
+
 app.use(helmet());
 
 if (!process.env.CORS_ORIGINS) {

@@ -4,6 +4,7 @@ import {
     getOrganization,
     getSubscription,
     getEntitlements,
+    consumeEntitlement,
     trackUsage,
     createAuditLog,
 } from '../controllers/internal.controller';
@@ -17,6 +18,7 @@ router.use(requireServiceAuth);
 router.get('/organizations/:id', getOrganization);
 router.get('/organizations/:id/subscription', getSubscription);
 router.get('/organizations/:id/entitlements', getEntitlements);
+router.post('/organizations/:id/entitlements/consume', consumeEntitlement);
 
 // Fire-and-forget operations
 router.post('/usage/track', trackUsage);

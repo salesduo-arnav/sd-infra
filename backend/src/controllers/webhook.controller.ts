@@ -9,6 +9,7 @@ import { SubStatus } from '../models/enums';
 import { WebhookEvent, WebhookEventStatus } from '../models/webhook_event';
 import sequelize from '../config/db';
 import { Op } from 'sequelize';
+import { entitlementService } from '../services/entitlement.service';
 import Logger from '../utils/logger';
 
 class WebhookController {
@@ -267,6 +268,17 @@ class WebhookController {
             await subscription.update(subData);
         } else {
             subscription = await Subscription.create({ organization_id: orgId, ...subData });
+        }
+
+        // Provision entitlements
+        try {
+            if (finalPlanId) {
+                await entitlementService.provisionEntitlementsForPlan(orgId, finalPlanId);
+            } else if (finalBundleId) {
+                await entitlementService.provisionEntitlementsForBundle(orgId, finalBundleId);
+            }
+        } catch (provErr) {
+            Logger.error(`[WebhookController] Failed to provision entitlements on sub update for org ${orgId}:`, provErr);
         }
 
         if (fingerprint && (status === SubStatus.TRIALING || status === SubStatus.ACTIVE)) {
