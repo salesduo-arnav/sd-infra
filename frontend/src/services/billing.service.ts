@@ -9,7 +9,7 @@ export const getSubscriptions = async () => {
     return response.data;
 };
 
-export const updateSubscription = async (subscriptionId: string, items: { id: string; type: 'plan' | 'bundle'; interval: 'monthly' | 'yearly' }[]) => {
+export const updateSubscription = async (subscriptionId: string, items: { id: string; type: 'plan' | 'bundle'; interval: 'monthly' | 'yearly' | 'one_time' }[]) => {
     const response = await api.put(`/billing/subscription/${subscriptionId}`, { items });
     return response.data;
 };

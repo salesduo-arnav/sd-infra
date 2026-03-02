@@ -127,16 +127,16 @@ All admin routes are prefixed with `/admin` and protected by both `authenticate`
 
 ## Issues Found
 
-1. **Stats queries have no caching** — Overview stats, revenue charts, and growth charts execute potentially expensive aggregate queries on every request with no caching layer.
-2. **Hard-coded limit of 5 in tool usage chart** — The top tools query is hard-coded to return only 5 results, with no option for the client to customize.
-3. **MRR excludes trialing subscriptions** — The MRR calculation only includes `ACTIVE` subscriptions. Whether this is intentional should be explicitly documented.
-4. **No input validation on config values** — `updateConfig` accepts any string value, with no schema validation. Invalid values (e.g., non-numeric string for `payment_grace_period_days`) could cause downstream failures.
-5. **Feature slug uniqueness is global** — Feature slugs are unique across the entire platform, not per-tool. Two tools cannot have features with the same slug, which may be restrictive.
-6. **No tool_id existence validation** — `createFeature` does not verify that the provided `tool_id` corresponds to an existing tool before creating the feature.
-7. **Yearly price is always monthly * 12** — Plan update/creation calculates yearly price as exactly `monthly_price * 12`, with no support for yearly discounts.
-8. **Orphaned Stripe prices** — When updating a plan's price, new Stripe price objects are created but the old ones are never archived/deactivated.
-9. **Bundle slug checked globally** — Bundle slug uniqueness is enforced globally, not per-bundle-group. This may or may not be intentional.
-10. **Config upsert always succeeds** — Even if the Stripe side-effect fails, the config update is committed. There's no transactional consistency.
-11. **Audit log retention unbounded** — No log retention policy or cleanup mechanism. Audit logs will grow indefinitely.
-12. **Date range filter doesn't validate input** — Audit log date range filters pass raw strings to `new Date()` without format validation.
-13. **Plan deletion without active subscription check on bundles** — While direct plan subscription checks exist, the check for plans within bundles could miss edge cases with nested deletions.
+- [x] **Stats queries have no caching** — Overview stats, revenue charts, and growth charts execute potentially expensive aggregate queries on every request with no caching layer.
+- [ ] **[SKIPPED] Hard-coded limit of 5 in tool usage chart** — The top tools query is hard-coded to return only 5 results, with no option for the client to customize. *(Skipped: Hardcoded limit of 5 to keep the dashboard UI simple)*
+- [ ] **[SKIPPED] MRR excludes trialing subscriptions** — The MRR calculation only includes `ACTIVE` subscriptions. Whether this is intentional should be explicitly documented. *(Skipped: Trialing subscriptions are not guaranteed revenue)*
+- [x] **No input validation on config values** — `updateConfig` accepts any string value, with no schema validation. Invalid values (e.g., non-numeric string for `payment_grace_period_days`) could cause downstream failures.
+- [ ] **[SKIPPED] Feature slug uniqueness is global** — Feature slugs are unique across the entire platform, not per-tool. Two tools cannot have features with the same slug, which may be restrictive. *(Skipped: We'll have unique slugs per tool)*
+- [x] **No tool_id existence validation** — `createFeature` does not verify that the provided `tool_id` corresponds to an existing tool before creating the feature.
+- [ ] **[SKIPPED] Yearly price is always monthly * 12** — Plan update/creation calculates yearly price as exactly `monthly_price * 12`, with no support for yearly discounts. *(Skipped: Intentional pricing model choice to avoid complex discounting logic currently)*
+- [ ] **[SKIPPED] Orphaned Stripe prices** — When updating a plan's price, new Stripe price objects are created but the old ones are never archived/deactivated. *(Skipped: Being handled in another module)*
+- [ ] **[SKIPPED] Bundle slug checked globally** — Bundle slug uniqueness is enforced globally, not per-bundle-group. This may or may not be intentional. *(Skipped: Same as before)*
+- [ ] **[SKIPPED] Config upsert always succeeds** — Even if the Stripe side-effect fails, the config update is committed. There's no transactional consistency. *(Skipped: Stripe doesnt allow)*
+- [ ] **[SKIPPED] Audit log retention unbounded** — No log retention policy or cleanup mechanism. Audit logs will grow indefinitely. *(Skipped: We can add crons for deleting audits later as audits grow)*
+- [x] **Date range filter doesn't validate input** — Audit log date range filters pass raw strings to `new Date()` without format validation.
+- [x] **Plan deletion without active subscription check on bundles** — While direct plan subscription checks exist, the check for plans within bundles could miss edge cases with nested deletions.

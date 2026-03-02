@@ -88,7 +88,20 @@ jobs:
           echo "Waiting for services to initialize..."
           sleep 15
           docker compose -f docker-compose.yml -f docker-compose.ci.yml ps
-
+      - name: Debug Containers
+        if: always()
+        run: |
+          echo "=== Docker PS ==="
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml ps
+          
+          echo "=== All Containers ==="
+          docker ps -a
+          
+          echo "=== Backend Logs ==="
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs backend || true
+          
+          echo "=== Postgres Logs ==="
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs postgres || true
       - name: Prepare Backend Test Database
         run: |
           echo "Waiting for Postgres to be ready..."

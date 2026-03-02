@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { useTranslation } from 'react-i18next';
 
 interface LayoutProps {
   children: ReactNode;
@@ -20,6 +22,7 @@ interface LayoutProps {
 
 export function Layout({ children, animationClass }: LayoutProps) {
   const location = useLocation();
+  const { t } = useTranslation();
   const pathSegments = location.pathname.split("/").filter((segment) => segment);
 
   return (
@@ -35,7 +38,7 @@ export function Layout({ children, animationClass }: LayoutProps) {
                 <BreadcrumbList>
                   <BreadcrumbItem className="hidden md:block">
                     <BreadcrumbLink asChild>
-                      <Link to="/apps">Home</Link>
+                      <Link to="/apps">{t('nav.home')}</Link>
                     </BreadcrumbLink>
                   </BreadcrumbItem>
                   {pathSegments.map((segment, index) => {
@@ -65,7 +68,9 @@ export function Layout({ children, animationClass }: LayoutProps) {
           </header>
           <div className="flex-1 overflow-auto p-6 md:p-8">
             <div className={cn("mx-auto max-w-6xl space-y-8", animationClass ?? "animate-in fade-in slide-in-from-bottom-4 duration-500")}>
-              {children}
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
             </div>
           </div>
         </main>

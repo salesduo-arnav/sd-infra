@@ -18,6 +18,12 @@ services:
     container_name: ${REDIS_HOST:-shared-redis}
     ports:
       - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    command: >
+      sh -c "redis-server --requirepass $$REDIS_PASSWORD"
+    volumes:
+      - redisdata:/data
     networks:
       - salesduo-net
     restart: always
@@ -117,3 +123,4 @@ networks:
 volumes:
   pgdata:
   grafana-storage:
+  redisdata:

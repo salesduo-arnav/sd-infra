@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { Layout } from "@/components/layout/Layout";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +81,7 @@ interface Invitation {
 export default function Organisation() {
   const { user, activeOrganization, refreshUser } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [orgName, setOrgName] = useState("");
   const [orgWebsite, setOrgWebsite] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -97,11 +98,9 @@ export default function Organisation() {
   });
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [membersLoading, setMembersLoading] = useState(true);
 
   const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [loading, setLoading] = useState(true);
 
   // Member details sheet state
   const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
@@ -128,19 +127,14 @@ export default function Organisation() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
-  // Debounce search
+  // Reset pagination on search change
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-      setPagination(prev => ({ ...prev, pageIndex: 0 }));
-    }, 500);
-    return () => clearTimeout(timer);
+    setPagination(prev => ({ ...prev, pageIndex: 0 }));
   }, [searchQuery]);
 
   // Fetch org details and invitations
   const fetchOrgData = useCallback(async () => {
     if (!activeOrganization) return;
-    setLoading(true);
     try {
       const headers = { 'x-organization-id': activeOrganization.id };
       const [invitesRes, orgRes] = await Promise.all([
@@ -161,15 +155,23 @@ export default function Organisation() {
       }
     } catch (error) {
       console.error("Failed to fetch data", error);
-      toast.error("Failed to load organization data");
-    } finally {
-      setLoading(false);
+      toast.error(t('pages.organisation.failedToLoadData'));
     }
-  }, [activeOrganization]);
+  }, [activeOrganization, t]);
+
+  // Ref for AbortController
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Fetch members with pagination/search/sorting
   const fetchMembers = useCallback(async () => {
     if (!activeOrganization) return;
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setMembersLoading(true);
     try {
       const page = pagination.pageIndex + 1;
@@ -184,13 +186,14 @@ export default function Organisation() {
         sortOrder: sortOrder,
       });
 
-      if (debouncedSearch) {
-        params.append("search", debouncedSearch);
+      if (searchQuery) {
+        params.append("search", searchQuery);
       }
 
       const res = await fetch(`${API_URL}/organizations/members?${params.toString()}`, {
         credentials: 'include',
-        headers: { 'x-organization-id': activeOrganization.id }
+        headers: { 'x-organization-id': activeOrganization.id },
+        signal: controller.signal
       });
 
       if (res.ok) {
@@ -199,12 +202,15 @@ export default function Organisation() {
         setPageCount(data.meta.totalPages);
       }
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
       console.error("Failed to fetch members", error);
-      toast.error("Failed to load members");
+      toast.error(t('pages.organisation.failedToLoadMembers'));
     } finally {
-      setMembersLoading(false);
+      if (abortControllerRef.current === controller) {
+        setMembersLoading(false);
+      }
     }
-  }, [activeOrganization, pagination, sorting, debouncedSearch]);
+  }, [activeOrganization, pagination, sorting, searchQuery, t]);
 
   useEffect(() => {
     fetchOrgData();
@@ -228,12 +234,12 @@ export default function Organisation() {
       });
 
       if (res.ok) {
-        toast.success("Organization details updated");
+        toast.success(t('pages.organisation.orgUpdated'));
       } else {
         throw new Error();
       }
     } catch {
-      toast.error("Failed to update details");
+      toast.error(t('pages.organisation.orgUpdateFailed'));
     }
   };
 
@@ -255,7 +261,7 @@ export default function Organisation() {
         throw new Error(data.message || "Failed to invite");
       }
 
-      toast.success("Invitation sent");
+      toast.success(t('pages.organisation.invitationSent'));
       setInviteEmail("");
       setInviteRole("2");
       setIsInviteDialogOpen(false);
@@ -264,7 +270,7 @@ export default function Organisation() {
       if (e instanceof Error) {
         toast.error(e.message);
       } else {
-        toast.error("Failed to invite member");
+        toast.error(t('pages.organisation.invitationSent').replace('sent', 'failed'));
       }
     }
   };
@@ -278,11 +284,11 @@ export default function Organisation() {
         headers: { 'x-organization-id': activeOrganization.id }
       });
       if (res.ok) {
-        toast.success("Invitation revoked");
+        toast.success(t('pages.organisation.invitationRevoked'));
         fetchOrgData();
       }
     } catch {
-      toast.error("Failed to revoke invitation");
+      toast.error(t('pages.organisation.revokeFailed'));
     }
   };
 
@@ -308,14 +314,14 @@ export default function Organisation() {
         headers: { 'x-organization-id': activeOrganization.id }
       });
       if (res.ok) {
-        toast.success("Member removed successfully");
+        toast.success(t('pages.organisation.memberRemoved'));
         fetchMembers();
       } else {
         const data = await res.json();
-        toast.error(data.message || "Failed to remove member");
+        toast.error(data.message || t('pages.organisation.removeFailed'));
       }
     } catch {
-      toast.error("Failed to remove member");
+      toast.error(t('pages.organisation.removeFailed'));
     } finally {
       setIsRemoving(false);
       setRemoveDialogOpen(false);
@@ -344,14 +350,14 @@ export default function Organisation() {
         body: JSON.stringify({ role_id: parseInt(newRoleId) })
       });
       if (res.ok) {
-        toast.success("Member role updated");
+        toast.success(t('pages.organisation.roleUpdated'));
         fetchMembers();
       } else {
         const data = await res.json();
-        toast.error(data.message || "Failed to update role");
+        toast.error(data.message || t('pages.organisation.roleUpdateFailed'));
       }
     } catch {
-      toast.error("Failed to update role");
+      toast.error(t('pages.organisation.roleUpdateFailed'));
     } finally {
       setIsChangingRole(false);
       setRoleDialogOpen(false);
@@ -362,6 +368,10 @@ export default function Organisation() {
   // Transfer ownership
   const handleTransferOwnership = async () => {
     if (!activeOrganization || !newOwnerId) return;
+    if (newOwnerId === user?.id) {
+      toast.error(t('pages.organisation.cannotTransferToSelf'));
+      return;
+    }
     setIsTransferring(true);
     try {
       const res = await fetch(`${API_URL}/organizations/transfer-ownership`, {
@@ -374,16 +384,16 @@ export default function Organisation() {
         body: JSON.stringify({ new_owner_id: newOwnerId })
       });
       if (res.ok) {
-        toast.success("Ownership transferred successfully");
+        toast.success(t('pages.organisation.ownershipTransferred'));
         await refreshUser();
         fetchOrgData();
         fetchMembers();
       } else {
         const data = await res.json();
-        toast.error(data.message || "Failed to transfer ownership");
+        toast.error(data.message || t('pages.organisation.transferFailed'));
       }
     } catch {
-      toast.error("Failed to transfer ownership");
+      toast.error(t('pages.organisation.transferFailed'));
     } finally {
       setIsTransferring(false);
       setTransferDialogOpen(false);
@@ -395,7 +405,7 @@ export default function Organisation() {
   const handleDeleteOrganization = async () => {
     if (!activeOrganization) return;
     if (deleteConfirmText !== orgName) {
-      toast.error("Please type the organization name to confirm");
+      toast.error(t('pages.organisation.typeOrgNameConfirm'));
       return;
     }
     setIsDeleting(true);
@@ -406,15 +416,15 @@ export default function Organisation() {
         headers: { 'x-organization-id': activeOrganization.id }
       });
       if (res.ok) {
-        toast.success("Organization deleted successfully");
+        toast.success(t('pages.organisation.orgDeleted'));
         await refreshUser();
         navigate('/apps');
       } else {
         const data = await res.json();
-        toast.error(data.message || "Failed to delete organization");
+        toast.error(data.message || t('pages.organisation.orgDeleteFailed'));
       }
     } catch {
-      toast.error("Failed to delete organization");
+      toast.error(t('pages.organisation.orgDeleteFailed'));
     } finally {
       setIsDeleting(false);
       setDeleteOrgDialogOpen(false);
@@ -452,7 +462,7 @@ export default function Organisation() {
             <div>
               <p className="font-medium">
                 {member.user.full_name}
-                {isCurrentUser && <span className="text-muted-foreground text-xs ml-1">(you)</span>}
+                {isCurrentUser && <span className="text-muted-foreground text-xs ml-1">({t('pages.organisation.you')})</span>}
               </p>
               <p className="text-sm text-muted-foreground">{member.user.email}</p>
             </div>
@@ -523,12 +533,12 @@ export default function Organisation() {
               <DropdownMenuContent align="end" className="w-40">
                 <DropdownMenuItem onClick={() => handleViewDetails(member)}>
                   <Eye className="h-4 w-4 mr-2" />
-                  View Details
+                  {t('pages.organisation.viewDetails')}
                 </DropdownMenuItem>
                 {canChangeRole && (
                   <DropdownMenuItem onClick={() => handleChangeRoleClick(member)}>
                     <UserCog className="h-4 w-4 mr-2" />
-                    Change Role
+                    {t('pages.organisation.changeRole')}
                   </DropdownMenuItem>
                 )}
                 {canRemove && (
@@ -539,7 +549,7 @@ export default function Organisation() {
                       className="text-destructive focus:text-destructive"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
-                      Remove
+                      {t('pages.organisation.remove')}
                     </DropdownMenuItem>
                   </>
                 )}
@@ -552,12 +562,12 @@ export default function Organisation() {
   ];
 
   return (
-    <Layout>
+    <>
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Organisation</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t('pages.organisation.title')}</h1>
           <p className="text-muted-foreground mt-2">
-            Manage your organization settings and team members
+            {t('pages.organisation.subtitle')}
           </p>
         </div>
 
@@ -566,28 +576,28 @@ export default function Organisation() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
-              Organisation Details
+              {t('pages.organisation.orgDetails')}
             </CardTitle>
             <CardDescription>
               {canEditOrg
-                ? "Update your organization's profile information"
-                : "View your organization's profile information"}
+                ? t('pages.organisation.orgDetailsDescEdit')
+                : t('pages.organisation.orgDetailsDescView')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="orgName">Organisation Name</Label>
+                <Label htmlFor="orgName">{t('pages.organisation.orgName')}</Label>
                 <Input
                   id="orgName"
                   value={orgName}
                   onChange={(e) => setOrgName(e.target.value)}
-                  placeholder="Enter organisation name"
+                  placeholder={t('pages.organisation.orgNamePlaceholder')}
                   disabled={!canEditOrg}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="orgWebsite">Website</Label>
+                <Label htmlFor="orgWebsite">{t('pages.organisation.website')}</Label>
                 <Input
                   id="orgWebsite"
                   value={orgWebsite}
@@ -599,7 +609,7 @@ export default function Organisation() {
             </div>
             {canEditOrg && (
               <div className="flex justify-end">
-                <Button onClick={handleSaveOrgDetails}>Save Changes</Button>
+                <Button onClick={handleSaveOrgDetails}>{t('pages.organisation.saveChanges')}</Button>
               </div>
             )}
           </CardContent>
@@ -612,30 +622,36 @@ export default function Organisation() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <Users className="h-5 w-5" />
-                  Team Members
+                  {t('pages.organisation.teamMembers')}
                 </CardTitle>
                 <CardDescription>
-                  Manage who has access to your organization
+                  {t('pages.organisation.teamMembersDesc')}
                 </CardDescription>
               </div>
               {canInvite && (
-                <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+                <Dialog open={isInviteDialogOpen} onOpenChange={(open) => {
+                  if (!open) {
+                    setInviteEmail("");
+                    setInviteRole("2");
+                  }
+                  setIsInviteDialogOpen(open);
+                }}>
                   <DialogTrigger asChild>
                     <Button>
                       <UserPlus className="h-4 w-4 mr-2" />
-                      Invite Member
+                      {t('pages.organisation.inviteMember')}
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Invite Team Member</DialogTitle>
+                      <DialogTitle>{t('pages.organisation.inviteTeamMember')}</DialogTitle>
                       <DialogDescription>
-                        Send an invitation to join your organization
+                        {t('pages.organisation.inviteDesc')}
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                       <div className="space-y-2">
-                        <Label htmlFor="inviteEmail">Email Address</Label>
+                        <Label htmlFor="inviteEmail">{t('pages.organisation.emailAddress')}</Label>
                         <Input
                           id="inviteEmail"
                           type="email"
@@ -645,7 +661,7 @@ export default function Organisation() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="inviteRole">Role</Label>
+                        <Label htmlFor="inviteRole">{t('pages.organisation.role')}</Label>
                         <Select value={inviteRole} onValueChange={setInviteRole}>
                           <SelectTrigger>
                             <SelectValue placeholder="Select a role" />
@@ -663,7 +679,7 @@ export default function Organisation() {
                       </Button>
                       <Button onClick={handleInviteMember}>
                         <Mail className="h-4 w-4 mr-2" />
-                        Send Invite
+                        {t('pages.organisation.sendInvite')}
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -690,7 +706,7 @@ export default function Organisation() {
             {/* Pending Invitations */}
             {invitations.length > 0 && (
               <div className="border-t p-6">
-                <h4 className="text-sm font-medium mb-3">Pending Invitations</h4>
+                <h4 className="text-sm font-medium mb-3">{t('pages.organisation.pendingInvitationsTitle')}</h4>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -748,37 +764,37 @@ export default function Organisation() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-destructive">
                 <AlertTriangle className="h-5 w-5" />
-                Danger Zone
+                {t('pages.organisation.dangerZone')}
               </CardTitle>
               <CardDescription>
-                Irreversible and destructive actions
+                {t('pages.organisation.dangerZoneDesc')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Transfer Ownership */}
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
-                  <h4 className="font-medium">Transfer Ownership</h4>
+                  <h4 className="font-medium">{t('pages.organisation.transferOwnership')}</h4>
                   <p className="text-sm text-muted-foreground">
-                    Transfer this organization to another member
+                    {t('pages.organisation.transferOwnershipDesc')}
                   </p>
                 </div>
                 <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
                   <DialogTrigger asChild>
                     <Button variant="outline">
                       <ArrowRightLeft className="h-4 w-4 mr-2" />
-                      Transfer
+                      {t('pages.organisation.transfer')}
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Transfer Ownership</DialogTitle>
+                      <DialogTitle>{t('pages.organisation.transferDialogTitle')}</DialogTitle>
                       <DialogDescription>
-                        Select a member to transfer ownership to. You will become an Admin.
+                        {t('pages.organisation.transferDialogDesc')}
                       </DialogDescription>
                     </DialogHeader>
                     <div className="py-4">
-                      <Label>New Owner</Label>
+                      <Label>{t('pages.organisation.newOwner')}</Label>
                       <Select value={newOwnerId} onValueChange={setNewOwnerId}>
                         <SelectTrigger className="mt-2">
                           <SelectValue placeholder="Select a member" />
@@ -793,7 +809,7 @@ export default function Organisation() {
                       </Select>
                       {nonOwnerMembers.length === 0 && (
                         <p className="text-sm text-muted-foreground mt-2">
-                          No other members available. Invite someone first.
+                          {t('pages.organisation.noMembersAvailable')}
                         </p>
                       )}
                     </div>
@@ -805,7 +821,7 @@ export default function Organisation() {
                         onClick={handleTransferOwnership}
                         disabled={!newOwnerId || isTransferring}
                       >
-                        {isTransferring ? "Transferring..." : "Transfer Ownership"}
+                        {isTransferring ? t('pages.organisation.transferring') : t('pages.organisation.transferOwnership')}
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -815,9 +831,9 @@ export default function Organisation() {
               {/* Delete Organization */}
               <div className="flex items-center justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5">
                 <div>
-                  <h4 className="font-medium text-destructive">Delete Organization</h4>
+                  <h4 className="font-medium text-destructive">{t('pages.organisation.deleteOrganization')}</h4>
                   <p className="text-sm text-muted-foreground">
-                    Permanently delete this organization and all its data
+                    {t('pages.organisation.deleteOrganizationDesc')}
                   </p>
                 </div>
                 <AlertDialog open={deleteOrgDialogOpen} onOpenChange={setDeleteOrgDialogOpen}>
@@ -830,7 +846,7 @@ export default function Organisation() {
                   </Button>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Organization</AlertDialogTitle>
+                      <AlertDialogTitle>{t('pages.organisation.deleteOrgDialogTitle')}</AlertDialogTitle>
                       <AlertDialogDescription asChild>
                         <div className="space-y-3">
                           <p>
@@ -858,7 +874,7 @@ export default function Organisation() {
                         disabled={isDeleting || deleteConfirmText !== orgName}
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       >
-                        {isDeleting ? "Deleting..." : "Delete Organization"}
+                        {isDeleting ? t('pages.organisation.deleting') : t('pages.organisation.deleteOrganization')}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -873,9 +889,9 @@ export default function Organisation() {
       <Sheet open={detailsSheetOpen} onOpenChange={setDetailsSheetOpen}>
         <SheetContent>
           <SheetHeader>
-            <SheetTitle>Member Details</SheetTitle>
+            <SheetTitle>{t('pages.organisation.memberDetails')}</SheetTitle>
             <SheetDescription>
-              View member information
+              {t('pages.organisation.viewMemberInfo')}
             </SheetDescription>
           </SheetHeader>
           {selectedMember && (
@@ -930,7 +946,7 @@ export default function Organisation() {
       <AlertDialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Member</AlertDialogTitle>
+            <AlertDialogTitle>{t('pages.organisation.removeMember')}</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to remove <span className="font-medium text-foreground">{memberToRemove?.user.full_name}</span> from the organization?
               They will lose access to all organization resources.
@@ -946,7 +962,7 @@ export default function Organisation() {
               disabled={isRemoving}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isRemoving ? "Removing..." : "Remove Member"}
+              {isRemoving ? t('pages.organisation.removing') : t('pages.organisation.removeMember')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -956,7 +972,7 @@ export default function Organisation() {
       <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Change Member Role</DialogTitle>
+            <DialogTitle>{t('pages.organisation.changeMemberRole')}</DialogTitle>
             <DialogDescription>
               Update the role for {memberToChangeRole?.user.full_name}
             </DialogDescription>
@@ -978,11 +994,11 @@ export default function Organisation() {
               Cancel
             </Button>
             <Button onClick={handleChangeRoleConfirm} disabled={isChangingRole}>
-              {isChangingRole ? "Saving..." : "Save Changes"}
+              {isChangingRole ? t('pages.organisation.saving') : t('pages.organisation.saveChanges')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Layout>
+    </>
   );
 }

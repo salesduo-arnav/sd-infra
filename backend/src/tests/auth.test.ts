@@ -2,9 +2,11 @@ import request from 'supertest';
 import sequelize, { closeDB } from '../config/db';
 import redisClient from '../config/redis';
 import User from '../models/user';
-import { Organization, OrganizationMember, OrgStatus } from '../models/organization';
+import { Organization, OrganizationMember } from '../models/organization';
+import { OrgStatus } from '../models/enums';
 import { Role } from '../models/role';
-import { Invitation, InvitationStatus } from '../models/invitation';
+import { Invitation } from '../models/invitation';
+import { InvitationStatus } from '../models/enums';
 import { mailService } from '../services/mail.service';
 import '../models'; // Ensure associations are registered
 
@@ -205,7 +207,7 @@ describe('Authentication API Integration Tests', () => {
             // 1. Register User
             const reg = await request(app).post('/auth/register').send({
                 email: 'owner-login@test.com',
-                password: 'password123',
+                password: 'Password123!',
                 full_name: 'Owner Only'
             });
             const userId = reg.body.user.id;
@@ -230,7 +232,7 @@ describe('Authentication API Integration Tests', () => {
             // 3. Login
             const res = await request(app).post('/auth/login').send({
                 email: 'owner-login@test.com',
-                password: 'password123'
+                password: 'Password123!'
             });
 
             expect(res.status).toBe(200);

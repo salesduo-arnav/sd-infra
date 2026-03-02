@@ -108,5 +108,15 @@ OneTimePurchase.init(
     updatedAt: 'updated_at',
     deletedAt: 'deleted_at',
     paranoid: true,
+    validate: {
+      eitherPlanOrBundle() {
+        if (!this.plan_id && !this.bundle_id) {
+          throw new Error('OneTimePurchase must have either a plan_id or a bundle_id');
+        }
+        if (this.plan_id && this.bundle_id) {
+          throw new Error('OneTimePurchase cannot have both a plan_id and a bundle_id');
+        }
+      },
+    },
   }
 );

@@ -1,6 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
-import { Subscription, Invoice } from "@/types/subscription";
+import { Subscription, Invoice, OneTimePurchase } from "@/types/subscription";
 import { Button } from "@/components/ui/button";
 import { DataTableColumnHeader } from "@/components/ui/data-table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -202,3 +202,40 @@ export const invoiceColumns: ColumnDef<Invoice>[] = [
       },
     },
   ];
+
+export const oneTimePurchaseColumns: ColumnDef<OneTimePurchase>[] = [
+    {
+        accessorKey: "item",
+        header: "Plan / Bundle",
+        cell: ({ row }) => {
+            const purchase = row.original;
+            const name = purchase.bundle?.group?.name || purchase.plan?.tool?.name || purchase.plan?.name || purchase.bundle?.name || "Unknown Item";
+            const tier = purchase.bundle?.tier_label || purchase.plan?.tier || 'Pro';
+            return (
+                <div>
+                    <div className="font-medium">{name}</div>
+                    <div className="text-xs text-muted-foreground capitalize">{tier} Tier</div>
+                </div>
+            )
+        }
+    },
+    {
+        accessorKey: "created_at",
+        header: "Purchased On",
+        cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString()
+    },
+    {
+        accessorKey: "amount_paid",
+        header: "Amount",
+        cell: ({ row }) => (row.original.amount_paid / 100).toLocaleString('en-US', { style: 'currency', currency: row.original.currency.toUpperCase() })
+    },
+    {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => (
+            <Badge variant={row.original.status === 'succeeded' || row.original.status === 'paid' ? 'default' : 'secondary'} className="capitalize">
+                {row.original.status}
+            </Badge>
+        )
+    }
+];

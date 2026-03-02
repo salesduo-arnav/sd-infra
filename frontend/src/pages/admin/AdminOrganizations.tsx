@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { Layout } from "@/components/layout/Layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -101,7 +100,6 @@ export default function AdminOrganizations() {
   });
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   // Delete confirmation state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -126,13 +124,9 @@ export default function AdminOrganizations() {
   const [loadingMoreMembers, setLoadingMoreMembers] = useState(false);
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
 
-  // Debounce search
+  // Pagination reset on search change
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-      setPagination(prev => ({ ...prev, pageIndex: 0 }));
-    }, 500);
-    return () => clearTimeout(timer);
+    setPagination(prev => ({ ...prev, pageIndex: 0 }));
   }, [searchQuery]);
 
   const fetchOrganizations = useCallback(async () => {
@@ -150,8 +144,8 @@ export default function AdminOrganizations() {
         sort_dir: sortOrder,
       });
 
-      if (debouncedSearch) {
-        params.append("search", debouncedSearch);
+      if (searchQuery) {
+        params.append("search", searchQuery);
       }
 
       const response = await fetch(`${API_URL}/admin/organizations?${params.toString()}`, {
@@ -175,7 +169,7 @@ export default function AdminOrganizations() {
     } finally {
       setLoading(false);
     }
-  }, [pagination, sorting, debouncedSearch]);
+  }, [pagination, sorting, searchQuery]);
 
   useEffect(() => {
     fetchOrganizations();
@@ -420,7 +414,7 @@ export default function AdminOrganizations() {
   ];
 
   return (
-    <Layout>
+    <>
       <div className="space-y-6">
         {/* Page Header */}
         <div className="flex items-center gap-4">
@@ -665,6 +659,6 @@ export default function AdminOrganizations() {
         </SheetContent>
       </Sheet>
 
-    </Layout>
+    </>
   );
 }

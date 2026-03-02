@@ -4,6 +4,8 @@ import { GlobalIntegration, GlobalIntegrationStatus } from '../models/global_int
 import { OrganizationMember } from '../models/organization';
 import { handleError } from '../utils/error';
 import sequelize from '../config/db';
+import { encrypt } from '../utils/encryption';
+import { AuditService } from '../services/audit.service';
 import Logger from '../utils/logger';
 
 // ================================
@@ -88,15 +90,38 @@ export const createIntegrationAccount = async (req: Request, res: Response) => {
         }
 
         const account = await sequelize.transaction(async (t) => {
-            // Check for duplicate
+            // Check for exact duplicate
             const existing = await IntegrationAccount.findOne({
-                where: { organization_id: orgId, marketplace: resolvedMarketplace, account_name, integration_type },
+                where: { organization_id: orgId, marketplace: resolvedMarketplace, account_name, region, integration_type },
                 transaction: t,
             });
 
             if (existing) {
-                // Idempotent behavior: Return existing account instead of error
-                return existing;
+                return res.status(409).json({ message: 'Account already exists' });
+            }
+
+            // SC/VC mutual exclusivity: an account group cannot have both
+            const conflictingType =
+                integration_type === IntegrationType.SP_API_SC ? IntegrationType.SP_API_VC :
+                    integration_type === IntegrationType.SP_API_VC ? IntegrationType.SP_API_SC :
+                        null;
+
+            if (conflictingType) {
+                const conflict = await IntegrationAccount.findOne({
+                    where: {
+                        organization_id: orgId,
+                        marketplace: resolvedMarketplace,
+                        account_name,
+                        region,
+                        integration_type: conflictingType,
+                    },
+                    transaction: t,
+                });
+
+                if (conflict) {
+                    const label = conflictingType === IntegrationType.SP_API_SC ? 'Seller Central' : 'Vendor Central';
+                    return res.status(409).json({ message: `This account group already has ${label}. An Amazon entity cannot have both Seller Central and Vendor Central.` });
+                }
             }
 
             return await IntegrationAccount.create(
@@ -160,10 +185,25 @@ export const connectIntegrationAccount = async (req: Request, res: Response) => 
             return res.status(404).json({ message: 'Integration account not found' });
         }
 
+        if (!credentials || typeof credentials !== 'object') {
+            return res.status(400).json({ message: 'Valid credentials object is required' });
+        }
+
+        const secureCredentials = { encrypted: encrypt(JSON.stringify(credentials)) };
+
         await account.update({
             status: IntegrationStatus.CONNECTED,
-            credentials: credentials || null,
+            credentials: secureCredentials,
             connected_at: new Date(),
+        });
+
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'CONNECT_INTEGRATION_ACCOUNT',
+            entityType: 'IntegrationAccount',
+            entityId: id,
+            details: { type: account.integration_type },
+            req
         });
 
         res.status(200).json({ account });
@@ -193,6 +233,16 @@ export const disconnectIntegrationAccount = async (req: Request, res: Response) 
         await account.update({
             status: IntegrationStatus.DISCONNECTED,
             connected_at: null,
+            credentials: null,
+        });
+
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'DISCONNECT_INTEGRATION_ACCOUNT',
+            entityType: 'IntegrationAccount',
+            entityId: id,
+            details: { type: account.integration_type },
+            req
         });
 
         res.status(200).json({ account });
@@ -243,16 +293,26 @@ export const connectGlobalIntegration = async (req: Request, res: Response) => {
             });
 
             if (existing) {
+                let existingCreds = existing.credentials;
+                if (credentials && typeof credentials === 'object') {
+                    existingCreds = { encrypted: encrypt(JSON.stringify(credentials)) };
+                }
+
                 await existing.update(
                     {
                         status: GlobalIntegrationStatus.CONNECTED,
                         config: config || existing.config,
-                        credentials: credentials || existing.credentials,
+                        credentials: existingCreds,
                         connected_at: new Date(),
                     },
                     { transaction: t }
                 );
                 return existing;
+            }
+
+            let newCreds = null;
+            if (credentials && typeof credentials === 'object') {
+                newCreds = { encrypted: encrypt(JSON.stringify(credentials)) };
             }
 
             return await GlobalIntegration.create(
@@ -261,11 +321,20 @@ export const connectGlobalIntegration = async (req: Request, res: Response) => {
                     service_name,
                     status: GlobalIntegrationStatus.CONNECTED,
                     config: config || null,
-                    credentials: credentials || null,
+                    credentials: newCreds,
                     connected_at: new Date(),
                 },
                 { transaction: t }
             );
+        });
+
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'CONNECT_GLOBAL_INTEGRATION',
+            entityType: 'GlobalIntegration',
+            entityId: integration.id,
+            details: { service_name },
+            req
         });
 
         res.status(200).json({ integration });
@@ -294,6 +363,16 @@ export const disconnectGlobalIntegration = async (req: Request, res: Response) =
         await integration.update({
             status: GlobalIntegrationStatus.DISCONNECTED,
             connected_at: null,
+            credentials: null,
+        });
+
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'DISCONNECT_GLOBAL_INTEGRATION',
+            entityType: 'GlobalIntegration',
+            entityId: id,
+            details: { service_name: integration.service_name },
+            req
         });
 
         res.status(200).json({ message: 'Global integration disconnected successfully' });

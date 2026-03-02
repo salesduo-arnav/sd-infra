@@ -84,6 +84,7 @@ Plan.init(
     price: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      comment: 'Price in base currency. Converted to cents dynamically for Stripe.',
     },
     currency: {
       type: DataTypes.STRING,
@@ -128,8 +129,8 @@ Plan.init(
         const { PlanLimit } = await import('./plan_limit');
         const { BundlePlan } = await import('./bundle_plan');
 
-        await PlanLimit.destroy({ where: { plan_id: plan.id }, transaction: options.transaction });
-        await BundlePlan.destroy({ where: { plan_id: plan.id }, transaction: options.transaction });
+        await PlanLimit.destroy({ where: { plan_id: plan.id }, transaction: options.transaction, individualHooks: true });
+        await BundlePlan.destroy({ where: { plan_id: plan.id }, transaction: options.transaction, individualHooks: true });
       }
     }
   }

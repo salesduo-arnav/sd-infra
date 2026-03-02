@@ -118,14 +118,14 @@ router.get('/admin/users', authenticate, requireAdmin, getUsers);
 
 ## Issues Found
 
-1. **No session binding to IP/User-Agent** — Sessions are not bound to the client's IP address or User-Agent, making them vulnerable to session hijacking/fixation attacks.
-2. **No CSRF token validation** — State-changing endpoints have no CSRF protection beyond CORS.
-3. **Error handler exposes error messages** — The global error handler returns `error.message` to the client, which could leak internal implementation details.
-4. **Error handler doesn't check `res.headersSent`** — If headers are already sent (e.g., streaming response), attempting to send a 500 response will cause `ERR_HTTP_HEADERS_ALREADY_SENT`.
-5. **Error handler always returns 500** — No distinction between client errors (400-level) and server errors (500-level). All unhandled errors are treated as 500.
-6. **Error stack logged in production** — Full stack traces are logged, which could expose sensitive file paths, environment variables, or code structure.
-7. **Organization fallback behavior** — When no `x-organization-id` header is provided, silently falling back to the first organization is surprising behavior that could lead to unintended data access.
-8. **`requireOwner` uses string comparison** — Checking `role.name === 'Owner'` is brittle. Renaming or localizing role names breaks access control.
-9. **Morgan logs all requests including health checks** — The skip function always returns `false`, meaning `/health` endpoint polling generates excessive log noise.
-10. **`console.error` in organization middleware** — Uses `console.error` instead of the Logger utility, inconsistent with the rest of the codebase.
-11. **Race condition in auth middleware** — A user could be deleted between the Redis session lookup and the database user lookup, causing an unexpected state.
+- [x] **[ALREADY FIXED] No session binding to IP/User-Agent** — Sessions are not bound to the client's IP address or User-Agent, making them vulnerable to session hijacking/fixation attacks.
+- [ ] **[SKIPPED] No CSRF token validation** — State-changing endpoints have no CSRF protection beyond CORS. *(SKIPPED: Existing mitigations in place - CORS, SameSite cookie)*
+- [x] **Error handler exposes error messages** — The global error handler returns `error.message` to the client, which could leak internal implementation details.
+- [x] **Error handler doesn't check `res.headersSent`** — If headers are already sent (e.g., streaming response), attempting to send a 500 response will cause `ERR_HTTP_HEADERS_ALREADY_SENT`.
+- [x] **Error handler always returns 500** — No distinction between client errors (400-level) and server errors (500-level). All unhandled errors are treated as 500.
+- [x] **Error stack logged in production** — Full stack traces are logged, which could expose sensitive file paths, environment variables, or code structure.
+- [x] **[ALREADY FIXED] Organization fallback behavior** — When no `x-organization-id` header is provided, silently falling back to the first organization is surprising behavior that could lead to unintended data access.
+- [x] **[ALREADY FIXED] `requireOwner` uses string comparison** — Checking `role.name === 'Owner'` is brittle. Renaming or localizing role names breaks access control.
+- [x] **Morgan logs all requests including health checks** — The skip function always returns `false`, meaning `/health` endpoint polling generates excessive log noise.
+- [x] **[ALREADY FIXED] `console.error` in organization middleware** — Uses `console.error` instead of the Logger utility, inconsistent with the rest of the codebase.
+- [x] **[ALREADY FIXED] Race condition in auth middleware** — A user could be deleted between the Redis session lookup and the database user lookup, causing an unexpected state.

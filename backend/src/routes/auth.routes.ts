@@ -13,6 +13,15 @@ import {
     verifySignupOtp
 } from '../controllers/auth.controller';
 import { authenticate } from '../middlewares/auth.middleware';
+import rateLimit from 'express-rate-limit';
+
+const otpRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // Limit each IP to 5 requests per windowMs
+    message: { message: 'Too many OTP requests from this IP, please try again after 15 minutes' },
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
 
 const router = Router();
 
@@ -25,9 +34,9 @@ router.post('/logout', authenticate, logout);
 router.post('/google', googleAuth);
 
 // OTP Authentication Routes
-router.post('/send-login-otp', sendLoginOtp);
-router.post('/verify-login-otp', verifyLoginOtp);
-router.post('/send-signup-otp', sendSignupOtp);
-router.post('/verify-signup-otp', verifySignupOtp);
+router.post('/send-login-otp', otpRateLimiter, sendLoginOtp);
+router.post('/verify-login-otp', otpRateLimiter, verifyLoginOtp);
+router.post('/send-signup-otp', otpRateLimiter, sendSignupOtp);
+router.post('/verify-signup-otp', otpRateLimiter, verifySignupOtp);
 
 export default router;

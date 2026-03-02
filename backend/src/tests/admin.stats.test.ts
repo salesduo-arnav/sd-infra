@@ -6,7 +6,7 @@ import redisClient from '../config/redis';
 import User from '../models/user';
 import { Organization, Subscription, ToolUsage, OneTimePurchase, Tool, Plan } from '../models';
 import { SubStatus, PriceInterval, TierType } from '../models/enums';
-import { OrgStatus } from '../models/organization';
+import { OrgStatus } from '../models/enums';
 import { Role } from '../models/role';
 import path from 'path';
 import dotenv from 'dotenv';
@@ -107,6 +107,7 @@ describe('Admin Stats Controller', () => {
                 amount_paid: 50,
                 status: 'succeeded',
                 organization_id: org.id, // Linked to Org, not User directly
+                plan_id: monthlyPlan.id,
                 created_at: now
             });
 

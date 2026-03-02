@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
-import { Organization, OrganizationMember, OrgStatus } from '../models/organization';
-import { Role } from '../models/role';
+import { Organization, OrganizationMember } from '../models/organization';
+import { OrgStatus } from '../models/enums';
+import { Role, RolePermission } from '../models/role';
 import { User } from '../models/user';
 import sequelize from '../config/db';
 import { handleError } from '../utils/error';
@@ -8,6 +9,7 @@ import { getPaginationOptions, formatPaginationResponse } from '../utils/paginat
 import { AuditService } from '../services/audit.service';
 import { invitationService } from '../services/invitation.service';
 import Logger from '../utils/logger';
+import { RoleType } from '../constants/rbac.constants';
 
 import { SystemConfig } from '../models/system_config';
 
@@ -35,12 +37,12 @@ export const createOrganization = async (req: Request, res: Response) => {
 
         const result = await sequelize.transaction(async (t) => {
             // Generate slug from name
-            let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 40);
 
             // Append random string if slug exists
             const slugExists = await Organization.findOne({ where: { slug }, transaction: t });
             if (slugExists) {
-                slug = `${slug}-${Math.floor(Math.random() * 10000)}`;
+                slug = `${slug.substring(0, 35)}-${Math.floor(Math.random() * 10000)}`;
             }
 
             // Create Organization
@@ -52,9 +54,9 @@ export const createOrganization = async (req: Request, res: Response) => {
             }, { transaction: t });
 
             // Find or Create Owner Role
-            let ownerRole = await Role.findOne({ where: { name: 'Owner' }, transaction: t });
+            let ownerRole = await Role.findOne({ where: { name: RoleType.OWNER }, transaction: t });
             if (!ownerRole) {
-                ownerRole = await Role.create({ name: 'Owner', description: 'Organization Owner' }, { transaction: t });
+                ownerRole = await Role.create({ name: RoleType.OWNER, description: 'Organization Owner' }, { transaction: t });
             }
 
             // Add User as Owner
@@ -68,52 +70,50 @@ export const createOrganization = async (req: Request, res: Response) => {
             return organization;
         });
 
-        // Handle Invites in background (fire and forget)
-        const handleInvites = async () => {
-            if (invites && Array.isArray(invites) && invites.length > 0) {
-                try {
-                    // Find Member Role
-                    let memberRole = await Role.findOne({ where: { name: 'Member' } });
-                    if (!memberRole) {
-                        memberRole = await Role.create({ name: 'Member', description: 'Organization Member' });
-                    }
+        const failedInvites: string[] = [];
 
-                    for (const email of invites) {
-                        if (email && typeof email === 'string') {
-                            // Use separate transaction or no transaction for each invite
-                            await invitationService.sendInvitation(result.id, email, memberRole.id, userId);
-                        }
-                    }
-                } catch (inviteError) {
-                    Logger.error('Error sending background invites', { error: inviteError });
+        // Handle Invites
+        if (invites && Array.isArray(invites) && invites.length > 0) {
+            try {
+                // Find Member Role
+                let memberRole = await Role.findOne({ where: { name: RoleType.MEMBER } });
+                if (!memberRole) {
+                    memberRole = await Role.create({ name: RoleType.MEMBER, description: 'Organization Member' });
                 }
+
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                const invitePromises = invites.map(async (email) => {
+                    if (email && typeof email === 'string' && emailRegex.test(email)) {
+                        try {
+                            await invitationService.sendInvitation(result.id, email, memberRole.id, userId);
+                        } catch (inviteError) {
+                            Logger.error(`Error sending invite to ${email}`, { error: inviteError });
+                            failedInvites.push(email);
+                        }
+                    } else {
+                        failedInvites.push(email); // Invalid email format
+                    }
+                });
+
+                await Promise.all(invitePromises);
+            } catch (error) {
+                Logger.error('Error processing invites', { error });
             }
-        };
-
-        // Trigger invites without awaiting
-        handleInvites();
+        }
 
         await AuditService.log({
             actorId: userId,
             action: 'CREATE_ORGANIZATION',
             entityType: 'Organization',
             entityId: result.id,
-            details: { name: result.name, slug: result.slug, invites_count: invites?.length || 0 },
-            req
-        });
-
-        await AuditService.log({
-            actorId: userId,
-            action: 'CREATE_ORGANIZATION',
-            entityType: 'Organization',
-            entityId: result.id,
-            details: { name: result.name, slug: result.slug, invites_count: invites?.length || 0 },
+            details: { name: result.name, slug: result.slug, invites_count: invites?.length || 0, failed_invites_count: failedInvites.length },
             req
         });
 
         res.status(201).json({
             message: 'Organization created successfully',
-            organization: result
+            organization: result,
+            ...(failedInvites.length > 0 && { failed_invites: failedInvites })
         });
 
     } catch (error) {
@@ -288,7 +288,7 @@ export const updateOrganization = async (req: Request, res: Response) => {
             }
 
             // Check permissions (Owner only)
-            if (membership.role?.name !== 'Owner') {
+            if (membership.role?.name !== RoleType.OWNER) {
                 throw new Error('FORBIDDEN');
             }
 
@@ -352,7 +352,7 @@ export const removeMember = async (req: Request, res: Response) => {
 
         // Only Owner or Admin can remove members
         const currentRole = currentUserMembership.role?.name;
-        if (currentRole !== 'Owner' && currentRole !== 'Admin') {
+        if (currentRole !== RoleType.OWNER && currentRole !== RoleType.ADMIN) {
             return res.status(403).json({ message: 'Insufficient permissions' });
         }
 
@@ -367,12 +367,12 @@ export const removeMember = async (req: Request, res: Response) => {
         }
 
         // Cannot remove the Owner
-        if (memberToRemove.role?.name === 'Owner') {
+        if (memberToRemove.role?.name === RoleType.OWNER) {
             return res.status(403).json({ message: 'Cannot remove the organization owner' });
         }
 
         // Admin cannot remove other Admins (only Owner can)
-        if (currentRole === 'Admin' && memberToRemove.role?.name === 'Admin') {
+        if (currentRole === RoleType.ADMIN && memberToRemove.role?.name === RoleType.ADMIN) {
             return res.status(403).json({ message: 'Only the owner can remove admins' });
         }
 
@@ -423,7 +423,7 @@ export const updateMemberRole = async (req: Request, res: Response) => {
         }
 
         // Only Owner can change roles
-        if (currentUserMembership.role?.name !== 'Owner') {
+        if (currentUserMembership.role?.name !== RoleType.OWNER) {
             return res.status(403).json({ message: 'Only the owner can change member roles' });
         }
 
@@ -438,7 +438,7 @@ export const updateMemberRole = async (req: Request, res: Response) => {
         }
 
         // Cannot change Owner's role directly (use transfer ownership instead)
-        if (memberToUpdate.role?.name === 'Owner') {
+        if (memberToUpdate.role?.name === RoleType.OWNER) {
             return res.status(403).json({ message: 'Cannot change owner role. Use transfer ownership instead.' });
         }
 
@@ -447,7 +447,7 @@ export const updateMemberRole = async (req: Request, res: Response) => {
         if (!newRole) {
             return res.status(400).json({ message: 'Invalid role' });
         }
-        if (newRole.name === 'Owner') {
+        if (newRole.name === RoleType.OWNER) {
             return res.status(403).json({ message: 'Cannot assign Owner role. Use transfer ownership instead.' });
         }
 
@@ -500,7 +500,7 @@ export const transferOwnership = async (req: Request, res: Response) => {
         }
 
         // Only Owner can transfer ownership
-        if (currentOwnerMembership.role?.name !== 'Owner') {
+        if (currentOwnerMembership.role?.name !== RoleType.OWNER) {
             return res.status(403).json({ message: 'Only the owner can transfer ownership' });
         }
 
@@ -519,8 +519,8 @@ export const transferOwnership = async (req: Request, res: Response) => {
         }
 
         // Get role IDs
-        const ownerRole = await Role.findOne({ where: { name: 'Owner' } });
-        const adminRole = await Role.findOne({ where: { name: 'Admin' } });
+        const ownerRole = await Role.findOne({ where: { name: RoleType.OWNER } });
+        const adminRole = await Role.findOne({ where: { name: RoleType.ADMIN } });
 
         if (!ownerRole || !adminRole) {
             return res.status(500).json({ message: 'Required roles not found' });
@@ -571,7 +571,7 @@ export const deleteOrganization = async (req: Request, res: Response) => {
         }
 
         // Only Owner can delete organization
-        if (currentUserMembership.role?.name !== 'Owner') {
+        if (currentUserMembership.role?.name !== RoleType.OWNER) {
             return res.status(403).json({ message: 'Only the owner can delete the organization' });
         }
 
@@ -599,5 +599,19 @@ export const deleteOrganization = async (req: Request, res: Response) => {
 
     } catch (error) {
         handleError(res, error, 'Delete Organization Error');
+    }
+};
+
+export const getMyPermissions = async (req: Request, res: Response) => {
+    try {
+        const roleId = req.membership?.role_id;
+        if (!roleId) {
+            return res.json({ permissions: [] });
+        }
+        const rolePerms = await RolePermission.findAll({ where: { role_id: roleId } });
+        const permissionIds = rolePerms.map(rp => rp.permission_id);
+        res.json({ permissions: permissionIds });
+    } catch (error) {
+        handleError(res, error, 'Get My Permissions Error');
     }
 };

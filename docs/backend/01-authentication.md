@@ -96,12 +96,12 @@ Both `/auth/register` and `/auth/login` accept an optional `token` parameter. Wh
 
 ## Issues Found
 
-1. **No password strength validation** — Registration and password reset do not enforce password complexity rules (minimum length, character requirements) at the controller level.
-2. **OTP brute-force risk** — No rate limiting on OTP endpoints. The 6-digit OTP (60,000 combinations) with 5 retry attempts is vulnerable to automated brute-force attacks. Consider adding per-IP rate limiting.
-3. **OTP stored in plaintext** — OTPs are stored in Redis without hashing. If Redis is compromised, all active OTPs are exposed. Consider storing hashed OTPs.
-4. **Password stored in Redis during signup OTP flow** — The `createSignupOtp` method stores the user's password in plaintext in Redis while awaiting OTP verification. This should be hashed before storage.
-5. **OTP TTL is hardcoded** — The 5-minute OTP expiry is hardcoded in the OTP service rather than being configurable via environment variable or system config.
-6. **No session binding** — Sessions are not bound to IP address or User-Agent, making them vulnerable to session fixation/hijacking attacks.
-7. **No CSRF protection** — No CSRF token validation is implemented on state-changing endpoints.
-8. **Forgot password returns generic message** — Good for preventing user enumeration, but no internal monitoring/alerting for failed attempts.
-9. **Race condition** — A user could be deleted between the auth middleware check and the request handler execution, causing unexpected errors.
+- [x] **No password strength validation** — Registration and password reset do not enforce password complexity rules (minimum length, character requirements) at the controller level.
+- [x] **OTP brute-force risk** — No rate limiting on OTP endpoints. The 6-digit OTP (60,000 combinations) with 5 retry attempts is vulnerable to automated brute-force attacks. Consider adding per-IP rate limiting.
+- [x] **OTP stored in plaintext** — OTPs are stored in Redis without hashing. If Redis is compromised, all active OTPs are exposed. Consider storing hashed OTPs.
+- [x] **Password stored in Redis during signup OTP flow** — The `createSignupOtp` method stores the user's password in plaintext in Redis while awaiting OTP verification. This should be hashed before storage.
+- [x] **OTP TTL is hardcoded** — The 5-minute OTP expiry is hardcoded in the OTP service rather than being configurable via environment variable or system config.
+- [x] **No session binding** — Sessions are not bound to IP address or User-Agent, making them vulnerable to session fixation/hijacking attacks.
+- [ ] **No CSRF protection** — No CSRF token validation is implemented on state-changing endpoints. _**[Skipped]**_
+- [ ] **Forgot password returns generic message** — Good for preventing user enumeration, but no internal monitoring/alerting for failed attempts.  _**[Skipped]**_
+- [ ] **Race condition** — A user could be deleted between the auth middleware check and the request handler execution, causing unexpected errors. _**[Skipped]**_

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { billingController } from '../controllers/billing.controller';
 import { authenticate } from '../middlewares/auth.middleware'; 
-import { resolveOrganization, requireOrganization } from '../middlewares/organization.middleware';
+import { resolveOrganization, requireOrganization, requirePermission } from '../middlewares/organization.middleware';
 
 const router = Router();
 
@@ -10,34 +10,23 @@ router.use(authenticate);
 router.use(resolveOrganization);
 router.use(requireOrganization);
 
-// Get public/user-accessible config
-router.get('/config', billingController.getConfig.bind(billingController));
+// Read endpoints — require billing.view
+router.get('/config', requirePermission('billing.view'), billingController.getConfig.bind(billingController));
+router.get('/', requirePermission('billing.view'), billingController.getSubscription);
+router.get('/invoices', requirePermission('billing.view'), billingController.getInvoices.bind(billingController));
+router.get('/payment-methods', requirePermission('billing.view'), billingController.getPaymentMethods.bind(billingController));
+router.get('/trial/eligibility', requirePermission('billing.view'), billingController.checkTrialEligibility.bind(billingController));
 
-// Get current subscription
-router.get('/', billingController.getSubscription);
-
-// Create Checkout Session
-router.post('/checkout-session', billingController.createCheckoutSession.bind(billingController));
-
-// Create Portal Session
-router.post('/portal-session', billingController.createPortalSession.bind(billingController));
-
-// Invoices and Payment Methods
-router.get('/invoices', billingController.getInvoices.bind(billingController));
-router.get('/payment-methods', billingController.getPaymentMethods.bind(billingController));
-
-// Subscription Management
-router.post('/subscription/:id/cancel', billingController.cancelSubscription.bind(billingController));
-router.post('/subscription/:id/resume', billingController.resumeSubscription.bind(billingController));
-router.post('/subscription/:id/cancel-downgrade', billingController.cancelDowngrade.bind(billingController));
-router.put('/subscription/:id', billingController.updateSubscription.bind(billingController));
-// Sync Subscription
-router.post('/sync', billingController.syncSubscription.bind(billingController));
-
-// Trial Management
-router.post('/trial/start', billingController.startTrial.bind(billingController));
-router.post('/trial/:id/cancel', billingController.cancelTrial.bind(billingController));
-router.get('/trial/eligibility', billingController.checkTrialEligibility.bind(billingController));
-
+// Mutation endpoints — require billing.manage
+router.post('/checkout-session', requirePermission('billing.manage'), billingController.createCheckoutSession.bind(billingController));
+router.post('/portal-session', requirePermission('billing.manage'), billingController.createPortalSession.bind(billingController));
+router.post('/subscription/:id/cancel', requirePermission('billing.manage'), billingController.cancelSubscription.bind(billingController));
+router.post('/subscription/:id/resume', requirePermission('billing.manage'), billingController.resumeSubscription.bind(billingController));
+router.post('/subscription/:id/cancel-downgrade', requirePermission('billing.manage'), billingController.cancelDowngrade.bind(billingController));
+router.put('/subscription/:id', requirePermission('billing.manage'), billingController.updateSubscription.bind(billingController));
+router.post('/sync', requirePermission('billing.manage'), billingController.syncSubscription.bind(billingController));
+router.post('/trial/start', requirePermission('billing.manage'), billingController.startTrial.bind(billingController));
+router.post('/trial/:id/cancel', requirePermission('billing.manage'), billingController.cancelTrial.bind(billingController));
 
 export default router;
+

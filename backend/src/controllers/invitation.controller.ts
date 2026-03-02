@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { Invitation, InvitationStatus } from '../models/invitation';
+import { Invitation } from '../models/invitation';
+import { InvitationStatus } from '../models/enums';
 import { OrganizationMember } from '../models/organization';
 import { Role } from '../models/role';
 
@@ -10,20 +11,26 @@ import { AuditService } from '../services/audit.service';
 import { SystemConfig } from '../models/system_config';
 import { invitationService } from '../services/invitation.service';
 import Logger from '../utils/logger';
+import { RoleType } from '../constants/rbac.constants';
 
 export const inviteMember = async (req: Request, res: Response) => {
     Logger.info('Inviting member', { email: req.body.email, role_id: req.body.role_id, userId: req.user?.id });
     try {
         const { email, role_id } = req.body;
         const userId = req.user?.id;
+        const orgIdStr = req.headers['x-organization-id'] as string;
+
+        if (!orgIdStr) {
+            return res.status(400).json({ message: 'x-organization-id header is required' });
+        }
 
         // Check permission
         const membership = await OrganizationMember.findOne({
-            where: { user_id: userId },
+            where: { user_id: userId, organization_id: orgIdStr },
             include: [{ model: Role, as: 'role' }]
         });
 
-        if (!membership || (membership.role?.name !== 'Owner' && membership.role?.name !== 'Admin')) {
+        if (!membership || (membership.role?.name !== RoleType.OWNER && membership.role?.name !== RoleType.ADMIN)) {
             return res.status(403).json({ message: 'Insufficient permissions' });
         }
 
@@ -37,7 +44,7 @@ export const inviteMember = async (req: Request, res: Response) => {
         const pendingInviteCount = await Invitation.count({ where: { organization_id: orgId, status: InvitationStatus.PENDING } });
 
         if ((currentMemberCount + pendingInviteCount) >= maxCapacity) {
-             return res.status(403).json({ message: `Organization has reached its maximum capacity of ${maxCapacity} members (including pending invites).` });
+            return res.status(403).json({ message: `Organization has reached its maximum capacity of ${maxCapacity} members (including pending invites).` });
         }
 
         const invitation = await invitationService.sendInvitation(orgId, email, role_id, userId);
@@ -54,7 +61,7 @@ export const inviteMember = async (req: Request, res: Response) => {
         res.status(201).json({ message: 'Invitation sent', invitation });
 
     } catch (error) {
-        if (error instanceof Error && (error.message === 'User already invited' || error.message === 'User is already a member')) {
+        if (error instanceof Error && (error.message === 'User already invited' || error.message === 'User is already a member' || error.message === 'Invalid email format')) {
             return res.status(400).json({ message: error.message });
         }
         handleError(res, error, 'Invite Error');
@@ -64,9 +71,15 @@ export const inviteMember = async (req: Request, res: Response) => {
 export const getPendingInvitations = async (req: Request, res: Response) => {
     try {
         const userId = req.user?.id;
+        const orgIdStr = req.headers['x-organization-id'] as string;
+
+        if (!orgIdStr) {
+            return res.status(400).json({ message: 'x-organization-id header is required' });
+        }
+
         // Check permission (Reader/Viewer might not see invites, but Admin/Owner should)
         const membership = await OrganizationMember.findOne({
-            where: { user_id: userId }
+            where: { user_id: userId, organization_id: orgIdStr }
         });
 
         if (!membership) return res.status(403).json({ message: 'Not in organization' });
@@ -89,13 +102,18 @@ export const revokeInvitation = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const userId = req.user?.id;
+        const orgIdStr = req.headers['x-organization-id'] as string;
+
+        if (!orgIdStr) {
+            return res.status(400).json({ message: 'x-organization-id header is required' });
+        }
 
         const membership = await OrganizationMember.findOne({
-            where: { user_id: userId },
+            where: { user_id: userId, organization_id: orgIdStr },
             include: [{ model: Role, as: 'role' }]
         });
 
-        if (!membership || (membership.role?.name !== 'Owner' && membership.role?.name !== 'Admin')) {
+        if (!membership || (membership.role?.name !== RoleType.OWNER && membership.role?.name !== RoleType.ADMIN)) {
             return res.status(403).json({ message: 'Insufficient permissions' });
         }
 
@@ -187,7 +205,7 @@ export const acceptInvitation = async (req: Request, res: Response) => {
         // Check User Org Limit (Reuse logic or keep inline for now)
         const userOrgLimitConfig = await SystemConfig.findByPk('user_org_limit');
         const limit = userOrgLimitConfig ? parseInt(userOrgLimitConfig.value, 10) : 5; // Default 5
-        
+
         const currentOrgCount = await OrganizationMember.count({
             where: { user_id: userId }
         });
@@ -204,7 +222,7 @@ export const acceptInvitation = async (req: Request, res: Response) => {
 
         // NOW check limit since they are NOT a member yet
         if (currentOrgCount >= limit) {
-             return res.status(403).json({ message: `You have reached the limit of ${limit} organizations.` });
+            return res.status(403).json({ message: `You have reached the limit of ${limit} organizations.` });
         }
 
         // Add user to organization

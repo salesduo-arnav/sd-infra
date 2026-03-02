@@ -103,13 +103,13 @@ Tools can specify `required_integrations` (JSONB array of integration slugs). Du
 
 ## Issues Found
 
-1. **SECURITY: Credentials stored in plaintext** — Both `IntegrationAccount` and `GlobalIntegration` store OAuth tokens and credentials as plaintext JSONB. These should be encrypted at rest.
-2. **SECURITY: OAuth state comparison vulnerable to timing attacks** — The `ads.controller.ts` compares `account.oauth_state !== returnedState` using standard string comparison, which is susceptible to timing attacks. Should use a constant-time comparison function.
-3. **SECURITY: CSP header override in OAuth callback** — The ads callback handler sets an unsafe Content-Security-Policy with inline scripts to render the success page. This could allow XSS if the HTML generation has escaping issues.
-4. **No audit logging for credential changes** — Connecting, disconnecting, and modifying integration credentials are not logged to the audit system.
-5. **No credential validation** — The `connectIntegrationAccount` endpoint stores whatever `credentials` object is provided without validating its structure or required fields.
-6. **Missing `error_message` field** — When `IntegrationAccount` status is `ERROR`, there's no field to store the error reason, making debugging difficult.
-7. **OAuth callback is public** — The `/integrations/ads/callback` endpoint has no authentication. While this is necessary for OAuth redirects, it relies entirely on state validation for security.
-8. **No oauth_state timeout/cleanup** — OAuth state parameters are stored on integration accounts but never cleaned up if the OAuth flow is abandoned.
-9. **`required_integrations` not validated** — The `Tool.required_integrations` JSONB field accepts arbitrary strings with no validation against known integration types.
-10. **No rate limiting on token exchange** — The OAuth token exchange endpoint has no rate limiting, potentially allowing abuse.
+- [x] **SECURITY: Credentials stored in plaintext** — Both `IntegrationAccount` and `GlobalIntegration` store OAuth tokens and credentials as plaintext JSONB. These should be encrypted at rest.
+- [x] **SECURITY: OAuth state comparison vulnerable to timing attacks** — The `ads.controller.ts` compares `account.oauth_state !== returnedState` using standard string comparison, which is susceptible to timing attacks. Should use a constant-time comparison function.
+- [x] **SECURITY: CSP header override in OAuth callback** — The ads callback handler sets an unsafe Content-Security-Policy with inline scripts to render the success page. This could allow XSS if the HTML generation has escaping issues.
+- [x] **No audit logging for credential changes** — Connecting, disconnecting, and modifying integration credentials are not logged to the audit system.
+- [x] **No credential validation** — The `connectIntegrationAccount` endpoint stores whatever `credentials` object is provided without validating its structure or required fields.
+- [ ] **[Skipped] Missing `error_message` field** — When `IntegrationAccount` status is `ERROR`, there's no field to store the error reason, making debugging difficult. *(Skipped: Not required, current logging should be enough)*
+- [ ] **[Skipped] OAuth callback is public** — The `/integrations/ads/callback` endpoint has no authentication. While this is necessary for OAuth redirects, it relies entirely on state validation for security. *(Skipped: Needs to be public for amazon callback)*
+- [ ] **[Skipped] No oauth_state timeout/cleanup** — OAuth state parameters are stored on integration accounts but never cleaned up if the OAuth flow is abandoned. *(Skipped: Not required)*
+- [x] **`required_integrations` not validated** — The `Tool.required_integrations` JSONB field accepts arbitrary strings with no validation against known integration types.
+- [x] **No rate limiting on token exchange** — The OAuth token exchange endpoint has no rate limiting, potentially allowing abuse.

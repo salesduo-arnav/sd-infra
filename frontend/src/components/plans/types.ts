@@ -54,6 +54,7 @@ export interface App {
   trialPlanId?: string;
   trialPlanInterval?: string;
   trialPlanDescription?: string;
+  trialPlanCurrency?: string;
 }
 
 export interface CartItem {

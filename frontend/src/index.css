@@ -127,7 +127,7 @@
   html,
   body,
   #root {
-    @apply h-full overflow-auto;
+    @apply h-full overflow-hidden;
   }
 
   body {

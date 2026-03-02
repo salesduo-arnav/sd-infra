@@ -85,10 +85,10 @@ This prevents forged webhook requests. The `stripeService.constructEvent()` meth
 
 ## Issues Found
 
-1. **Route ordering fragility** — The webhook route must be mounted before `express.json()` in `app.ts`. If routes are reordered, webhook signature verification silently breaks because the body will be JSON-parsed instead of raw.
-2. **No replay protection** — While Stripe signatures prevent forgery, there's no explicit nonce or idempotency key checking to prevent webhook replay attacks.
-3. **No retry/dead-letter handling** — If webhook processing fails (database down, logic error), there's no retry mechanism. Stripe will retry automatically, but the application doesn't track failed webhook deliveries.
-4. **Missing event types** — Common Stripe events like `invoice.paid`, `invoice.payment_succeeded`, `customer.subscription.trial_will_end` are not handled.
-5. **Webhook handler is in the billing controller** — The webhook handling logic is mixed into the billing controller (~1200 LOC file) rather than being a separate, focused handler.
-6. **No webhook event logging** — Incoming webhook events are not logged to the audit system, making it difficult to debug payment issues.
-7. **Subscription lookup by Stripe ID has no unique constraint** — Finding subscriptions by `stripe_subscription_id` assumes uniqueness, but the model doesn't enforce it, potentially causing duplicate updates.
+1. **Route ordering fragility** — The webhook route must be mounted before `express.json()` in `app.ts`. If routes are reordered, webhook signature verification silently breaks because the body will be JSON-parsed instead of raw. (Already done in stripe subscription issues)
+2. ~~**No replay protection** — While Stripe signatures prevent forgery, there's no explicit nonce or idempotency key checking to prevent webhook replay attacks.~~
+3. ~~**No retry/dead-letter handling** — If webhook processing fails (database down, logic error), there's no retry mechanism. Stripe will retry automatically, but the application doesn't track failed webhook deliveries.~~
+4. **Missing event types** — Common Stripe events like `invoice.paid`, `invoice.payment_succeeded`, `customer.subscription.trial_will_end` are not handled. (Not needed)
+5. ~~**Webhook handler is in the billing controller** — The webhook handling logic is mixed into the billing controller (~1200 LOC file) rather than being a separate, focused handler.~~
+6. ~~**No webhook event logging** — Incoming webhook events are not logged to the audit system, making it difficult to debug payment issues.~~
+7. **Subscription lookup by Stripe ID has no unique constraint** — Finding subscriptions by `stripe_subscription_id` assumes uniqueness, but the model doesn't enforce it, potentially causing duplicate updates. (Already handled in stripe subscription issues)

@@ -98,13 +98,19 @@ These public endpoints are used for the pricing page and plan selection, accessi
 
 ## Issues Found
 
-1. **Usage tracking uses `req.user.organization_id`** — The `trackToolUsage` handler extracts `organization_id` from the user object rather than the `x-organization-id` header. The User model doesn't guarantee this field exists, which could result in null organization tracking.
-2. **UUID validation regex is case-sensitive** — The UUID validation regex in `trackToolUsage` doesn't account for uppercase hex characters, potentially rejecting valid UUIDs.
+1. ~~**Usage tracking uses `req.user.organization_id`** — The `trackToolUsage` handler extracts `organization_id` from the user object rather than the `x-organization-id` header. The User model doesn't guarantee this field exists, which could result in null organization tracking.~~
+2. ~~**UUID validation regex is case-sensitive** — The UUID validation regex in `trackToolUsage` doesn't account for uppercase hex characters, potentially rejecting valid UUIDs.~~
 3. **No authentication on tool listing** — `getTools` and `getToolBySlug` are intentionally public, but this means tool catalog data is accessible without any rate limiting.
-4. **`trial_card_required` and `trial_days` defaults unclear** — When these fields are not specified, the default behavior for trial eligibility is not documented.
+(Skipping as this is an authenticated route)
+4. ~~**`trial_card_required` and `trial_days` defaults unclear** — When these fields are not specified, the default behavior for trial eligibility is not documented.~~
 5. **`required_integrations` accepts arbitrary strings** — No validation against known integration type slugs.
-6. **Inconsistent cascade hooks** — `afterDestroy` uses `individualHooks: true` for Plan (to trigger Plan's cascade) but `individualHooks: false` for Feature. This inconsistency could lead to Feature's cascade hooks not firing.
+(Will be handled in integration issues)
+6. ~~**Inconsistent cascade hooks** — `afterDestroy` uses `individualHooks: true` for Plan (to trigger Plan's cascade) but `individualHooks: false` for Feature. This inconsistency could lead to Feature's cascade hooks not firing.~~
 7. **No date validation on ToolUsage** — Past dates are accepted for usage tracking, which could allow manipulation of usage records.
+(Skipped as this may cause more issues if delays in processing)
 8. **No rollup/aggregation strategy** — Daily usage records accumulate indefinitely with no archival or aggregation for historical data.
+(Skipped for now)
 9. **Public endpoints with deep includes** — The `/public/bundles` endpoint includes nested associations (BundleGroup -> Bundle -> Plan -> Tool -> Feature) which could cause N+1 queries in some Sequelize configurations.
+(Skipped as Sequelize's eager loading with deep includes already handles this)
 10. **No tool deprecation mechanism** — There's no way to mark a tool as deprecated (different from inactive) to warn existing users while preventing new subscriptions.
+(Skipped for now)

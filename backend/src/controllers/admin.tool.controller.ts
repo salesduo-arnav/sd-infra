@@ -11,6 +11,7 @@ import { getPaginationOptions, formatPaginationResponse } from '../utils/paginat
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
 import Logger from '../utils/logger';
+import { IntegrationType } from '../models/integration_account';
 
 // ==========================
 // Tool Config Controllers
@@ -76,6 +77,31 @@ export const createTool = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Name and slug are required' });
         }
 
+        if (required_integrations && !Array.isArray(required_integrations)) {
+            return res.status(400).json({ message: 'required_integrations must be an array' });
+        }
+
+        if (required_integrations) {
+            const validTypes = [...Object.values(IntegrationType) as string[], 'sp_api'];
+            for (const type of required_integrations) {
+                if (!validTypes.includes(type)) {
+                    return res.status(400).json({ message: `Invalid integration type in required_integrations: ${type}` });
+                }
+            }
+
+            // Enforce mutual exclusivity: sp_api (either) cannot coexist with sp_api_sc or sp_api_vc,
+            // and sp_api_sc cannot coexist with sp_api_vc.
+            const hasSpApi = required_integrations.includes('sp_api');
+            const hasSc = required_integrations.includes('sp_api_sc');
+            const hasVc = required_integrations.includes('sp_api_vc');
+            if (hasSpApi && (hasSc || hasVc)) {
+                return res.status(400).json({ message: 'Cannot combine "SP-API (Either)" with a specific Seller Central or Vendor Central requirement' });
+            }
+            if (hasSc && hasVc) {
+                return res.status(400).json({ message: 'Cannot require both Seller Central and Vendor Central — use "SP-API (Either)" instead' });
+            }
+        }
+
         const tool = await sequelize.transaction(async (t) => {
             const existingTool = await Tool.findOne({ where: { slug }, transaction: t });
             if (existingTool) {
@@ -114,6 +140,29 @@ export const updateTool = async (req: Request, res: Response) => {
         const { id } = req.params;
         const { name, slug, description, tool_link, is_active, trial_card_required, trial_days, required_integrations } = req.body;
         Logger.info('Updating tool', { id, userId: req.user?.id });
+
+        if (required_integrations && !Array.isArray(required_integrations)) {
+            return res.status(400).json({ message: 'required_integrations must be an array' });
+        }
+
+        if (required_integrations) {
+            const validTypes = [...Object.values(IntegrationType) as string[], 'sp_api'];
+            for (const type of required_integrations) {
+                if (!validTypes.includes(type)) {
+                    return res.status(400).json({ message: `Invalid integration type in required_integrations: ${type}` });
+                }
+            }
+
+            const hasSpApi = required_integrations.includes('sp_api');
+            const hasSc = required_integrations.includes('sp_api_sc');
+            const hasVc = required_integrations.includes('sp_api_vc');
+            if (hasSpApi && (hasSc || hasVc)) {
+                return res.status(400).json({ message: 'Cannot combine "SP-API (Either)" with a specific Seller Central or Vendor Central requirement' });
+            }
+            if (hasSc && hasVc) {
+                return res.status(400).json({ message: 'Cannot require both Seller Central and Vendor Central — use "SP-API (Either)" instead' });
+            }
+        }
 
         const updatedTool = await sequelize.transaction(async (t) => {
             const tool = await Tool.findByPk(id, { transaction: t });

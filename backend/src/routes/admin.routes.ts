@@ -67,6 +67,7 @@ router.put('/plans/:plan_id/limits', PlanController.upsertPlanLimit);
 router.delete('/plans/:plan_id/limits/:feature_id', PlanController.deletePlanLimit);
 
 // Audit Logs
+router.get('/audit-logs/actions', AuditController.getAuditLogActions);
 router.get('/audit-logs', AuditController.getAuditLogs);
 router.get('/audit-logs/:id', AuditController.getAuditLogById);
 
@@ -80,5 +81,11 @@ router.get('/stats/tools', StatsController.getToolUsageChart);
 import * as ConfigController from '../controllers/admin.config.controller';
 router.get('/configs', ConfigController.getConfigs);
 router.put('/configs/:key', ConfigController.updateConfig);
+
+// RBAC Management
+import * as RBACController from '../controllers/admin.rbac.controller';
+router.get('/rbac/roles', RBACController.getRoles);
+router.get('/rbac/permissions', RBACController.getPermissions);
+router.put('/rbac/roles/:roleId/permissions', RBACController.updateRolePermissions);
 
 export default router;

@@ -34,13 +34,13 @@ export const trackToolUsage = async (req: Request, res: Response) => {
     try {
         const { id } = req.params; // tool_id
         const userId = req.user?.id;
-        const organizationId = req.user?.organization_id;
+        const organizationId = req.headers['x-organization-id'] as string;
 
         if (!userId || !organizationId) {
             return res.status(400).json({ message: 'User or Organization context missing' });
         }
 
-        const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
         let tool;
         if (isUuid) {

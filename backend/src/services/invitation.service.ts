@@ -1,4 +1,5 @@
-import { Invitation, InvitationStatus } from '../models/invitation';
+import { Invitation } from '../models/invitation';
+import { InvitationStatus } from '../models/enums';
 import { OrganizationMember } from '../models/organization';
 
 import User from '../models/user';
@@ -16,6 +17,12 @@ class InvitationService {
         invitedBy: string,
         transaction?: Transaction
     ) {
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            throw new Error('Invalid email format');
+        }
+
         // Check if already invited
         const existingInvite = await Invitation.findOne({
             where: { organization_id: orgId, email, status: InvitationStatus.PENDING },
@@ -39,7 +46,8 @@ class InvitationService {
 
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+        const expiryDays = process.env.INVITATION_EXPIRY_DAYS ? parseInt(process.env.INVITATION_EXPIRY_DAYS, 10) : 7;
+        expiresAt.setDate(expiresAt.getDate() + expiryDays);
 
         const invitation = await Invitation.create({
             organization_id: orgId,
@@ -87,6 +95,7 @@ class InvitationService {
             });
         } catch (mailError) {
             Logger.error('Mail Error during invitation:', { error: mailError });
+            throw new Error('Failed to send invitation email');
         }
 
         return invitation;

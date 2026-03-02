@@ -78,7 +78,7 @@ Bundle.init(
     price: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      comment: 'Billing Info (Overrides individual plan prices)',
+      comment: 'Price in base currency. Converted to cents dynamically for Stripe (Overrides individual plan prices)',
     },
     currency: {
       type: DataTypes.STRING,

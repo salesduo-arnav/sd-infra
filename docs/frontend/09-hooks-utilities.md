@@ -59,9 +59,9 @@ See [Services & API Layer](./08-services-api.md) for detailed documentation.
 
 ## Issues Found
 
-1. **No additional custom hooks** — The application has only 2 custom hooks. Common patterns like `useDebounce`, `useLocalStorage`, or `useAsync` are repeated inline across components.
-2. **Type definitions may be incomplete** — Types are defined locally but may not cover all API response shapes, leading to `any` usage in some places.
-3. **No centralized constants** — Magic numbers and strings (timeouts, limits, status values) are scattered across components instead of being centralized.
-4. **`useMobile` has no SSR safety** — Accesses `window` directly, which would crash during server-side rendering (not currently an issue with Vite SPA, but limits future portability).
-5. **No `useDebounce` hook** — Search inputs across multiple pages trigger API calls on every keystroke because there's no debounce utility.
-6. **Toast duration not configurable globally** — Each toast call uses default duration, with no global configuration.
+- [ ] **[Skipped] No additional custom hooks** — The application has only 2 custom hooks. Common patterns like `useDebounce`, `useLocalStorage`, or `useAsync` are repeated inline across components. *(Skipped: No immediate need to replace existing implementations for these)*
+- [ ] **[SKIPPED] Type definitions may be incomplete** — Types are defined locally but may not cover all API response shapes, leading to `any` usage in some places. *(Skipped: Mostly Error handling have any types)*
+- [x] **No centralized constants** — Magic numbers and strings (timeouts, limits, status values) are scattered across components instead of being centralized.
+- [x] **`useMobile` has no SSR safety** — Accesses `window` directly, which would crash during server-side rendering (not currently an issue with Vite SPA, but limits future portability).
+- [x] **No `useDebounce` hook** — Search inputs across multiple pages trigger API calls on every keystroke because there's no debounce utility.
+- [x] **Toast duration not configurable globally** — Each toast call uses default duration, with no global configuration.

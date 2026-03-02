@@ -84,6 +84,7 @@ export const transformPlansToApps = (publicPlans: PublicPlan[]): App[] => {
                 app.trialPlanId = plan.id;
                 app.trialPlanInterval = plan.interval;
                 app.trialPlanDescription = plan.description; // Store description for button
+                app.trialPlanCurrency = plan.currency; // Store currency for cart presentation
                 // Ensure trial days are consistent if available here
                 if (tool.trial_days) app.trialDays = tool.trial_days;
             } else {

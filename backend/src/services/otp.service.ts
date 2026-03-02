@@ -3,8 +3,13 @@ import redisClient from '../config/redis';
 import Logger from '../utils/logger';
 
 const OTP_LENGTH = 6;
-const OTP_TTL = 300; // 5 minutes
+const OTP_TTL = parseInt(process.env.OTP_TTL_SECONDS || '300', 10);
 const MAX_ATTEMPTS = 5;
+
+// Helper to hash OTP before storing
+const hashOtp = (otp: string): string => {
+    return crypto.createHash('sha256').update(otp).digest('hex');
+};
 
 interface OtpData {
     otp: string;
@@ -32,10 +37,11 @@ const generateOtp = (): string => {
 export const createLoginOtp = async (email: string): Promise<string> => {
     Logger.debug('Creating login OTP', { email });
     const otp = generateOtp();
+    const hashedOtp = hashOtp(otp);
     const key = `login_otp:${email.toLowerCase()}`;
 
     const data: OtpData = {
-        otp,
+        otp: hashedOtp,
         attempts: 0
     };
 
@@ -66,8 +72,8 @@ export const verifyLoginOtp = async (email: string, inputOtp: string): Promise<{
     data.attempts += 1;
     await redisClient.set(key, JSON.stringify(data), { KEEPTTL: true });
 
-    // Verify OTP
-    if (data.otp !== inputOtp) {
+    // Verify OTP using hash
+    if (data.otp !== hashOtp(inputOtp)) {
         return { valid: false, message: 'Invalid OTP. Please try again.' };
     }
 
@@ -85,13 +91,14 @@ export const createSignupOtp = async (
 ): Promise<string> => {
     Logger.debug('Creating signup OTP', { email });
     const otp = generateOtp();
+    const hashedOtp = hashOtp(otp);
     const key = `signup_otp:${email.toLowerCase()}`;
 
     const data: SignupOtpData = {
-        otp,
+        otp: hashedOtp,
         attempts: 0,
         email,
-        password,
+        password, // The controller must hash the password before passing it here
         full_name,
         token
     };
@@ -126,8 +133,8 @@ export const verifySignupOtp = async (
     data.attempts += 1;
     await redisClient.set(key, JSON.stringify(data), { KEEPTTL: true });
 
-    // Verify OTP
-    if (data.otp !== inputOtp) {
+    // Verify OTP using hash
+    if (data.otp !== hashOtp(inputOtp)) {
         return { valid: false, message: 'Invalid OTP. Please try again.' };
     }
 

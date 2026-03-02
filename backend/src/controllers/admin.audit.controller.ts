@@ -39,10 +39,18 @@ export const getAuditLogs = async (req: Request, res: Response) => {
         if (start_date || end_date) {
             whereClause.created_at = {};
             if (start_date) {
-                whereClause.created_at[Op.gte] = new Date(start_date as string);
+                const parsedStart = new Date(start_date as string);
+                if (isNaN(parsedStart.getTime())) {
+                    return res.status(400).json({ message: 'Invalid start_date format' });
+                }
+                whereClause.created_at[Op.gte] = parsedStart;
             }
             if (end_date) {
-                whereClause.created_at[Op.lte] = new Date(end_date as string);
+                const parsedEnd = new Date(end_date as string);
+                if (isNaN(parsedEnd.getTime())) {
+                    return res.status(400).json({ message: 'Invalid end_date format' });
+                }
+                whereClause.created_at[Op.lte] = parsedEnd;
             }
         }
 
@@ -87,5 +95,58 @@ export const getAuditLogById = async (req: Request, res: Response) => {
         res.status(200).json(log);
     } catch (error) {
         handleError(res, error, 'Get Audit Log Details Error');
+    }
+};
+
+export const getAuditLogActions = async (req: Request, res: Response) => {
+    try {
+        const logs = await AuditLog.findAll({
+            attributes: ['action'],
+            group: ['action'],
+        });
+
+        const actions = logs.map(l => l.action).filter(Boolean);
+
+        const actionCategories: Record<string, string[]> = {
+            "Auth": [],
+            "Organization": [],
+            "User": [],
+            "Billing": [],
+            "Catalog": [],
+            "System": [],
+            "Other": []
+        };
+
+        actions.forEach(action => {
+            const upperAction = action.toUpperCase();
+            if (upperAction.includes('LOGIN') || upperAction.includes('LOGOUT') || upperAction.includes('REGISTER') || upperAction.includes('AUTH') || upperAction.includes('OTP') || upperAction.includes('PASSWORD')) {
+                actionCategories["Auth"].push(action);
+            } else if (upperAction.includes('ORG') || upperAction.includes('ORGANIZATION')) {
+                actionCategories["Organization"].push(action);
+            } else if (upperAction.includes('USER')) {
+                actionCategories["User"].push(action);
+            } else if (upperAction.includes('SUBSCRIPTION') || upperAction.includes('PAYMENT') || upperAction.includes('INVOICE') || upperAction.includes('BILLING')) {
+                actionCategories["Billing"].push(action);
+            } else if (upperAction.includes('PLAN') || upperAction.includes('TOOL') || upperAction.includes('FEATURE') || upperAction.includes('BUNDLE') || upperAction.includes('ENTITLEMENT')) {
+                actionCategories["Catalog"].push(action);
+            } else if (upperAction.includes('SYSTEM') || upperAction.includes('CRON') || upperAction.includes('WEBHOOK')) {
+                actionCategories["System"].push(action);
+            } else {
+                actionCategories["Other"].push(action);
+            }
+        });
+
+        // Sort actions within categories and remove empty categories
+        for (const key of Object.keys(actionCategories)) {
+            if (actionCategories[key].length === 0) {
+                delete actionCategories[key];
+            } else {
+                actionCategories[key].sort();
+            }
+        }
+
+        res.status(200).json(actionCategories);
+    } catch (error) {
+        handleError(res, error, 'Get Audit Log Actions Error');
     }
 };

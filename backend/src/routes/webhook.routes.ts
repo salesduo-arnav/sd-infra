@@ -1,9 +1,9 @@
 import express, { Router } from 'express';
-import { billingController } from '../controllers/billing.controller';
+import { webhookController } from '../controllers/webhook.controller';
 
 const router = Router();
 
 // Webhook endpoint
-router.post('/stripe', express.raw({ type: 'application/json' }), billingController.handleWebhook.bind(billingController));
+router.post('/stripe', express.raw({ type: 'application/json' }), webhookController.handleWebhook.bind(webhookController));
 
 export default router;

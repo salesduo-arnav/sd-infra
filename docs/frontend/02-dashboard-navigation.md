@@ -77,9 +77,9 @@ The primary landing page after authentication. Displays:
 
 ## Issues Found
 
-1. **No error boundary** — The layout has no error boundary to catch rendering errors. A crash in any child component will unmount the entire layout.
-2. **No keyboard navigation** — Sidebar menu items lack keyboard accessibility (arrow key navigation, focus management).
-3. **No skeleton loaders** — Dashboard cards and stats show no loading skeleton while data is being fetched.
-4. **No optimistic updates** — Navigation between pages always waits for data before rendering.
-5. **Hard-coded navigation structure** — Sidebar menu items are hard-coded rather than driven by user permissions or feature flags.
-6. **No breadcrumb trail** — Header exists but breadcrumb navigation is minimal, making deep navigation unclear.
+1. ~~**No error boundary** — The layout has no error boundary to catch rendering errors. A crash in any child component will unmount the entire layout.~~
+2. ~~**No keyboard navigation** — Sidebar menu items lack keyboard accessibility (arrow key navigation, focus management).~~
+3. ~~**No skeleton loaders** — Dashboard cards and stats show no loading skeleton while data is being fetched.~~
+4. **No optimistic updates** — Navigation between pages always waits for data before rendering. (Skipping for now as added skeletons)
+5. **Hard-coded navigation structure** — Sidebar menu items are hard-coded rather than driven by user permissions or feature flags. (It is driven by permission)
+6. **No breadcrumb trail** — Header exists but breadcrumb navigation is minimal, making deep navigation unclear. (Breadcrumb trail is there)

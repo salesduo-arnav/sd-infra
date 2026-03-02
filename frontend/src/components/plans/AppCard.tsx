@@ -117,10 +117,11 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
             {app.tiers.length > 0 ? (
               app.tiers.map((tier) => {
                 const inCart = isInCart(app.id, tier.name);
+                const isOneTime = tier.period === '/one_time';
                 const isCurrent = currentSubscription?.plan?.id === tier.id;
                 const isUpcoming = currentSubscription?.upcoming_plan?.id === tier.id;
-                const isUpgrade = currentSubscription && tier.price > currentPrice && !isCurrent && !isUpcoming;
-                const isDowngrade = currentSubscription && tier.price < currentPrice && !isCurrent && !isUpcoming;
+                const isUpgrade = !isOneTime && currentSubscription && tier.price > currentPrice && !isCurrent && !isUpcoming;
+                const isDowngrade = !isOneTime && currentSubscription && tier.price < currentPrice && !isCurrent && !isUpcoming;
 
                 return (
                   <TierItem

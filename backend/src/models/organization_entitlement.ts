@@ -88,6 +88,9 @@ OrganizationEntitlement.init(
       type: DataTypes.INTEGER,
       defaultValue: 0,
       comment: 'The CURRENT usage',
+      validate: {
+        min: 0,
+      },
     },
     reset_period: {
       type: DataTypes.ENUM(...Object.values(FeatureResetPeriod)),

@@ -95,19 +95,19 @@ const { data, isLoading } = useQuery({
 
 ## Issues Found
 
-1. **No error handling on dashboard** — React Query errors are not displayed to the user. Queries fail silently.
-2. **No skeleton loaders** — Dashboard uses `Array(4).fill(0).map()` for stat cards but no skeleton implementation for loading states.
-3. **Hard-coded chart colors** — Colors like `#2563eb` are hardcoded instead of using theme variables.
-4. **No data refresh button** — Stale data is cached with no manual refresh option.
-5. **Bundle slug uses `Math.random()`** — Auto-generated slugs use `Math.random().toString(36)` which is non-deterministic and bad for SEO.
-6. **No input validation on plan creation** — Can create plans with $0 price or empty names.
-7. **Plan deletion without confirmation** — Some delete actions lack confirmation dialogs.
-8. **DataTable search not debounced** — Every keystroke in search triggers a new API call.
-9. **Action categories hardcoded** — Audit log action categories are hardcoded in the frontend instead of being fetched from the backend.
-10. **JSON payload not syntax highlighted** — Audit log details show raw JSON in a code block without syntax highlighting.
-11. **No CSV/PDF export** — Audit logs and user lists cannot be exported.
-12. **409 conflict handling incomplete** — AdminUsers shows conflicting orgs on 409 but doesn't handle edge cases.
-13. **Config values treated as strings** — No type coercion for numeric or boolean configuration values.
-14. **No undo/reset for configs** — Config changes take effect immediately with no way to revert.
-15. **Currency hardcoded to USD** — Plan creation has no easy way to add new currencies.
-16. **Duplicate `setState` calls** — Multiple loading state setter calls, some unreachable, in AdminPlans.
+1. ~~**No error handling on dashboard** — React Query errors are not displayed to the user. Queries fail silently.~~
+2. ~~**No skeleton loaders** — Dashboard uses `Array(4).fill(0).map()` for stat cards but no skeleton implementation for loading states.~~
+3. **Hard-coded chart colors** — Colors like `#2563eb` are hardcoded instead of using theme variables. (Skipping as not needed right now)
+4. **No data refresh button** — Stale data is cached with no manual refresh option. (Can refresh the page, so new buttons not needed)
+5. **Bundle slug uses `Math.random()`** — Auto-generated slugs use `Math.random().toString(36)` which is non-deterministic and bad for SEO. (Skipping as not needed right now)
+6. ~~**No input validation on plan creation** — Can create plans with empty names.~~
+7. **Plan deletion without confirmation** — Some delete actions lack confirmation dialogs. (Checked, it has confirmation dialogs)
+8. ~~**DataTable search not debounced** — Every keystroke in search triggers a new API call.~~
+9. ~~**Action categories hardcoded** — Audit log action categories are hardcoded in the frontend instead of being fetched from the backend.~~
+10. **JSON payload not syntax highlighted** — Audit log details show raw JSON in a code block without syntax highlighting. (Skipping as not needed right now)
+11. **No CSV/PDF export** — Audit logs and user lists cannot be exported. (Skipping as not needed right now)
+12. ~~**409 conflict handling incomplete** — AdminUsers shows conflicting orgs on 409 but doesn't handle edge cases.~~
+13. ~~**Config values treated as strings** — No type coercion for numeric or boolean configuration values.~~
+14. **No undo/reset for configs** — Config changes take effect immediately with no way to revert. (Skipping as not needed right now)
+15. **Currency hardcoded to USD** — Plan creation has no easy way to add new currencies. (Already solved)
+16. ~~**Duplicate `setState` calls** — Multiple loading state setter calls, some unreachable, in AdminPlans.~~

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,7 +53,7 @@ export default function ListingGenerator() {
   };
 
   return (
-    <Layout>
+    <>
       <div className="container py-8">
         <Button
           variant="ghost"
@@ -212,6 +211,6 @@ export default function ListingGenerator() {
           </Card>
         </div>
       </div>
-    </Layout>
+    </>
   );
 }

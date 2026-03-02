@@ -136,13 +136,13 @@ SUPERUSER_EMAILS=admin@example.com,super@example.com
 
 ## Issues Found
 
-1. **SECURITY: SSL `rejectUnauthorized: false` in production** — The database SSL configuration disables certificate verification, making the connection vulnerable to man-in-the-middle attacks. Should use proper CA certificates or at least `rejectUnauthorized: true`.
-2. **REDIS_URL defaults to localhost** — In production, if `REDIS_URL` is not set, the application silently connects to `localhost:6379` instead of failing with an error.
-3. **No connection pooling configuration** — Sequelize uses default connection pool settings. For production workloads, `pool.max`, `pool.min`, `pool.idle`, and `pool.acquire` should be explicitly configured.
-4. **`process.exit(1)` on DB connection failure** — Hard exit is not graceful for container orchestration. The container will restart but may lose in-flight requests.
-5. **No Redis authentication** — The Redis client configuration doesn't explicitly handle password authentication. If the Redis instance requires a password, it must be included in the URL.
-6. **No per-command timeout on Redis** — Individual Redis commands have no timeout, so a slow or unresponsive Redis server could block requests indefinitely.
-7. **Superuser email list parsed on every call** — `getSuperuserEmails()` re-parses the environment variable on each invocation instead of caching the result.
-8. **SMTP fallback credentials in production** — Mail service defaults to test credentials (`test_user`/`test_pass` at `smtp.ethereal.email`) if SMTP env vars are missing, which would silently fail to deliver emails in production.
-9. **No validation of required env vars at startup** — The application doesn't validate that required environment variables are set before starting, leading to cryptic runtime errors.
-10. **CORS_ORIGINS parsing** — If `CORS_ORIGINS` is not set, `allowedOrigins` becomes an empty array, which may block all cross-origin requests without a clear error.
+- [x] **[ALREADY FIXED] SECURITY: SSL `rejectUnauthorized: false` in production** — The database SSL configuration disables certificate verification, making the connection vulnerable to man-in-the-middle attacks. Should use proper CA certificates or at least `rejectUnauthorized: true`.
+- [x] **REDIS_URL defaults to localhost** — In production, if `REDIS_URL` is not set, the application silently connects to `localhost:6379` instead of failing with an error.
+- [x] **No connection pooling configuration** — Sequelize uses default connection pool settings. For production workloads, `pool.max`, `pool.min`, `pool.idle`, and `pool.acquire` should be explicitly configured.
+- [x] **`process.exit(1)` on DB connection failure** — Hard exit is not graceful for container orchestration. The container will restart but may lose in-flight requests.
+- [x] **No Redis authentication** — The Redis client configuration doesn't explicitly handle password authentication. If the Redis instance requires a password, it must be included in the URL.
+- [x] **No per-command timeout on Redis** — Individual Redis commands have no timeout, so a slow or unresponsive Redis server could block requests indefinitely.
+- [x] **[SKIPPED] Superuser email list parsed on every call** — `getSuperuserEmails()` re-parses the environment variable on each invocation instead of caching the result. *(Skipped: Not needed)*
+- [x] **[ALREADY FIXED] SMTP fallback credentials in production** — Mail service defaults to test credentials (`test_user`/`test_pass` at `smtp.ethereal.email`) if SMTP env vars are missing, which would silently fail to deliver emails in production.
+- [x] **No validation of required env vars at startup** — The application doesn't validate that required environment variables are set before starting, leading to cryptic runtime errors.
+- [x] **CORS_ORIGINS parsing** — If `CORS_ORIGINS` is not set, `allowedOrigins` becomes an empty array, which may block all cross-origin requests without a clear error.

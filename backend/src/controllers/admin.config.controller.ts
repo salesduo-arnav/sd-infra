@@ -16,6 +16,14 @@ export const updateConfig = async (req: Request, res: Response) => {
     const { key } = req.params;
     const { value, description, category } = req.body;
 
+    // Validation
+    if (key === 'payment_grace_period_days') {
+      const days = parseInt(value, 10);
+      if (isNaN(days) || days < 0) {
+        return res.status(400).json({ message: 'payment_grace_period_days must be a valid positive integer' });
+      }
+    }
+
     const [config] = await SystemConfig.upsert({
       key,
       value,
@@ -25,18 +33,18 @@ export const updateConfig = async (req: Request, res: Response) => {
 
     // Side effect: Update Stripe if grace period changes
     if (key === 'payment_grace_period_days') {
-        const days = parseInt(value, 10);
-        if (!isNaN(days)) {
-            // Best effort update to Stripe
-            try {
-                // In a real scenario, this might update a specific Stripe configuration
-                console.log(`[AdminConfig] Updating Stripe grace period to ${days} days`);
-                await stripeService.updateGracePeriod(days);
-            } catch (stripeError) {
-                console.error('Failed to update Stripe grace period', stripeError);
-                // We don't fail the request, just log the warning
-            }
+      const days = parseInt(value, 10);
+      if (!isNaN(days)) {
+        // Best effort update to Stripe
+        try {
+          // In a real scenario, this might update a specific Stripe configuration
+          console.log(`[AdminConfig] Updating Stripe grace period to ${days} days`);
+          await stripeService.updateGracePeriod(days);
+        } catch (stripeError) {
+          console.error('Failed to update Stripe grace period', stripeError);
+          // We don't fail the request, just log the warning
         }
+      }
     }
 
     res.json({ config, message: 'Configuration updated successfully' });

@@ -5,7 +5,8 @@ import redisClient from '../config/redis';
 import User from '../models/user';
 import { Organization, OrganizationMember } from '../models/organization';
 import { Invitation } from '../models/invitation';
-import { Role } from '../models/role';
+import { Role, Permission, RolePermission } from '../models/role';
+import { seedPermissions } from './test-helpers';
 import { SubStatus, PriceInterval, TierType } from '../models/enums';
 
 describe('Soft Delete Integrity & Cascade Tests', () => {
@@ -34,6 +35,8 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
 
     beforeEach(async () => {
         // Clean up everything to start fresh
+        await RolePermission.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Permission.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await Invitation.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await OrganizationMember.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await Organization.destroy({ where: {}, truncate: true, cascade: true, force: true });
@@ -46,6 +49,8 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
         await Role.findOrCreate({ where: { name: 'Admin' }, defaults: { name: 'Admin', description: 'desc' } });
 
         await redisClient.flushAll();
+
+        await seedPermissions();
     });
 
     afterAll(async () => {
@@ -260,7 +265,7 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
                 const { Plan } = await import('../models/plan');
                 const { Tool } = await import('../models/tool');
 
-                const tool = await Tool.create({ name: 'Sub Test Tool', slug: 'sub-test-tool', is_active: true, trial_days: 0 });
+                const tool = await Tool.create({ name: 'Sub Test Tool', slug: `sub-test-tool-${Date.now()}-${Math.floor(Math.random() * 10000)}`, is_active: true, trial_days: 0 });
                 const plan = await Plan.create({
                     name: 'Sub Test Plan',
                     tool_id: tool.id,
@@ -300,8 +305,8 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
                 const { Feature } = await import('../models/feature');
                 const { OrganizationEntitlement } = await import('../models/organization_entitlement');
 
-                const tool = await Tool.create({ name: 'Test Tool', slug: 'test-tool', is_active: true, trial_days: 0 });
-                const feature = await Feature.create({ name: 'Test Feature', slug: 'test-feature', tool_id: tool.id });
+                const tool = await Tool.create({ name: 'Test Tool', slug: `test-tool-${Date.now()}-${Math.floor(Math.random() * 10000)}`, is_active: true, trial_days: 0 });
+                const feature = await Feature.create({ name: 'Test Feature', slug: `test-feature-${Date.now()}-${Math.floor(Math.random() * 10000)}`, tool_id: tool.id });
 
                 // 2. Create Entitlement
                 const entitlement = await OrganizationEntitlement.create({
@@ -330,8 +335,8 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
                 const { Plan } = await import('../models/plan');
 
                 // 1. Create Tool, Feature, Plan
-                const tool = await Tool.create({ name: 'Cascade Tool', slug: 'cascade-tool', is_active: true, trial_days: 0 });
-                const feature = await Feature.create({ name: 'Cascade Feat', slug: 'cascade-feat', tool_id: tool.id });
+                const tool = await Tool.create({ name: 'Cascade Tool', slug: `cascade-tool-${Date.now()}-${Math.floor(Math.random() * 10000)}`, is_active: true, trial_days: 0 });
+                const feature = await Feature.create({ name: 'Cascade Feat', slug: `cascade-feat-${Date.now()}-${Math.floor(Math.random() * 10000)}`, tool_id: tool.id });
                 const plan = await Plan.create({
                     name: 'Cascade Plan',
                     tool_id: tool.id,
@@ -360,8 +365,8 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
                 const { PlanLimit } = await import('../models/plan_limit');
                 const { OrganizationEntitlement } = await import('../models/organization_entitlement');
 
-                const tool = await Tool.create({ name: 'Feat Cascade Tool', slug: 'feat-cascade-tool', is_active: true, trial_days: 0 });
-                const feature = await Feature.create({ name: 'Feat Cascade Feat', slug: 'feat-cascade-feat', tool_id: tool.id });
+                const tool = await Tool.create({ name: 'Feat Cascade Tool', slug: `feat-cascade-tool-${Date.now()}-${Math.floor(Math.random() * 10000)}`, is_active: true, trial_days: 0 });
+                const feature = await Feature.create({ name: 'Feat Cascade Feat', slug: `feat-cascade-feat-${Date.now()}-${Math.floor(Math.random() * 10000)}`, tool_id: tool.id });
                 const plan = await Plan.create({ name: 'Plan Limit Plan', tool_id: tool.id, price: 100, tier: TierType.BASIC, currency: 'usd', interval: PriceInterval.MONTHLY, active: true });
 
                 const planLimit = await PlanLimit.create({ plan_id: plan.id, feature_id: feature.id, default_limit: 50 });

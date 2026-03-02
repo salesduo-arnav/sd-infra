@@ -57,6 +57,8 @@ interface AuthContextType {
   signup: (name: string, email: string, password: string, token?: string) => Promise<User | void>;
   logout: () => void;
   isLoading: boolean;
+  isInitializing: boolean;
+  isOrgResolving: boolean;
   refreshUser: () => Promise<void>;
   checkPendingInvites: () => Promise<Invitation[]>;
   acceptInvite: (token: string) => Promise<void>;
@@ -87,25 +89,32 @@ const resolveActiveOrg = (user: User | null) => {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [activeOrganization, setActiveOrganization] = useState<Organization | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [isOrgResolving, setIsOrgResolving] = useState(true);
 
   // Load active organization from localStorage on mount
   useEffect(() => {
+    if (isInitializing) return;
+
     const savedOrgId = localStorage.getItem("activeOrganizationId");
     if (user && user.memberships && user.memberships.length > 0) {
       if (savedOrgId) {
         const savedOrg = user.memberships.find(m => m.organization.id === savedOrgId)?.organization;
         if (savedOrg) {
           setActiveOrganization(savedOrg);
+          setIsOrgResolving(false);
           return;
         }
       }
       // Default to first organization if no saved one found or saved one is invalid
-      setActiveOrganization(user.memberships[0].organization);
+      setActiveOrganization(null);
     } else {
       setActiveOrganization(null);
     }
-  }, [user]);
+
+    setIsOrgResolving(false);
+  }, [user, isInitializing]);
 
   const switchOrganization = (orgId: string, org?: Organization) => {
     if (org) {
@@ -137,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Auth check failed", error);
       setUser(null);
       setActiveOrganization(null);
+      localStorage.removeItem("activeOrganizationId");
     }
   }, []);
 
@@ -144,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initAuth = async () => {
       await refreshUser();
-      setIsLoading(false);
+      setIsInitializing(false);
     };
     initAuth();
   }, [refreshUser]);
@@ -161,6 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("activeOrganizationId");
 
       setUser(currentUser);
+      return currentUser;
     } catch (error) {
       const err = error as AxiosError<{ message: string }>;
       throw new Error(err.response?.data?.message || "Login failed");
@@ -263,6 +274,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setActiveOrganization(null);
       localStorage.removeItem("activeOrganizationId");
       setUser(currentUser);
+      return currentUser;
     } catch (error) {
       const err = error as AxiosError<{ message: string }>;
       throw new Error(err.response?.data?.message || "Invalid OTP");
@@ -318,6 +330,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signup,
         logout,
         isLoading,
+        isInitializing,
+        isOrgResolving,
         refreshUser,
         checkPendingInvites,
         acceptInvite,

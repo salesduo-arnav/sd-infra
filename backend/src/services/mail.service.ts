@@ -19,8 +19,15 @@ export class MailService {
     private from: string;
 
     constructor() {
+        const isProduction = process.env.NODE_ENV === 'production';
+        const smtpHost = process.env.SMTP_HOST;
+
+        if (isProduction && (!smtpHost || !process.env.SMTP_USER || !process.env.SMTP_PASS)) {
+            throw new Error('SMTP credentials (SMTP_HOST, SMTP_USER, SMTP_PASS) must be set in production environment.');
+        }
+
         this.transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST || 'smtp.ethereal.email',
+            host: smtpHost || 'smtp.ethereal.email',
             port: parseInt(process.env.SMTP_PORT || '465'),
             secure: process.env.SMTP_PORT === '465', // true for 465, false for other ports
             auth: {

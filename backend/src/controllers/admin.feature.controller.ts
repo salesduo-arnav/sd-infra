@@ -72,6 +72,11 @@ export const createFeature = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Tool ID, Name, and Slug are required' });
         }
 
+        const tool = await Tool.findByPk(tool_id);
+        if (!tool) {
+            return res.status(400).json({ message: 'Tool not found' });
+        }
+
         const feature = await sequelize.transaction(async (t) => {
             const existingFeature = await Feature.findOne({ where: { slug }, transaction: t });
             if (existingFeature) {

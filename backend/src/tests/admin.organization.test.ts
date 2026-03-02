@@ -1,6 +1,7 @@
 import request from 'supertest';
 import app from '../app';
-import { Organization, OrgStatus, OrganizationMember } from '../models/organization';
+import { Organization, OrganizationMember } from '../models/organization';
+import { OrgStatus } from '../models/enums';
 import { Invitation } from '../models/invitation';
 import { Role } from '../models/role';
 import User from '../models/user';

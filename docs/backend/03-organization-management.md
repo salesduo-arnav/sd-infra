@@ -78,12 +78,16 @@ When an organization is deleted (soft delete), the `afterDestroy` hook cascades 
 
 ## Issues Found
 
-1. **Duplicate audit log** — The `createOrganization` handler logs `CREATE_ORGANIZATION` twice (two separate `AuditService.log` calls at lines ~96-112).
-2. **Bulk invitations are fire-and-forget** — When creating an organization with invites, invitation errors are silently swallowed. The user is not notified if some invitations fail to send.
-3. **No email validation on invites** — The invite emails array passed during creation is not validated for proper email format.
-4. **Slug can be excessively long** — Slug generation appends a random string to the org name, with no length limit enforced.
+1. ~~**Duplicate audit log** — The `createOrganization` handler logs `CREATE_ORGANIZATION` twice (two separate `AuditService.log` calls at lines ~96-112).~~
+2. ~~**Bulk invitations are fire-and-forget** — When creating an organization with invites, invitation errors are silently swallowed. The user is not notified if some invitations fail to send.~~
+3. ~~**No email validation on invites** — The invite emails array passed during creation is not validated for proper email format.~~
+4. ~~**Slug can be excessively long** — Slug generation appends a random string to the org name, with no length limit enforced.~~
 5. **No minimum owner check on member removal** — `removeMember` does not verify that at least one Owner remains after removal, potentially leaving an organization ownerless.
+(Skipped as this check already exists)
 6. **Missing UUID validation** — `transferOwnership` does not validate that `new_owner_id` is a valid UUID format before querying.
-7. **OrgStatus enum defined in model file** — The `OrgStatus` enum is defined in `organization.ts` instead of the centralized `enums.ts` file, breaking consistency with other enums.
+(Not needed, check already there)
+7. ~~**OrgStatus enum defined in model file** — The `OrgStatus` enum is defined in `organization.ts` instead of the centralized `enums.ts` file, breaking consistency with other enums.~~
 8. **Cascade delete uses dynamic imports** — The `afterDestroy` hook uses multiple dynamic `import()` calls which could partially fail, leaving the cascade incomplete without transaction rollback.
+(Not Needed)
 9. **`is_active` field redundancy** — OrganizationMember has both `is_active` and soft delete (`deleted_at`), creating ambiguity about which field determines active membership.
+(Skipped as in RBAC)

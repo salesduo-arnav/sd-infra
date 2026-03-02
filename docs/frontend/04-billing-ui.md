@@ -64,10 +64,10 @@ The billing page checks URL parameters on load:
 
 ## Issues Found
 
-1. **URL params not cleaned** — `?success=true` and `?canceled=true` parameters are checked but never removed from the URL. Navigating away and back triggers the toast again.
-2. **Sync call has no error handling** — The manual Stripe sync button calls the API but doesn't handle errors, leading to silent failures.
-3. **Toast shown before data refresh** — Success toast appears before the subscription data is actually re-fetched, potentially showing stale data.
-4. **Grace period default is hardcoded** — Falls back to 3 days if system config is not available.
-5. **Duplicate `setIsLoading` calls** — Multiple loading state setter calls in the code, some unreachable.
-6. **Subscription actions use potentially stale IDs** — Stripe subscription IDs used in action calls may be stale if the data changed.
-7. **No confirmation for resume** — Resuming a cancelled subscription has no confirmation dialog (cancel does, but resume doesn't).
+1. ~~**URL params not cleaned** — `?success=true` and `?canceled=true` parameters are checked but never removed from the URL. Navigating away and back triggers the toast again.~~
+2. **Sync call has no error handling** — The manual Stripe sync button calls the API but doesn't handle errors, leading to silent failures.(Already has try catch)
+3. **Toast shown before data refresh** — Success toast appears before the subscription data is actually re-fetched, potentially showing stale data. (Already after sync)
+4. **Grace period default is hardcoded** — Falls back to 3 days if system config is not available. (Already has default value)
+5. **Duplicate `setIsLoading` calls** — Multiple loading state setter calls in the code, some unreachable. (Skipping as not applicable)
+6. **Subscription actions use potentially stale IDs** — Stripe subscription IDs used in action calls may be stale if the data changed. (Skipping as not applicable, already reads from row.original)
+7. ~~**No confirmation for resume** — Resuming a cancelled subscription has no confirmation dialog (cancel does, but resume doesn't).~~

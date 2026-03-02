@@ -72,17 +72,17 @@ Create Org → Set as Active → Invite Members → Manage Team → (Optional) D
 
 ## Issues Found
 
-1. **Incorrect `useState` usage in CreateOrganisation** — Uses `useState` callback for side effect logic (reading URL params) which runs on every render instead of using `useEffect`.
-2. **Email validation too lenient** — Regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` accepts invalid emails like `a@b.c`.
-3. **No duplicate email detection** — Can add the same email multiple times to the invite list.
-4. **Website URL not validated** — Any string accepted as website, including invalid URLs.
-5. **Stale closure in ChooseOrganisation** — `checkPendingInvites` from props is called in useEffect without being in the dependency array.
-6. **Race condition on org selection** — If `activeOrganization` changes while selecting another org, redirect logic may target the wrong org.
-7. **No keyboard navigation** — Organization list in ChooseOrganisation is not keyboard accessible.
-8. **Dialog state not reset** — When closing the "Invite Member" dialog, the form values persist.
-9. **Delete confirmation is case-sensitive** — Requires typing the exact org name, case-sensitive, which is strict UX.
-10. **Transfer ownership missing validation** — No check that the new owner is not the current user.
-11. **Multiple `setIsLoading` calls** — Duplicate state setter calls in Organisation.tsx.
-12. **Permissions checked in UI only** — UI hides buttons based on role, but doesn't prevent API calls if the user manipulates the interface.
-13. **Member search race condition** — Searching while pagination is loading could show stale results.
-14. **No batch operations** — Cannot accept/decline multiple invitations at once on PendingInvitations page.
+1. **Incorrect `useState` usage in CreateOrganisation** — Uses `useState` callback for side effect logic (reading URL params) which runs on every render instead of using `useEffect`. (Skipping as we need to read URL params)
+2. ~~**Email validation too lenient** — Regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` accepts invalid emails like `a@b.c`.~~
+3. ~~**No duplicate email detection** — Can add the same email multiple times to the invite list.~~
+4. **Website URL not validated** — Any string accepted as website, including invalid URLs. (Skipping as not needed)
+5. ~~**Stale closure in ChooseOrganisation** — `checkPendingInvites` from props is called in useEffect without being in the dependency array.~~
+6. ~~**Race condition on org selection** — If `activeOrganization` changes while selecting another org, redirect logic may target the wrong org.~~
+7. ~~**No keyboard navigation** — Organization list in ChooseOrganisation is not keyboard accessible.~~
+8. **Dialog state not reset** — When closing the "Invite Member" dialog, the form values persist. (No loss in persisting values)
+9. **Delete confirmation is case-sensitive** — Requires typing the exact org name, case-sensitive, which is strict UX. (Skipping as case-sensitive is good for security)
+10. ~~**Transfer ownership missing validation** — No check that the new owner is not the current user.~~
+11. ~~**Multiple `setIsLoading` calls** — Duplicate state setter calls in Organisation.tsx.~~
+12. **Permissions checked in UI only** — UI hides buttons based on role, but doesn't prevent API calls if the user manipulates the interface. (Not needed as checked in backend)
+13. ~~**Member search race condition** — Searching while pagination is loading could show stale results.~~
+14. **No batch operations** — Cannot accept/decline multiple invitations at once on PendingInvitations page. (Skipping as not needed)

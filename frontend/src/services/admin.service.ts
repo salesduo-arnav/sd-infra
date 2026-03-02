@@ -251,6 +251,11 @@ export const getAuditLogs = async (params?: PaginationParams & { action?: string
   return response.data; // { audit_logs: [], meta: {} }
 };
 
+export const getAuditLogActions = async () => {
+  const response = await api.get('/admin/audit-logs/actions');
+  return response.data;
+};
+
 export const getAuditLogById = async (id: string) => {
   const response = await api.get(`/admin/audit-logs/${id}`);
   return response.data;
@@ -274,6 +279,35 @@ export const getUserGrowthChart = async () => {
 
 export const getToolUsageChart = async () => {
   const response = await api.get('/admin/stats/tools');
+  return response.data;
+};
+
+// RBAC Management
+export interface RBACRole {
+  id: number;
+  name: string;
+  description: string;
+  permissions: RBACPermission[];
+}
+
+export interface RBACPermission {
+  id: string;
+  description: string;
+  category: string;
+}
+
+export const getRBACRoles = async () => {
+  const response = await api.get('/admin/rbac/roles');
+  return response.data;
+};
+
+export const getRBACPermissions = async () => {
+  const response = await api.get('/admin/rbac/permissions');
+  return response.data;
+};
+
+export const updateRolePermissions = async (roleId: number, permissionIds: string[]) => {
+  const response = await api.put(`/admin/rbac/roles/${roleId}/permissions`, { permissionIds });
   return response.data;
 };
 

@@ -2,8 +2,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
+import { Layout } from "@/components/layout/Layout";
+import { FullPageLoader } from "@/components/layout/FullPageLoader";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { captureRedirectContext, clearRedirectContext, hasRedirectContext } from "@/lib/redirectContext";
+import { PermissionsProvider } from "@/contexts/PermissionsContext";
+import { usePermissions } from "@/contexts/PermissionsContext";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -26,6 +31,7 @@ import AdminPlans from "./pages/admin/AdminPlans";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminOrganizations from "./pages/admin/AdminOrganizations";
 import AdminConfigs from "./pages/admin/AdminConfigs";
+import AdminRBAC from "./pages/admin/AdminRBAC";
 import AuditLogs from "./pages/admin/AuditLogs";
 import InviteAccepted from "./pages/InviteAccepted";
 import PendingInvitations from "./pages/PendingInvitations";
@@ -35,25 +41,26 @@ import DesignSystem from "./pages/DesignSystem";
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user, isLoading, activeOrganization } = useAuth();
+  const { isAuthenticated, user, activeOrganization } = useAuth();
   const location = useLocation();
-
-  if (isLoading) return <div>Loading...</div>;
 
   if (!isAuthenticated) {
     return <Navigate to={`/login${location.search}`} replace />;
   }
 
+  // Normalize path to prevent redirect loops from trailing slashes or case differences
+  const normalizedPath = location.pathname.toLowerCase().replace(/\/$/, "") || "/";
+
   // If user has no organization and is not on the creation page, redirect them
-  if ((!user?.memberships || user.memberships.length === 0) && location.pathname !== "/create-organisation" && location.pathname !== "/pending-invites") {
+  if ((!user?.memberships || user.memberships.length === 0) && normalizedPath !== "/create-organisation" && normalizedPath !== "/pending-invites") {
     return <Navigate to={`/create-organisation${location.search}`} replace />;
   }
 
   // If user has organizations but none is active, redirect to selection (unless already there or creating/handling invites)
   if (user?.memberships && user.memberships.length > 0 && !activeOrganization &&
-    location.pathname !== "/choose-organisation" &&
-    location.pathname !== "/create-organisation" &&
-    location.pathname !== "/pending-invites") {
+    normalizedPath !== "/choose-organisation" &&
+    normalizedPath !== "/create-organisation" &&
+    normalizedPath !== "/pending-invites") {
     const currentPath = location.pathname + location.search;
     return <Navigate to={`/choose-organisation?redirect=${encodeURIComponent(currentPath)}`} replace />;
   }
@@ -72,34 +79,79 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function PermissionRoute({ permission, children }: { permission: string; children: React.ReactNode }) {
+  const { isAuthenticated, activeOrganization } = useAuth();
+  const { hasPermission, loading } = usePermissions();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!activeOrganization || loading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!hasPermission(permission)) {
+    return <Navigate to="/apps" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, activeOrganization } = useAuth();
   const location = useLocation();
 
-  if (isAuthenticated) {
-    const params = new URLSearchParams(location.search);
-    const redirectUrl = params.get("redirect");
+  // Capture redirect/app params from URL into sessionStorage on every render.
+  // This ensures that whichever entry point the user hits first (login, signup),
+  // the context is persisted before any navigation happens.
+  const params = new URLSearchParams(location.search);
+  captureRedirectContext(params);
 
-    // Already have an active org? Skip choose-org entirely
+  if (isAuthenticated) {
+    // Already have an active org?
     if (activeOrganization) {
-      if (redirectUrl) {
-        const url = new URL(redirectUrl, window.location.origin);
-        url.searchParams.set("auth_success", "true");
-        window.location.href = url.toString();
-        return null;
+      if (hasRedirectContext()) {
+        // External app redirect pending — route through integration onboarding
+        // (it auto-skips and redirects if no integrations are needed)
+        return <Navigate to="/integration-onboarding" replace />;
       }
+      // No external redirect — go to apps
+      clearRedirectContext();
       return <Navigate to="/apps" replace />;
     }
 
     // No memberships at all — need to create an org first
     if (!user?.memberships || user.memberships.length === 0) {
-      return <Navigate to={`/create-organisation${location.search}`} replace />;
+      return <Navigate to="/create-organisation" replace />;
     }
 
     // Has memberships but no active org — go to org selection
-    return <Navigate to={`/choose-organisation${location.search}`} replace />;
+    return <Navigate to="/choose-organisation" replace />;
   }
   return <>{children}</>;
+}
+
+function AppInitializer({ children }: { children: React.ReactNode }) {
+  const { isInitializing, isOrgResolving } = useAuth();
+
+  if (isInitializing || isOrgResolving) {
+    return <FullPageLoader message="Initializing workspace..." />;
+  }
+
+  return <>{children}</>;
+}
+
+function AppLayout() {
+  return (
+    <Layout>
+      <Outlet />
+    </Layout>
+  );
 }
 
 function AppRoutes() {
@@ -148,43 +200,21 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
       <Route
-        path="/apps"
+        path="/create-organisation"
         element={
           <ProtectedRoute>
-            <Apps />
+            <CreateOrganisation />
           </ProtectedRoute>
         }
       />
+
       <Route
-        path="/plans"
+        path="/pending-invites"
         element={
           <ProtectedRoute>
-            <Plans />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/billing"
-        element={
-          <ProtectedRoute>
-            <Billing />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/checkout"
-        element={
-          <ProtectedRoute>
-            <CheckoutPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/integrations"
-        element={
-          <ProtectedRoute>
-            <Integrations />
+            <PendingInvitations />
           </ProtectedRoute>
         }
       />
@@ -197,6 +227,16 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/checkout"
+        element={
+          <ProtectedRoute>
+            <PermissionRoute permission="billing.manage">
+              <CheckoutPage />
+            </PermissionRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/tools/listing-generator"
         element={
           <ProtectedRoute>
@@ -204,96 +244,126 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute>
-            <Profile />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/organisation"
-        element={
-          <ProtectedRoute>
-            <Organisation />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/create-organisation"
-        element={
-          <ProtectedRoute>
-            <CreateOrganisation />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/pending-invites"
-        element={
-          <ProtectedRoute>
-            <PendingInvitations />
-          </ProtectedRoute>
-        }
-      />
+      <Route element={<AppLayout />}>
+        <Route
+          path="/apps"
+          element={
+            <ProtectedRoute>
+              <Apps />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/plans"
+          element={
+            <ProtectedRoute>
+              <PermissionRoute permission="plans.view">
+                <Plans />
+              </PermissionRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/billing"
+          element={
+            <ProtectedRoute>
+              <PermissionRoute permission="billing.view">
+                <Billing />
+              </PermissionRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/integrations"
+          element={
+            <ProtectedRoute>
+              <Integrations />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/organisation"
+          element={
+            <ProtectedRoute>
+              <Organisation />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* Admin routes */}
-      <Route
-        path="/admin"
-        element={
-          <AdminRoute>
-            <AdminDashboard />
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/apps"
-        element={
-          <AdminRoute>
-            <AdminApps />
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/plans"
-        element={
-          <AdminRoute>
-            <AdminPlans />
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/users"
-        element={
-          <AdminRoute>
-            <AdminUsers />
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/audit-logs"
-        element={
-          <AdminRoute>
-            <AuditLogs />
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/organizations"
-        element={
-          <AdminRoute>
-            <AdminOrganizations />
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/configs"
-        element={
-          <AdminRoute>
-            <AdminConfigs />
-          </AdminRoute>
-        }
-      />
+        {/* Admin routes */}
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/apps"
+          element={
+            <AdminRoute>
+              <AdminApps />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/plans"
+          element={
+            <AdminRoute>
+              <AdminPlans />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <AdminRoute>
+              <AdminUsers />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/audit-logs"
+          element={
+            <AdminRoute>
+              <AuditLogs />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/organizations"
+          element={
+            <AdminRoute>
+              <AdminOrganizations />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/configs"
+          element={
+            <AdminRoute>
+              <AdminConfigs />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/rbac"
+          element={
+            <AdminRoute>
+              <AdminRBAC />
+            </AdminRoute>
+          }
+        />
+      </Route>
       <Route
         path="/accept-invite"
         element={
@@ -321,13 +391,17 @@ function AppRoutes() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </TooltipProvider>
+      <PermissionsProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AppInitializer>
+              <AppRoutes />
+            </AppInitializer>
+          </BrowserRouter>
+        </TooltipProvider>
+      </PermissionsProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
