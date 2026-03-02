@@ -1,4 +1,5 @@
 import { Sequelize } from 'sequelize';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import path from 'path';
 import Logger from '../utils/logger';
@@ -6,6 +7,17 @@ import Logger from '../utils/logger';
 dotenv.config({ path: path.join(__dirname, '../../.env') }); // ensure .env is valid
 
 const isProduction = process.env.NODE_ENV === 'production';
+
+const RDS_CA_BUNDLE_PATH = '/app/rds-combined-ca-bundle.pem';
+
+function loadRdsCaCert(): string | undefined {
+    if (process.env.DB_SSL_CA) return process.env.DB_SSL_CA;
+    try {
+        return fs.readFileSync(RDS_CA_BUNDLE_PATH, 'utf8');
+    } catch {
+        return undefined;
+    }
+}
 
 const sequelize = new Sequelize({
     dialect: 'postgres',
@@ -26,7 +38,7 @@ const sequelize = new Sequelize({
             ssl: {
                 require: true,
                 rejectUnauthorized: true,
-                ...(process.env.DB_SSL_CA && { ca: process.env.DB_SSL_CA }),
+                ca: loadRdsCaCert(),
             },
         },
     }),

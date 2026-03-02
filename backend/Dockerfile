@@ -20,6 +20,11 @@ COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/config ./config
 COPY --from=builder /app/.sequelizerc .
 
+# Download AWS RDS CA bundle for SSL certificate validation
+RUN apk add --no-cache wget && \
+    wget -q https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -O /app/rds-combined-ca-bundle.pem && \
+    apk del wget
+
 RUN mkdir -p /app/logs && chown -R node:node /app/logs
 USER node
 EXPOSE 3000
