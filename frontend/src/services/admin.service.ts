@@ -261,6 +261,45 @@ export const getAuditLogById = async (id: string) => {
   return response.data;
 };
 
+// Organization Entitlements
+export interface OrganizationEntitlement {
+  id: string;
+  organization_id: string;
+  tool_id: string;
+  feature_id: string;
+  limit_amount: number | null;
+  usage_amount: number;
+  reset_period: 'monthly' | 'yearly' | 'never' | null;
+  last_reset_at: string | null;
+  created_at: string;
+  updated_at: string;
+  organization?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  tool?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  feature?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+}
+
+export const getEntitlements = async (params?: PaginationParams & { organization_id?: string; tool_id?: string; feature_id?: string }) => {
+  const response = await api.get('/admin/entitlements', { params });
+  return response.data; // { entitlements: [], meta: {} }
+};
+
+export const updateEntitlement = async (id: string, data: { limit_amount?: number | null; usage_amount?: number; reset_period?: string }) => {
+  const response = await api.put(`/admin/entitlements/${id}`, data);
+  return response.data;
+};
+
 // Stats
 export const getOverviewStats = async () => {
   const response = await api.get('/admin/stats/overview');

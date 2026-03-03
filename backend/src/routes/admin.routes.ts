@@ -82,6 +82,11 @@ import * as ConfigController from '../controllers/admin.config.controller';
 router.get('/configs', ConfigController.getConfigs);
 router.put('/configs/:key', ConfigController.updateConfig);
 
+// Entitlements
+import * as EntitlementController from '../controllers/admin.entitlement.controller';
+router.get('/entitlements', EntitlementController.getEntitlements);
+router.put('/entitlements/:id', EntitlementController.updateEntitlement);
+
 // RBAC Management
 import * as RBACController from '../controllers/admin.rbac.controller';
 router.get('/rbac/roles', RBACController.getRoles);
