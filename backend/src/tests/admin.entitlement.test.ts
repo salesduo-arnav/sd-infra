@@ -322,7 +322,7 @@ describe('Admin Entitlement Management Integration Tests', () => {
 
             expect(res.status).toBe(200);
             const limits = res.body.entitlements.map((e: OrganizationEntitlement) => e.limit_amount);
-            // Nulls may appear first or last depending on DB; just ensure no error
+            expect(limits).toEqual([50, 100, 200, 500, null]);
             expect(res.body.entitlements.length).toBe(5);
         });
 
