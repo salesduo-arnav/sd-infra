@@ -24,8 +24,8 @@ describe('Public Plan Access', () => {
         }
 
         // Clean up before seeding
-        await Plan.destroy({ where: {}, force: true });
-        await Tool.destroy({ where: {}, force: true });
+        await Plan.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Tool.destroy({ where: {}, truncate: true, cascade: true, force: true });
 
         // Create Test Tool
         testTool = await Tool.create({

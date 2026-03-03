@@ -33,10 +33,10 @@ describe('Admin Bundle Management', () => {
         }
 
         // Clean up before seeding
-        await Bundle.destroy({ where: {}, force: true });
-        await Plan.destroy({ where: {}, force: true });
-        await Tool.destroy({ where: {}, force: true });
-        await User.destroy({ where: {}, force: true });
+        await Bundle.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Plan.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Tool.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await User.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await redisClient.flushDb();
 
         // Create Admin User

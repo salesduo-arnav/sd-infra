@@ -27,14 +27,14 @@ describe('Admin Stats Controller', () => {
         }
 
         // Clean up before seeding
-        await OneTimePurchase.destroy({ where: {}, force: true });
-        await ToolUsage.destroy({ where: {}, force: true });
-        await Subscription.destroy({ where: {}, force: true });
-        await Plan.destroy({ where: {}, force: true });
-        await Tool.destroy({ where: {}, force: true });
-        await Organization.destroy({ where: {}, force: true });
-        await User.destroy({ where: {}, force: true });
-        await Role.destroy({ where: {}, force: true });
+        await OneTimePurchase.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await ToolUsage.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Subscription.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Plan.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Tool.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Organization.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await User.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Role.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await redisClient.flushDb();
 
         // Create Roles

@@ -51,11 +51,11 @@ describe('CronService', () => {
 
     beforeEach(async () => {
         // Clear DB tables relevant to tests
-        await Subscription.destroy({ where: {}, force: true });
-        await Plan.destroy({ where: {}, force: true });
-        await Tool.destroy({ where: {}, force: true });
-        await Organization.destroy({ where: {}, force: true });
-        await SystemConfig.destroy({ where: {}, force: true });
+        await Subscription.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Plan.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Tool.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Organization.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await SystemConfig.destroy({ where: {}, truncate: true, cascade: true, force: true });
         jest.clearAllMocks();
 
         if (redisClient.isOpen) {

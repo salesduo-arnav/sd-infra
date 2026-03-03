@@ -29,11 +29,11 @@ describe('Admin Organization Management', () => {
         }
 
         // Clean up before seeding
-        await Invitation.destroy({ where: {}, force: true });
-        await OrganizationMember.destroy({ where: {}, force: true });
-        await Organization.destroy({ where: {}, force: true });
-        await User.destroy({ where: {}, force: true });
-        await Role.destroy({ where: {}, force: true });
+        await Invitation.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await OrganizationMember.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Organization.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await User.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Role.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await redisClient.flushDb();
 
         // Create Role
