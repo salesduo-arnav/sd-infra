@@ -11,6 +11,9 @@ let user: User;
 let token: string;
 
 beforeAll(async () => {
+    if (process.env.PGDATABASE !== 'mydb_test') {
+        throw new Error("CRITICAL: Tests must run against mydb_test!");
+    }
     await connectDB();
     await connectRedis();
 });

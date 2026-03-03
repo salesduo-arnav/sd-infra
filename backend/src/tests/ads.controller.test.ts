@@ -34,7 +34,7 @@ describe('Ads Controller Integration Tests', () => {
         await Organization.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await User.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await Role.destroy({ where: {}, truncate: true, cascade: true, force: true });
-        await redisClient.flushAll();
+        await redisClient.flushDb();
 
         jest.clearAllMocks();
 

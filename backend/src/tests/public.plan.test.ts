@@ -15,10 +15,17 @@ describe('Public Plan Access', () => {
     let testTool: Tool;
 
     beforeAll(async () => {
-        await sequelize.sync({ force: true });
+        if (process.env.PGDATABASE !== 'mydb_test') {
+            throw new Error("CRITICAL: Tests must run against mydb_test!");
+        }
+        await sequelize.authenticate();
         if (!redisClient.isOpen) {
             await redisClient.connect();
         }
+
+        // Clean up before seeding
+        await Plan.destroy({ where: {}, force: true });
+        await Tool.destroy({ where: {}, force: true });
 
         // Create Test Tool
         testTool = await Tool.create({

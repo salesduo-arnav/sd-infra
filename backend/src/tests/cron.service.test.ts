@@ -32,14 +32,11 @@ describe('CronService', () => {
     let plan: Plan;
 
     beforeAll(async () => {
-        // Ensure DB connection
-        try {
-            await sequelize.authenticate();
-        } catch (_e) {
-            // Already connected or error
-            console.log('DB already connected or error:', _e);
+        if (process.env.PGDATABASE !== 'mydb_test') {
+            throw new Error("CRITICAL: Tests must run against mydb_test!");
         }
-        await sequelize.sync({ force: true });
+        // Ensure DB connection
+        await sequelize.authenticate();
         if (!redisClient.isOpen) {
             await redisClient.connect();
         }

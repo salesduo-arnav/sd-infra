@@ -20,10 +20,21 @@ describe('Admin Organization Management', () => {
     let testRole: Role;
 
     beforeAll(async () => {
-        await sequelize.sync({ force: true });
+        if (process.env.PGDATABASE !== 'mydb_test') {
+            throw new Error("CRITICAL: Tests must run against mydb_test!");
+        }
+        await sequelize.authenticate();
         if (!redisClient.isOpen) {
             await redisClient.connect();
         }
+
+        // Clean up before seeding
+        await Invitation.destroy({ where: {}, force: true });
+        await OrganizationMember.destroy({ where: {}, force: true });
+        await Organization.destroy({ where: {}, force: true });
+        await User.destroy({ where: {}, force: true });
+        await Role.destroy({ where: {}, force: true });
+        await redisClient.flushDb();
 
         // Create Role
         testRole = await Role.create({

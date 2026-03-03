@@ -47,7 +47,7 @@ describe('Admin Entitlement Management Integration Tests', () => {
         await Tool.destroy({ where: {}, truncate: true, cascade: true });
         await Organization.destroy({ where: {}, truncate: true, cascade: true });
         await User.destroy({ where: {}, truncate: true, cascade: true });
-        await redisClient.flushAll();
+        await redisClient.flushDb();
 
         // Create Users
         adminUser = await User.create({

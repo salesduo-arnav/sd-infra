@@ -34,7 +34,7 @@ describe('Admin Feature Management Integration Tests', () => {
         await Feature.destroy({ where: {}, truncate: true, cascade: true });
         await Tool.destroy({ where: {}, truncate: true, cascade: true });
         await User.destroy({ where: {}, truncate: true, cascade: true });
-        await redisClient.flushAll();
+        await redisClient.flushDb();
 
         // Create Admin User
         adminUser = await User.create({

@@ -12,12 +12,15 @@ describe('Superuser Logic', () => {
     let originalSuperuserEmails: string | undefined;
 
     beforeAll(async () => {
+        if (process.env.PGDATABASE !== 'mydb_test') {
+            throw new Error("CRITICAL: Tests must run against mydb_test!");
+        }
         // Save original env var
         originalSuperuserEmails = process.env.SUPERUSER_EMAILS;
         // Set test env var
         process.env.SUPERUSER_EMAILS = 'superuser@example.com,also.superuser@example.com';
 
-        await sequelize.sync({ force: true });
+        await sequelize.authenticate();
         if (!redisClient.isOpen) {
             await redisClient.connect();
         }
@@ -35,7 +38,7 @@ describe('Superuser Logic', () => {
 
     beforeEach(async () => {
         await User.destroy({ where: {} });
-        await redisClient.flushAll();
+        await redisClient.flushDb();
     });
 
     it('should register a normal user as non-superuser', async () => {
