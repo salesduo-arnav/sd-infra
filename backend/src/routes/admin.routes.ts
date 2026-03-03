@@ -85,6 +85,7 @@ router.put('/configs/:key', ConfigController.updateConfig);
 // Entitlements
 import * as EntitlementController from '../controllers/admin.entitlement.controller';
 router.get('/entitlements', EntitlementController.getEntitlements);
+router.post('/entitlements', EntitlementController.createEntitlements);
 router.put('/entitlements/:id', EntitlementController.updateEntitlement);
 
 // RBAC Management

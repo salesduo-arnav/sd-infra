@@ -27,14 +27,17 @@ import {
     Pencil,
     Gauge,
     AlertTriangle,
+    Plus,
 } from "lucide-react";
 import {
     OrganizationEntitlement,
     getEntitlements,
     updateEntitlement,
+    createEntitlements,
     getTools,
     Tool,
 } from "@/services/admin.service";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
@@ -85,6 +88,15 @@ export default function AdminEntitlements() {
     const [editUsageAmount, setEditUsageAmount] = useState<string>("");
     const [editResetPeriod, setEditResetPeriod] = useState<string>("never");
     const [saving, setSaving] = useState(false);
+
+    // Create Dialog
+    const [createOpen, setCreateOpen] = useState(false);
+    const [createOrgId, setCreateOrgId] = useState<string>("");
+    const [createToolId, setCreateToolId] = useState<string>("");
+    const [createSelectedFeatures, setCreateSelectedFeatures] = useState<string[]>([]);
+    const [createLimitAmount, setCreateLimitAmount] = useState<string>("");
+    const [createResetPeriod, setCreateResetPeriod] = useState<string>("never");
+    const [creating, setCreating] = useState(false);
 
     // Load filter options
     useEffect(() => {
@@ -223,6 +235,78 @@ export default function AdminEntitlements() {
             });
         } finally {
             setSaving(false);
+        }
+    };
+
+    // Create entitlements
+    const availableFeaturesForTool = featureOptions.filter(f => f.tool_id === createToolId);
+
+    const handleSelectAllFeatures = () => {
+        if (createSelectedFeatures.length === availableFeaturesForTool.length && availableFeaturesForTool.length > 0) {
+            setCreateSelectedFeatures([]);
+        } else {
+            setCreateSelectedFeatures(availableFeaturesForTool.map(f => f.id));
+        }
+    };
+
+    const handleFeatureToggle = (featureId: string) => {
+        setCreateSelectedFeatures(prev => 
+            prev.includes(featureId) ? prev.filter(id => id !== featureId) : [...prev, featureId]
+        );
+    };
+
+    const handleCreateEntitlement = async () => {
+        if (!createOrgId || !createToolId || createSelectedFeatures.length === 0) {
+            toast({
+                title: "Missing fields",
+                description: "Please select an organization, a tool, and at least one feature.",
+                variant: "destructive"
+            });
+            return;
+        }
+        setCreating(true);
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const payload: any = {
+                organization_id: createOrgId,
+                tool_id: createToolId,
+                feature_ids: createSelectedFeatures,
+                reset_period: createResetPeriod
+            };
+            
+            if (createLimitAmount === "" || createLimitAmount === "unlimited") {
+                 payload.limit_amount = null;
+            } else {
+                 const parsed = parseInt(createLimitAmount);
+                 if (!isNaN(parsed) && parsed >= 0) {
+                     payload.limit_amount = parsed;
+                 }
+            }
+            
+            const res = await createEntitlements(payload);
+            toast({
+                title: "Entitlements Created",
+                description: `Successfully created ${res.count} entitlements.`,
+            });
+            setCreateOpen(false);
+            
+            // Reset form
+            setCreateOrgId("");
+            setCreateToolId("");
+            setCreateSelectedFeatures([]);
+            setCreateLimitAmount("");
+            setCreateResetPeriod("never");
+            
+            fetchEntitlements();
+        } catch (error) {
+             console.error("Failed to create entitlement:", error);
+             toast({
+                 title: "Creation Failed",
+                 description: "Failed to create entitlements. Please try again.",
+                 variant: "destructive",
+             });
+        } finally {
+             setCreating(false);
         }
     };
 
@@ -374,16 +458,22 @@ export default function AdminEntitlements() {
         <>
             <div className="space-y-8">
                 {/* Header */}
-                <div className="flex items-start gap-4">
-                    <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-primary/10 border border-primary/20">
-                        <Gauge className="h-6 w-6 text-primary" />
+                <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                        <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-primary/10 border border-primary/20">
+                            <Gauge className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-bold tracking-tight">Manage Entitlements</h1>
+                            <p className="text-muted-foreground mt-1">
+                                View and manage feature entitlements across all organizations
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Manage Entitlements</h1>
-                        <p className="text-muted-foreground mt-1">
-                            View and manage feature entitlements across all organizations
-                        </p>
-                    </div>
+                    <Button onClick={() => setCreateOpen(true)} className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Create Entitlement
+                    </Button>
                 </div>
 
                 {/* Filters Row */}
@@ -576,6 +666,125 @@ export default function AdminEntitlements() {
                             </Button>
                             <Button onClick={handleSaveEntitlement} disabled={saving}>
                                 {saving ? "Saving..." : "Save Changes"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Create Dialog */}
+                <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+                    <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle>Create Entitlements</DialogTitle>
+                            <DialogDescription>
+                                Manually grant feature entitlements to an organization.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-4 pt-2">
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium">Organization</Label>
+                                <Select value={createOrgId} onValueChange={setCreateOrgId}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select Organization" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {orgOptions.map((org) => (
+                                            <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium">Tool</Label>
+                                <Select value={createToolId} onValueChange={(val) => {
+                                    setCreateToolId(val);
+                                    setCreateSelectedFeatures([]); // Reset features when tool changes
+                                }}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select Tool" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {toolOptions.map((tool) => (
+                                            <SelectItem key={tool.id} value={tool.id}>{tool.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {createToolId && (
+                                <div className="space-y-3 p-4 bg-muted/40 rounded-lg border border-border">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-sm font-medium">Features</Label>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            onClick={handleSelectAllFeatures}
+                                            className="h-7 text-xs"
+                                        >
+                                            {createSelectedFeatures.length === availableFeaturesForTool.length && availableFeaturesForTool.length > 0
+                                                ? "Deselect All"
+                                                : "Select All"}
+                                        </Button>
+                                    </div>
+                                    <div className="space-y-3 max-h-[150px] overflow-y-auto pr-2">
+                                        {availableFeaturesForTool.length === 0 ? (
+                                            <p className="text-xs text-muted-foreground">No features found for this tool.</p>
+                                        ) : (
+                                            availableFeaturesForTool.map(feature => (
+                                                <div key={feature.id} className="flex items-center space-x-2">
+                                                    <Checkbox 
+                                                        id={`feature-${feature.id}`}
+                                                        checked={createSelectedFeatures.includes(feature.id)}
+                                                        onCheckedChange={() => handleFeatureToggle(feature.id)}
+                                                    />
+                                                    <Label 
+                                                        htmlFor={`feature-${feature.id}`} 
+                                                        className="text-sm font-normal cursor-pointer flex-1"
+                                                    >
+                                                        {feature.name}
+                                                    </Label>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Limit Amount</Label>
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        value={createLimitAmount}
+                                        onChange={(e) => setCreateLimitAmount(e.target.value)}
+                                        placeholder="Leave empty for unlimited"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Reset Period</Label>
+                                    <Select value={createResetPeriod} onValueChange={setCreateResetPeriod}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Reset period" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="never">Never</SelectItem>
+                                            <SelectItem value="monthly">Monthly</SelectItem>
+                                            <SelectItem value="yearly">Yearly</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <DialogFooter className="gap-2 pt-4">
+                            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>
+                                Cancel
+                            </Button>
+                            <Button onClick={handleCreateEntitlement} disabled={creating || !createOrgId || !createToolId || createSelectedFeatures.length === 0}>
+                                {creating ? "Creating..." : "Create"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

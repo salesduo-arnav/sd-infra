@@ -476,4 +476,98 @@ describe('Admin Entitlement Management Integration Tests', () => {
             expect(res.body.entitlement.reset_period).toBe(originalResetPeriod);
         });
     });
+
+    // ==================
+    // POST /admin/entitlements
+    // ==================
+    describe('POST /admin/entitlements', () => {
+        it('should create new entitlements for multiple features', async () => {
+            const res = await request(app)
+                .post('/admin/entitlements')
+                .set('Cookie', [`session_id=${adminSession}`])
+                .send({
+                    organization_id: org2.id,
+                    tool_id: tool1.id,
+                    feature_ids: [feature1.id, feature2.id],
+                    limit_amount: 100,
+                    reset_period: 'monthly'
+                });
+
+            expect(res.status).toBe(201);
+            expect(res.body.message).toBe('Entitlements created successfully');
+            expect(res.body.count).toBe(2);
+
+            // Verify in DB
+            const count = await OrganizationEntitlement.count({
+                where: { organization_id: org2.id, tool_id: tool1.id }
+            });
+            // org2 already got feature1 via setup, so now it gets feature2 and feature1 gets updated.
+            expect(count).toBe(2); 
+
+            const f2Entitlement = await OrganizationEntitlement.findOne({
+                where: { organization_id: org2.id, feature_id: feature2.id }
+            });
+            expect(f2Entitlement?.limit_amount).toBe(100);
+            expect(f2Entitlement?.reset_period).toBe('monthly');
+        });
+
+        it('should update existing entitlements if they already exist', async () => {
+             const res = await request(app)
+                .post('/admin/entitlements')
+                .set('Cookie', [`session_id=${adminSession}`])
+                .send({
+                    organization_id: org1.id,
+                    tool_id: tool1.id,
+                    feature_ids: [feature1.id], // Originally 100 limit, 45 usage
+                    limit_amount: 999,
+                    reset_period: 'yearly'
+                });
+
+            expect(res.status).toBe(201);
+
+            const updated = await OrganizationEntitlement.findOne({
+                 where: { organization_id: org1.id, feature_id: feature1.id }
+            });
+
+            expect(updated?.limit_amount).toBe(999);
+            expect(updated?.reset_period).toBe('yearly');
+            expect(updated?.usage_amount).toBe(45); // Should preserve usage count
+        });
+
+        it('should update existing entitlements to unlimited (null) if they already exist', async () => {
+             const res = await request(app)
+                .post('/admin/entitlements')
+                .set('Cookie', [`session_id=${adminSession}`])
+                .send({
+                    organization_id: org1.id,
+                    tool_id: tool1.id,
+                    feature_ids: [feature1.id], // Originally 100 limit, 45 usage
+                    limit_amount: null,
+                    reset_period: null
+                });
+
+            expect(res.status).toBe(201);
+
+            const updated = await OrganizationEntitlement.findOne({
+                 where: { organization_id: org1.id, feature_id: feature1.id }
+            });
+
+            expect(updated?.limit_amount).toBe(null);
+            expect(updated?.reset_period).toBe(null);
+            expect(updated?.usage_amount).toBe(45); // Should preserve usage count
+        });
+
+         it('should return 400 if required fields are missing', async () => {
+            const res = await request(app)
+                .post('/admin/entitlements')
+                .set('Cookie', [`session_id=${adminSession}`])
+                .send({
+                    organization_id: org2.id,
+                    tool_id: tool1.id,
+                    // missing feature_ids
+                });
+
+            expect(res.status).toBe(400);
+        });
+    });
 });

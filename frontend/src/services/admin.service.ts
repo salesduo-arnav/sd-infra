@@ -295,6 +295,11 @@ export const getEntitlements = async (params?: PaginationParams & { organization
   return response.data; // { entitlements: [], meta: {} }
 };
 
+export const createEntitlements = async (data: { organization_id: string; tool_id: string; feature_ids: string[]; limit_amount?: number | null; reset_period?: string }) => {
+  const response = await api.post('/admin/entitlements', data);
+  return response.data;
+};
+
 export const updateEntitlement = async (id: string, data: { limit_amount?: number | null; usage_amount?: number; reset_period?: string }) => {
   const response = await api.put(`/admin/entitlements/${id}`, data);
   return response.data;

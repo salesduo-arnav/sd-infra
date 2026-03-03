@@ -78,6 +78,67 @@ export const getEntitlements = async (req: Request, res: Response) => {
     }
 };
 
+export const createEntitlements = async (req: Request, res: Response) => {
+    try {
+        const { organization_id, tool_id, feature_ids, limit_amount, reset_period } = req.body;
+        
+        if (!organization_id || !tool_id || !feature_ids || !Array.isArray(feature_ids) || feature_ids.length === 0) {
+            return res.status(400).json({ message: 'Missing required fields: organization_id, tool_id, and at least one feature_id' });
+        }
+
+        Logger.info('Creating entitlements manually', { organization_id, tool_id, feature_ids, userId: req.user?.id });
+
+        const createdOrUpdated: string[] = [];
+        
+        for (const featureId of feature_ids) {
+            let entitlement = await OrganizationEntitlement.findOne({
+                where: { organization_id, feature_id: featureId }
+            });
+
+            if (entitlement) {
+                const newLimit = limit_amount !== undefined ? limit_amount : entitlement.limit_amount;
+                const newReset = reset_period !== undefined ? (reset_period as FeatureResetPeriod) : entitlement.reset_period;
+
+                await entitlement.update({
+                    limit_amount: newLimit !== null ? newLimit : null,
+                    reset_period: newReset !== null ? newReset : (null as unknown as FeatureResetPeriod),
+                });
+            } else {
+                entitlement = await OrganizationEntitlement.create({
+                    organization_id,
+                    tool_id,
+                    feature_id: featureId,
+                    limit_amount: limit_amount !== undefined ? limit_amount : undefined,
+                    usage_amount: 0,
+                    reset_period: reset_period !== undefined ? (reset_period as FeatureResetPeriod) : undefined,
+                    last_reset_at: new Date()
+                });
+            }
+            createdOrUpdated.push(entitlement.id);
+        }
+
+        await AuditService.log({
+            actorId: req.user?.id,
+            action: 'CREATE_ENTITLEMENTS',
+            entityType: 'OrganizationEntitlement',
+            entityId: organization_id, // Grouping by organization since multiple might be created
+            details: {
+                organization_id,
+                tool_id,
+                feature_ids,
+                created_entitlement_ids: createdOrUpdated,
+                limit_amount,
+                reset_period
+            },
+            req
+        });
+
+        res.status(201).json({ message: 'Entitlements created successfully', count: createdOrUpdated.length });
+    } catch (error) {
+        handleError(res, error, 'Create Entitlements Error');
+    }
+};
+
 export const updateEntitlement = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
