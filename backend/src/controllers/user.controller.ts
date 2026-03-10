@@ -177,7 +177,7 @@ export const deleteAccount = async (req: Request, res: Response) => {
         if (sessionId) {
             await import('../config/redis').then(r => r.default.del(`session:${sessionId}`));
         }
-        res.clearCookie('session_id');
+        res.clearCookie('session_id', { domain: process.env.COOKIE_DOMAIN || undefined });
 
         res.json({ message: 'Account deleted successfully' });
     } catch (error) {
