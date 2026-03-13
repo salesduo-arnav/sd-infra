@@ -37,7 +37,7 @@ describe('Admin Deletion Protection Integration Tests', () => {
         await Plan.destroy({ where: {}, truncate: true, cascade: true });
         await Tool.destroy({ where: {}, truncate: true, cascade: true });
         await User.destroy({ where: {}, truncate: true, cascade: true });
-        await redisClient.flushAll();
+        await redisClient.flushDb();
 
         // Create Admin User
         adminUser = await User.create({

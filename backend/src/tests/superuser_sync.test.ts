@@ -31,10 +31,13 @@ describe('Superuser Google Sync Logic', () => {
     const testEmail = 'sync_test_user@example.com';
 
     beforeAll(async () => {
+        if (process.env.PGDATABASE !== 'mydb_test') {
+            throw new Error("CRITICAL: Tests must run against mydb_test!");
+        }
         originalSuperuserEmails = process.env.SUPERUSER_EMAILS;
         process.env.SUPERUSER_EMAILS = `${testEmail},other@example.com`;
 
-        await sequelize.sync({ force: true });
+        await sequelize.authenticate();
         if (!redisClient.isOpen) {
             await redisClient.connect();
         }
@@ -50,7 +53,7 @@ describe('Superuser Google Sync Logic', () => {
 
     beforeEach(async () => {
         await User.destroy({ where: {} });
-        await redisClient.flushAll();
+        await redisClient.flushDb();
         jest.clearAllMocks();
     });
 
@@ -58,7 +61,7 @@ describe('Superuser Google Sync Logic', () => {
         // 1. Create user initially as normal user (NOT superuser)
         await User.create({
             email: testEmail,
-            full_name: 'Sync Test User',
+            full_name: 'Sync Test User 2',
             is_superuser: false,
             password_hash: null
         });
@@ -73,7 +76,7 @@ describe('Superuser Google Sync Logic', () => {
         mockVerifyIdToken.mockResolvedValue({
             getPayload: () => ({
                 email: testEmail,
-                name: 'Sync Test User',
+                name: 'Sync Test User 2',
                 sub: '12345'
             })
         });

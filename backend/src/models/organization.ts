@@ -150,6 +150,9 @@ Organization.init(
             where: { organization_id: organization.id },
             transaction: options.transaction,
           });
+
+          const { publishEvent, EventType } = await import('../services/event.service');
+          await publishEvent('system:events', EventType.ORGANIZATION_DELETED, { org_id: organization.id });
         } catch (error) {
           console.error(`Cascade delete failed for organization ${organization.id}:`, error);
           throw error; // Re-throw to trigger transaction rollback

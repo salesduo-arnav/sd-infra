@@ -100,6 +100,9 @@ User.init(
             where: { email: user.email },
             transaction: options.transaction,
           });
+
+          const { publishEvent, EventType } = await import('../services/event.service');
+          await publishEvent('system:events', EventType.USER_DELETED, { user_id: user.id });
         } catch (error) {
           console.error(`Cascade delete failed for user ${user.id}:`, error);
           throw error; // Re-throw to trigger transaction rollback

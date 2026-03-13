@@ -33,6 +33,7 @@ import AdminOrganizations from "./pages/admin/AdminOrganizations";
 import AdminConfigs from "./pages/admin/AdminConfigs";
 import AdminRBAC from "./pages/admin/AdminRBAC";
 import AuditLogs from "./pages/admin/AuditLogs";
+import AdminEntitlements from "./pages/admin/AdminEntitlements";
 import InviteAccepted from "./pages/InviteAccepted";
 import PendingInvitations from "./pages/PendingInvitations";
 import DesignSystem from "./pages/DesignSystem";
@@ -344,6 +345,14 @@ function AppRoutes() {
           element={
             <AdminRoute>
               <AdminOrganizations />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/entitlements"
+          element={
+            <AdminRoute>
+              <AdminEntitlements />
             </AdminRoute>
           }
         />

@@ -44,7 +44,7 @@ describe('RBAC Integration Tests', () => {
         await RolePermission.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await Permission.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await Role.destroy({ where: {}, truncate: true, cascade: true, force: true });
-        await redisClient.flushAll();
+        await redisClient.flushDb();
 
         // Seed permissions
         for (const perm of ALL_PERMISSIONS) {
