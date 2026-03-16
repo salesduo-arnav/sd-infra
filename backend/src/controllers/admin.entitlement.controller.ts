@@ -8,6 +8,7 @@ import { FeatureResetPeriod } from '../models/enums';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
+import redisClient from '../config/redis';
 import Logger from '../utils/logger';
 
 export const getEntitlements = async (req: Request, res: Response) => {
@@ -133,6 +134,13 @@ export const createEntitlements = async (req: Request, res: Response) => {
             req
         });
 
+        // Invalidate cached entitlements so micro-tools pick up the change immediately
+        try {
+            await redisClient.del(`cache:entitlements:${organization_id}`);
+        } catch (cacheError) {
+            Logger.warn('[AdminEntitlement] Failed to invalidate entitlement cache:', cacheError);
+        }
+
         res.status(201).json({ message: 'Entitlements created successfully', count: createdOrUpdated.length });
     } catch (error) {
         handleError(res, error, 'Create Entitlements Error');
@@ -192,6 +200,13 @@ export const updateEntitlement = async (req: Request, res: Response) => {
             },
             req
         });
+
+        // Invalidate cached entitlements so micro-tools pick up the change immediately
+        try {
+            await redisClient.del(`cache:entitlements:${entitlement.organization_id}`);
+        } catch (cacheError) {
+            Logger.warn('[AdminEntitlement] Failed to invalidate entitlement cache:', cacheError);
+        }
 
         res.status(200).json({ message: 'Entitlement updated successfully', entitlement });
     } catch (error) {

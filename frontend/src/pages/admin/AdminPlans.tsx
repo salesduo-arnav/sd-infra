@@ -46,7 +46,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Plus, Pencil, Trash2, CreditCard, Settings, Package, Link as LinkIcon, X, Eye, Layers } from "lucide-react";
+import { Plus, Pencil, Trash2, CreditCard, Settings, Package, Link as LinkIcon, X, Eye, Layers, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from "lucide-react";
 import * as AdminService from "@/services/admin.service";
 import { Plan, Tool, PlanLimit, Bundle, BundleGroup, Feature } from "@/services/admin.service";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
@@ -134,6 +134,9 @@ export default function AdminPlans() {
   const [stagedLimits, setStagedLimits] = useState<Record<string, { limit: number | null, reset_period: string, enabled: boolean }>>({});
   const [isSavingLimits, setIsSavingLimits] = useState(false);
   const [availableFeatures, setAvailableFeatures] = useState<AdminService.Feature[]>([]);
+  const [limitFeaturePagination, setLimitFeaturePagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+  const [limitFeatureRowCount, setLimitFeatureRowCount] = useState(0);
+  const [isLoadingLimitFeatures, setIsLoadingLimitFeatures] = useState(false);
 
   const [selectedBundleForPlans, setSelectedBundleForPlans] = useState<Bundle | null>(null);
   const [bundlePlans, setBundlePlans] = useState<Plan[]>([]); // Original plans in bundle (for reference/comparison)
@@ -421,37 +424,58 @@ export default function AdminPlans() {
 
   // --- Plan Limit Handlers ---
 
+  const fetchLimitFeatures = useCallback(async (plan: Plan) => {
+      setIsLoadingLimitFeatures(true);
+      try {
+          const features = await AdminService.getFeatures(plan.tool_id, {
+              page: limitFeaturePagination.pageIndex + 1,
+              limit: limitFeaturePagination.pageSize,
+          });
+          setAvailableFeatures(features.features || []);
+          setLimitFeatureRowCount(features.meta?.totalItems || 0);
+
+          // Initialize staged limits for newly fetched features (preserve existing staged values)
+          setStagedLimits(prev => {
+              const updated = { ...prev };
+              features.features?.forEach((f: AdminService.Feature) => {
+                  if (!updated[f.id]) {
+                      const existingLimit = plan.limits?.find(l => l.feature_id === f.id);
+                      if (existingLimit) {
+                          updated[f.id] = {
+                              limit: existingLimit.default_limit,
+                              reset_period: existingLimit.reset_period,
+                              enabled: existingLimit.is_enabled
+                          };
+                      } else {
+                          updated[f.id] = {
+                              limit: null,
+                              reset_period: 'monthly',
+                              enabled: false
+                          };
+                      }
+                  }
+              });
+              return updated;
+          });
+      } catch (error) {
+          console.error("Failed to fetch limit features", error);
+      } finally {
+          setIsLoadingLimitFeatures(false);
+      }
+  }, [limitFeaturePagination.pageIndex, limitFeaturePagination.pageSize]);
+
+  useEffect(() => {
+      if (selectedPlanForLimits && isLimitDialogOpen) {
+          fetchLimitFeatures(selectedPlanForLimits);
+      }
+  }, [selectedPlanForLimits, isLimitDialogOpen, fetchLimitFeatures]);
+
   const handleManageLimits = useCallback(async (plan: Plan) => {
       setSelectedPlanForLimits(plan);
+      setPlanLimits(plan.limits || []);
+      setStagedLimits({});
+      setLimitFeaturePagination({ pageIndex: 0, pageSize: 10 });
       setIsLimitDialogOpen(true);
-      try {
-          const features = await AdminService.getFeatures(plan.tool_id); // Fetch all features for tool
-          setAvailableFeatures(features.features || []); 
-          setPlanLimits(plan.limits || []);
-
-          // Initialize staged limits
-          const initialStaged: Record<string, { limit: number | null, reset_period: string, enabled: boolean }> = {};
-          features.features?.forEach((f: AdminService.Feature) => {
-              const existingLimit = plan.limits?.find(l => l.feature_id === f.id);
-              if (existingLimit) {
-                  initialStaged[f.id] = {
-                      limit: existingLimit.default_limit,
-                      reset_period: existingLimit.reset_period,
-                      enabled: existingLimit.is_enabled
-                  };
-              } else {
-                   initialStaged[f.id] = {
-                      limit: null,
-                      reset_period: 'monthly',
-                      enabled: false
-                  };
-              }
-          });
-          setStagedLimits(initialStaged);
-
-      } catch (error) {
-          console.error("Failed to prep limits", error);
-      }
   }, []);
 
   const handleStagedLimitUpdate = (featureId: string, updates: Partial<{ limit: number | null, reset_period: string, enabled: boolean }>) => {
@@ -1082,7 +1106,12 @@ export default function AdminPlans() {
                     <DialogTitle>Limits: {selectedPlanForLimits?.name}</DialogTitle>
                     <DialogDescription>Note: Ensure "Metered" features have a number reset period.</DialogDescription>
                 </DialogHeader>
-                <div className="max-h-[60vh] overflow-y-auto">
+                <div className="max-h-[60vh] overflow-y-auto relative">
+                    {isLoadingLimitFeatures && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[2px]">
+                            <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                        </div>
+                    )}
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -1093,7 +1122,6 @@ export default function AdminPlans() {
                         </TableHeader>
                         <TableBody>
                             {availableFeatures.map(f => {
-                                const limit = selectedPlanForLimits?.limits?.find(l => l.feature_id === f.id);
                                 return (
                                     <TableRow key={f.id}>
                                         <TableCell>
@@ -1102,14 +1130,14 @@ export default function AdminPlans() {
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
-                                                <Switch 
+                                                <Switch
                                                     checked={stagedLimits[f.id]?.enabled ?? false}
                                                     onCheckedChange={(c) => handleStagedLimitUpdate(f.id, { enabled: c })}
                                                 />
                                                 <span className="text-sm text-muted-foreground w-14">{stagedLimits[f.id]?.enabled ? "Enabled" : "Disabled"}</span>
                                                 {stagedLimits[f.id]?.enabled && (
-                                                    <Input 
-                                                        className="w-24 h-8" type="number" placeholder="∞" 
+                                                    <Input
+                                                        className="w-24 h-8" type="number" placeholder="∞"
                                                         value={stagedLimits[f.id]?.limit === null ? "" : stagedLimits[f.id]?.limit}
                                                         onChange={(e) => handleStagedLimitUpdate(f.id, { limit: e.target.value ? Number(e.target.value) : null })}
                                                     />
@@ -1131,9 +1159,53 @@ export default function AdminPlans() {
                                     </TableRow>
                                 )
                             })}
+                            {!isLoadingLimitFeatures && availableFeatures.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={3} className="text-center py-4 text-muted-foreground">No features found for this tool.</TableCell>
+                                </TableRow>
+                            )}
                         </TableBody>
                     </Table>
                 </div>
+                {/* Pagination */}
+                {limitFeatureRowCount > limitFeaturePagination.pageSize && (
+                    <div className="flex items-center justify-between border-t pt-3">
+                        <div className="text-sm text-muted-foreground">
+                            Page {limitFeaturePagination.pageIndex + 1} of {Math.ceil(limitFeatureRowCount / limitFeaturePagination.pageSize)}
+                            {" "}({limitFeatureRowCount} features)
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <Button
+                                variant="ghost" size="sm" className="h-8 w-8 p-0"
+                                onClick={() => setLimitFeaturePagination(p => ({ ...p, pageIndex: 0 }))}
+                                disabled={limitFeaturePagination.pageIndex === 0 || isLoadingLimitFeatures}
+                            >
+                                <ChevronsLeft className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost" size="sm" className="h-8 w-8 p-0"
+                                onClick={() => setLimitFeaturePagination(p => ({ ...p, pageIndex: p.pageIndex - 1 }))}
+                                disabled={limitFeaturePagination.pageIndex === 0 || isLoadingLimitFeatures}
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost" size="sm" className="h-8 w-8 p-0"
+                                onClick={() => setLimitFeaturePagination(p => ({ ...p, pageIndex: p.pageIndex + 1 }))}
+                                disabled={limitFeaturePagination.pageIndex >= Math.ceil(limitFeatureRowCount / limitFeaturePagination.pageSize) - 1 || isLoadingLimitFeatures}
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost" size="sm" className="h-8 w-8 p-0"
+                                onClick={() => setLimitFeaturePagination(p => ({ ...p, pageIndex: Math.ceil(limitFeatureRowCount / p.pageSize) - 1 }))}
+                                disabled={limitFeaturePagination.pageIndex >= Math.ceil(limitFeatureRowCount / limitFeaturePagination.pageSize) - 1 || isLoadingLimitFeatures}
+                            >
+                                <ChevronsRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
                 <DialogFooter className="mt-4 border-t pt-4">
                      <Button variant="outline" onClick={() => setIsLimitDialogOpen(false)}>Cancel</Button>
                      <Button onClick={handleSaveLimits} disabled={isSavingLimits}>

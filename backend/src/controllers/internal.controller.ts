@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import sequelize from '../config/db';
 import { Organization } from '../models/organization';
 import { Subscription } from '../models/subscription';
 import { OrganizationEntitlement } from '../models/organization_entitlement';
@@ -77,52 +78,55 @@ export const consumeEntitlement = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'feature_slug is required in body' });
         }
 
-        // Find the entitlement for this org and feature slug
-        const entitlement = await OrganizationEntitlement.findOne({
-            where: { organization_id },
-            include: [{
-                model: Feature,
-                as: 'feature',
-                where: { slug: feature_slug },
-                required: true
-            }]
-        });
-
-        if (!entitlement) {
-            // If they don't have an entitlement row, they don't have access
-            return res.status(200).json({
-                allowed: false,
-                reason: 'no_entitlement',
-                message: 'No entitlement found for this feature.'
+        // Atomic check + increment inside a transaction with row-level lock
+        // to prevent concurrent over-consumption
+        const result = await sequelize.transaction(async (t) => {
+            const entitlement = await OrganizationEntitlement.findOne({
+                where: { organization_id },
+                include: [{
+                    model: Feature,
+                    as: 'feature',
+                    where: { slug: feature_slug },
+                    required: true
+                }],
+                lock: t.LOCK.UPDATE,
+                transaction: t,
             });
-        }
 
-        const currentUsage = entitlement.usage_amount || 0;
-        const limit = entitlement.limit_amount;
+            if (!entitlement) {
+                return {
+                    allowed: false,
+                    reason: 'no_entitlement',
+                    message: 'No entitlement found for this feature.'
+                };
+            }
 
-        // Check if limit is exceeded (null limit means unlimited)
-        if (limit !== null && limit !== undefined && (currentUsage + amount) > limit) {
-            return res.status(200).json({
-                allowed: false,
-                reason: 'limit_exceeded',
-                usage_amount: currentUsage,
-                limit_amount: limit,
+            const currentUsage = entitlement.usage_amount || 0;
+            const limit = entitlement.limit_amount;
+
+            // null limit means unlimited
+            if (limit !== null && limit !== undefined && (currentUsage + amount) > limit) {
+                return {
+                    allowed: false,
+                    reason: 'limit_exceeded',
+                    usage_amount: currentUsage,
+                    limit_amount: limit,
+                    feature: entitlement.feature
+                };
+            }
+
+            await entitlement.increment('usage_amount', { by: amount, transaction: t });
+            await entitlement.reload({ transaction: t });
+
+            return {
+                allowed: true,
+                usage_amount: entitlement.usage_amount,
+                limit_amount: entitlement.limit_amount,
                 feature: entitlement.feature
-            });
-        }
-
-        // Increment usage
-        await entitlement.increment('usage_amount', { by: amount });
-        
-        // Reload to get updated values
-        await entitlement.reload();
-
-        res.status(200).json({
-            allowed: true,
-            usage_amount: entitlement.usage_amount,
-            limit_amount: entitlement.limit_amount,
-            feature: entitlement.feature
+            };
         });
+
+        res.status(200).json(result);
     } catch (error) {
         handleError(res, error, 'Internal: Consume Entitlement Error');
     }
