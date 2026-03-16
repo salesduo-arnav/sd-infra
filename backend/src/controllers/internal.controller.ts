@@ -180,7 +180,7 @@ export const trackUsage = async (req: Request, res: Response) => {
 
 export const createAuditLog = async (req: Request, res: Response) => {
     try {
-        const { actor_id, action, entity_type, entity_id, details } = req.body;
+        const { actor_id, action, entity_type, entity_id, details, ip_address } = req.body;
 
         if (!action || !entity_type || !entity_id) {
             return res.status(400).json({ message: 'action, entity_type, and entity_id are required' });
@@ -196,6 +196,7 @@ export const createAuditLog = async (req: Request, res: Response) => {
                 ...details,
                 source: req.serviceName,
             },
+            ipAddress: ip_address,
         });
 
         res.json({ message: 'Audit log created', source: req.serviceName });

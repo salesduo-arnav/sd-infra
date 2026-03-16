@@ -100,7 +100,7 @@ export interface AuditLog {
   action: string;
   entity_type: string;
   entity_id: string;
-  details?: object;
+  details?: Record<string, unknown>;
   ip_address?: string | null;
   created_at: string;
   actor?: {
@@ -246,7 +246,7 @@ export const removePlanFromBundle = async (bundleId: string, planId: string) => 
 };
 
 // Audit Logs
-export const getAuditLogs = async (params?: PaginationParams & { action?: string; entity_type?: string; actor_id?: string; start_date?: string; end_date?: string; search?: string }) => {
+export const getAuditLogs = async (params?: PaginationParams & { action?: string; entity_type?: string; actor_id?: string; start_date?: string; end_date?: string; search?: string; source?: string }) => {
   const response = await api.get('/admin/audit-logs', { params });
   return response.data; // { audit_logs: [], meta: {} }
 };

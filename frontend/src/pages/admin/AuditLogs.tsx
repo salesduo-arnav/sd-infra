@@ -30,7 +30,14 @@ import { useQuery } from "@tanstack/react-query";
 
 const entityTypes = [
     "User", "Organization", "OrganizationMember", "Invitation",
-    "Plan", "PlanLimit", "Tool", "Feature", "Bundle", "BundleGroup"
+    "Plan", "PlanLimit", "Tool", "Feature", "Bundle", "BundleGroup",
+    "Project", "Image", "File", "SystemConfig"
+];
+
+const sourceOptions = [
+    { value: "all", label: "All Sources" },
+    { value: "core-platform", label: "Core Platform" },
+    { value: "creatives-micro-tool", label: "Creatives Tool" },
 ];
 
 export default function AuditLogs() {
@@ -49,6 +56,7 @@ export default function AuditLogs() {
     // Filters
     const [actionFilter, setActionFilter] = useState<string>("all");
     const [entityTypeFilter, setEntityTypeFilter] = useState<string>("all");
+    const [sourceFilter, setSourceFilter] = useState<string>("all");
     const [startDateTime, setStartDateTime] = useState<Date | undefined>();
     const [endDateTime, setEndDateTime] = useState<Date | undefined>();
 
@@ -65,7 +73,7 @@ export default function AuditLogs() {
     // Reset page when search or filters change
     useEffect(() => {
         setPagination(prev => ({ ...prev, pageIndex: 0 }));
-    }, [searchQuery, actionFilter, entityTypeFilter, startDateTime, endDateTime]);
+    }, [searchQuery, actionFilter, entityTypeFilter, sourceFilter, startDateTime, endDateTime]);
 
     // Fetch logs
     const fetchLogs = useCallback(async () => {
@@ -96,6 +104,10 @@ export default function AuditLogs() {
                 params.entity_type = entityTypeFilter;
             }
 
+            if (sourceFilter && sourceFilter !== "all") {
+                params.source = sourceFilter;
+            }
+
             if (startDateTime) {
                 params.start_date = startDateTime.toISOString();
             }
@@ -112,7 +124,7 @@ export default function AuditLogs() {
         } finally {
             setLoading(false);
         }
-    }, [pagination, sorting, searchQuery, actionFilter, entityTypeFilter, startDateTime, endDateTime]);
+    }, [pagination, sorting, searchQuery, actionFilter, entityTypeFilter, sourceFilter, startDateTime, endDateTime]);
 
     useEffect(() => {
         fetchLogs();
@@ -122,6 +134,7 @@ export default function AuditLogs() {
     const activeFilterCount = [
         actionFilter !== "all",
         entityTypeFilter !== "all",
+        sourceFilter !== "all",
         !!startDateTime,
         !!endDateTime,
     ].filter(Boolean).length;
@@ -129,6 +142,7 @@ export default function AuditLogs() {
     const clearAllFilters = () => {
         setActionFilter("all");
         setEntityTypeFilter("all");
+        setSourceFilter("all");
         setStartDateTime(undefined);
         setEndDateTime(undefined);
         setSearchQuery("");
@@ -193,6 +207,23 @@ export default function AuditLogs() {
                         : row.original.entity_id}
                 </span>
             ),
+            enableSorting: false,
+        },
+        {
+            id: "source",
+            header: () => <DataTableStaticHeader title="Source" />,
+            cell: ({ row }) => {
+                const source = row.original.details?.source as string | undefined;
+                return source ? (
+                    <Badge variant="secondary" className="text-xs font-normal whitespace-nowrap">
+                        {source}
+                    </Badge>
+                ) : (
+                    <Badge variant="outline" className="text-xs font-normal whitespace-nowrap">
+                        core-platform
+                    </Badge>
+                );
+            },
             enableSorting: false,
         },
         {
@@ -297,6 +328,21 @@ export default function AuditLogs() {
                             </Select>
                         </div>
 
+                        {/* Source Filter */}
+                        <div className="w-full sm:w-auto">
+                            <Label className="text-xs text-muted-foreground mb-1.5 block">Source</Label>
+                            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                                <SelectTrigger className="w-full sm:w-[160px] h-9 bg-background">
+                                    <SelectValue placeholder="All Sources" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {sourceOptions.map((opt) => (
+                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                         {/* Separator */}
                         <div className="hidden sm:block w-px h-9 bg-border" />
 
@@ -376,6 +422,12 @@ export default function AuditLogs() {
                                             <div className="flex justify-between">
                                                 <span className="text-muted-foreground">Date</span>
                                                 <span>{format(new Date(selectedLog.created_at), "PPpp")}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">Source</span>
+                                                <Badge variant={selectedLog.details?.source ? "secondary" : "outline"}>
+                                                    {(selectedLog.details?.source as string) || "core-platform"}
+                                                </Badge>
                                             </div>
                                             <div className="flex justify-between">
                                                 <span className="text-muted-foreground">IP Address</span>
