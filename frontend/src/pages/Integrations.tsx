@@ -48,6 +48,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
+  getIntegrationAccountGroups,
   getIntegrationAccounts,
   createIntegrationAccount,
   deleteIntegrationAccount,
@@ -59,6 +60,7 @@ import {
   getAdsAuthUrl,
   getSpAuthUrl,
   type IntegrationAccount,
+  type IntegrationAccountGroup,
   type GlobalIntegration,
 } from "@/services/integration.service";
 import { ManageIntegrationDialog } from "@/components/integrations/ManageIntegrationDialog";
@@ -154,6 +156,7 @@ export default function Integrations() {
   const { t } = useTranslation();
 
   // Account-level state
+  const [accountGroups, setAccountGroups] = useState<IntegrationAccountGroup[]>([]);
   const [accounts, setAccounts] = useState<IntegrationAccount[]>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
 
@@ -185,8 +188,12 @@ export default function Integrations() {
     if (!orgId) return;
     try {
       setIsLoadingAccounts(true);
-      const data = await getIntegrationAccounts(orgId);
-      setAccounts(data);
+      const [groupsData, accountsData] = await Promise.all([
+        getIntegrationAccountGroups(orgId),
+        getIntegrationAccounts(orgId),
+      ]);
+      setAccountGroups(groupsData);
+      setAccounts(accountsData);
     } catch {
       toast.error(t('pages.integrations.failedToLoadAccounts'));
     } finally {
@@ -449,6 +456,21 @@ export default function Integrations() {
 
   /* ------------- Manage Dialog Handlers ------------- */
 
+  /** Helper to refresh the manage dialog's accounts from the groups API. */
+  const refreshManageGroupAccounts = async () => {
+    if (!manageGroup) return;
+    const groups = await getIntegrationAccountGroups(orgId);
+    const updatedGroup = groups.find(
+      g => g.account_name === manageGroup.name && g.region === manageGroup.region
+    );
+    if (updatedGroup) {
+      setManageGroup(prev => prev ? { ...prev, accounts: updatedGroup.accounts } : null);
+    } else {
+      // Group was deleted (all accounts removed)
+      setManageGroup(null);
+    }
+  };
+
   const handleAddIntegration = async (type: string) => {
     if (!manageGroup) return;
     try {
@@ -459,15 +481,8 @@ export default function Integrations() {
         integration_type: type,
       });
       toast.success(t('pages.integrations.accountCreated').replace('(s)', ''));
-      await fetchAccounts(); // Refresh list
-
-      // Update local managed group state
-      const updatedAccounts = await getIntegrationAccounts(orgId);
-      const newGroupAccounts = updatedAccounts.filter(
-        a => a.account_name === manageGroup.name && a.region === manageGroup.region
-      );
-      setManageGroup(prev => prev ? { ...prev, accounts: newGroupAccounts } : null);
-
+      await fetchAccounts();
+      await refreshManageGroupAccounts();
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
       toast.error(err.response?.data?.message || t('pages.integrations.failedToCreate'));
@@ -496,13 +511,7 @@ export default function Integrations() {
       if (success) {
         toast.success(t('pages.integrations.connected').concat('!'));
         await fetchAccounts();
-
-        // Update local state
-        const updatedAccounts = await getIntegrationAccounts(orgId);
-        const newGroupAccounts = updatedAccounts.filter(
-          a => a.account_name === manageGroup?.name && a.region === manageGroup?.region
-        );
-        setManageGroup(prev => prev ? { ...prev, accounts: newGroupAccounts } : null);
+        await refreshManageGroupAccounts();
       }
       return success;
     } catch {
@@ -516,12 +525,7 @@ export default function Integrations() {
       await disconnectIntegrationAccount(orgId, account.id);
       toast.success(t('pages.integrations.integrationDisconnected').replace('disconnected', 'ed successfully'));
       await fetchAccounts();
-      // Update local state
-      const updatedAccounts = await getIntegrationAccounts(orgId);
-      const newGroupAccounts = updatedAccounts.filter(
-        a => a.account_name === manageGroup?.name && a.region === manageGroup?.region
-      );
-      setManageGroup(prev => prev ? { ...prev, accounts: newGroupAccounts } : null);
+      await refreshManageGroupAccounts();
     } catch {
       toast.error(t('pages.integrations.failedToDisconnect'));
     }
@@ -532,12 +536,7 @@ export default function Integrations() {
       await deleteIntegrationAccount(orgId, account.id);
       toast.success(t('pages.integrations.integrationDeleted'));
       await fetchAccounts();
-      // Update local state
-      const updatedAccounts = await getIntegrationAccounts(orgId);
-      const newGroupAccounts = updatedAccounts.filter(
-        a => a.account_name === manageGroup?.name && a.region === manageGroup?.region
-      );
-      setManageGroup(prev => prev ? { ...prev, accounts: newGroupAccounts } : null);
+      await refreshManageGroupAccounts();
     } catch {
       toast.error(t('pages.integrations.failedToDelete'));
     }
@@ -589,14 +588,7 @@ export default function Integrations() {
     }
   };
 
-  /* ------------- Group accounts by name ------------- */
-
-  const groupedAccounts = accounts.reduce<Record<string, IntegrationAccount[]>>((groups, acc) => {
-    const key = `${acc.account_name}__${acc.region}`;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(acc);
-    return groups;
-  }, {});
+  /* ------------- Groups come from the API now ------------- */
 
   /* ------------------------------------------------------------------ */
   /*  Render                                                             */
@@ -645,7 +637,7 @@ export default function Integrations() {
                 <Skeleton className="h-12 w-full" />
                 <Skeleton className="h-12 w-full" />
               </div>
-            ) : Object.keys(groupedAccounts).length === 0 ? (
+            ) : accountGroups.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                   <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -675,11 +667,11 @@ export default function Integrations() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {Object.entries(groupedAccounts).map(([key, groupAccounts]) => {
-                      const firstAccount = groupAccounts[0];
-                      const region = getRegion(firstAccount.region);
+                    {accountGroups.map((group) => {
+                      const groupAccounts = group.accounts || [];
+                      const region = getRegion(group.region);
                       const hasError = groupAccounts.some((a) => a.status === "error");
-                      const allConnected = groupAccounts.every((a) => a.status === "connected");
+                      const allConnected = groupAccounts.length > 0 && groupAccounts.every((a) => a.status === "connected");
                       const noneConnected = groupAccounts.every((a) => a.status === "disconnected");
 
                       const typeMap = groupAccounts.reduce((acc, curr) => {
@@ -688,19 +680,19 @@ export default function Integrations() {
                       }, {} as Record<string, IntegrationAccount>);
 
                       return (
-                        <TableRow key={key}>
+                        <TableRow key={group.id}>
                           <TableCell className="font-medium">
-                            {firstAccount.account_name}
+                            {group.account_name}
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className="capitalize">
-                              {firstAccount.marketplace || "amazon"}
+                              {group.marketplace || "amazon"}
                             </Badge>
                           </TableCell>
                           <TableCell>
                             <span className="flex items-center gap-2">
                               <span className="text-lg">{region?.flag || "🌍"}</span>
-                              <span>{region?.name || firstAccount.region}</span>
+                              <span>{region?.name || group.region}</span>
                             </span>
                           </TableCell>
                           <TableCell>
@@ -753,8 +745,8 @@ export default function Integrations() {
                               size="sm"
                               onClick={() => {
                                 setManageGroup({
-                                  name: firstAccount.account_name,
-                                  region: firstAccount.region,
+                                  name: group.account_name,
+                                  region: group.region,
                                   flag: region?.flag || "🌍",
                                   accounts: groupAccounts,
                                 });
