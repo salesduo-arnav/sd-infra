@@ -52,7 +52,7 @@ interface AuthContextType {
   isAdmin: boolean;
   activeOrganization: Organization | null;
   switchOrganization: (orgId: string, org?: Organization) => void;
-  login: (email: string, password: string, token?: string) => Promise<void>;
+  login: (email: string, password: string, token?: string) => Promise<User>;
   loginWithGoogle: (code: string, token?: string) => Promise<User | void>;
   signup: (name: string, email: string, password: string, token?: string) => Promise<User | void>;
   logout: () => void;
@@ -65,9 +65,9 @@ interface AuthContextType {
   declineInvite: (token: string) => Promise<void>;
   // OTP methods
   sendLoginOtp: (email: string) => Promise<void>;
-  verifyLoginOtp: (email: string, otp: string) => Promise<void>;
+  verifyLoginOtp: (email: string, otp: string) => Promise<User>;
   sendSignupOtp: (data: SignupData) => Promise<void>;
-  verifySignupOtp: (email: string, otp: string) => Promise<User | void>;
+  verifySignupOtp: (email: string, otp: string) => Promise<User>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

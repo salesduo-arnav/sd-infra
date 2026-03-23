@@ -61,7 +61,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (user?.memberships && user.memberships.length > 0 && !activeOrganization &&
     normalizedPath !== "/choose-organisation" &&
     normalizedPath !== "/create-organisation" &&
-    normalizedPath !== "/pending-invites") {
+    normalizedPath !== "/pending-invites" &&
+    normalizedPath !== "/integration-onboarding") {
     const currentPath = location.pathname + location.search;
     return <Navigate to={`/choose-organisation?redirect=${encodeURIComponent(currentPath)}`} replace />;
   }

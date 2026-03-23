@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth, Invitation } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -19,7 +19,13 @@ export default function PendingInvitations() {
     const navigate = useNavigate();
     const { t } = useTranslation();
 
+    // Guard: only run the initial fetch once.
+    const didFetchRef = useRef(false);
+
     useEffect(() => {
+        if (didFetchRef.current) return;
+        didFetchRef.current = true;
+
         const fetchInvites = async () => {
             try {
                 const data = await checkPendingInvites();
@@ -74,16 +80,24 @@ export default function PendingInvitations() {
                 await Promise.all(invitesToDecline.map(invite => declineInvite(invite.token)));
             }
 
-            // Check if user now has an org after accepting invites
+            // Refresh to get updated memberships after accept/decline
+            await refreshUser();
+
+            // If any invites were accepted, user now has org(s).
+            // Route to choose-organisation so they can select one
+            if (invitesToAccept.length > 0) {
+                navigate("/choose-organisation");
+                return;
+            }
+
+            // No accepts — user's org state is unchanged from before.
             const hasOrg = user?.memberships && user.memberships.length > 0;
 
             if (!hasOrg) {
-                // Still no org — must create one first
                 navigate("/create-organisation");
                 return;
             }
 
-            // Has org — if external redirect, go through integration onboarding
             if (hasRedirectContext()) {
                 navigate("/integration-onboarding", { replace: true });
                 return;

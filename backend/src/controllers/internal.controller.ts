@@ -48,7 +48,7 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
             order: [['joined_at', 'ASC']],
         });
 
-        const result = members.map((m: any) => ({
+        const result = members.map((m) => ({
             id: m.id,
             user_id: m.user?.id,
             email: m.user?.email,

@@ -19,6 +19,15 @@ export interface RedirectContext {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Returns true if the URL is an absolute external URL (http/https). */
+function isExternalUrl(url: string): boolean {
+    return url.startsWith("http://") || url.startsWith("https://");
+}
+
+// ---------------------------------------------------------------------------
 // Write
 // ---------------------------------------------------------------------------
 
@@ -26,12 +35,22 @@ export interface RedirectContext {
  * Capture redirect context from URL search params into sessionStorage.
  * Only writes if `redirect` is present. Merges with existing context so that
  * a page that only receives `redirect` doesn't accidentally clear `app`.
+ *
+ * Important: never overwrites an existing *external* redirect URL with an
+ * *internal* path (e.g. `/apps`).  This prevents ProtectedRoute's
+ * `?redirect=/apps` from clobbering the original micro-tool redirect URL.
  */
 export function captureRedirectContext(searchParams: URLSearchParams): void {
     const redirect = searchParams.get("redirect");
     if (!redirect) return;
 
     const existing = getRedirectContext();
+
+    // Guard: don't let an internal path overwrite an external redirect URL.
+    if (existing?.redirect && isExternalUrl(existing.redirect) && !isExternalUrl(redirect)) {
+        return;
+    }
+
     const ctx: RedirectContext = {
         redirect,
         app: searchParams.get("app") ?? existing?.app ?? null,

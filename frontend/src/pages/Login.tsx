@@ -63,7 +63,8 @@ export default function Login() {
 
     // Auto-select if user has exactly 1 org — skip the chooser
     if (loggedInUser.memberships.length === 1) {
-      switchOrganization(loggedInUser.memberships[0].organization.id);
+      const membership = loggedInUser.memberships[0];
+      switchOrganization(membership.organization.id, membership.organization);
       if (hasRedirectContext()) {
         const appId = getAppSlug();
         if (!appId) {

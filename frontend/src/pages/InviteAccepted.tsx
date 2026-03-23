@@ -70,12 +70,12 @@ export default function InviteAccepted() {
         }
 
         await refreshUser();
-        navigate("/apps");
+        navigate("/choose-organisation");
       } catch (e) {
         if (e instanceof Error) {
           // If already a member, just redirect
           if (e.message === 'Already a member') {
-            navigate("/apps");
+            navigate("/choose-organisation");
             return;
           }
           setErrorMsg(e.message);
