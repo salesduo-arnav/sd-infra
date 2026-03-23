@@ -1,13 +1,14 @@
 import { Request, Response } from 'express';
 import sequelize from '../config/db';
-import { Organization } from '../models/organization';
+import { Organization, OrganizationMember } from '../models/organization';
 import { Subscription } from '../models/subscription';
 import { OrganizationEntitlement } from '../models/organization_entitlement';
 import { Plan } from '../models/plan';
 import { Bundle } from '../models/bundle';
 import { Feature } from '../models/feature';
-import { Tool, ToolUsage } from '../models';
+import { Tool, ToolUsage, User, Role } from '../models';
 import { AuditService } from '../services/audit.service';
+import { mailService } from '../services/mail.service';
 import { handleError } from '../utils/error';
 
 /**
@@ -29,6 +30,37 @@ export const getOrganization = async (req: Request, res: Response) => {
         res.json(org);
     } catch (error) {
         handleError(res, error, 'Internal: Get Organization Error');
+    }
+};
+
+export const getOrganizationMembers = async (req: Request, res: Response) => {
+    try {
+        const members = await OrganizationMember.findAll({
+            where: {
+                organization_id: req.params.id,
+                is_active: true,
+                deleted_at: null,
+            },
+            include: [
+                { model: User, as: 'user', attributes: ['id', 'email', 'full_name'] },
+                { model: Role, as: 'role', attributes: ['id', 'name'] },
+            ],
+            order: [['joined_at', 'ASC']],
+        });
+
+        const result = members.map((m: any) => ({
+            id: m.id,
+            user_id: m.user?.id,
+            email: m.user?.email,
+            full_name: m.user?.full_name,
+            name: m.user?.full_name,
+            role: m.role?.name,
+            joined_at: m.joined_at,
+        }));
+
+        res.json(result);
+    } catch (error) {
+        handleError(res, error, 'Internal: Get Organization Members Error');
     }
 };
 
@@ -175,6 +207,26 @@ export const trackUsage = async (req: Request, res: Response) => {
         res.json({ message: 'Usage tracked', source: req.serviceName });
     } catch (error) {
         handleError(res, error, 'Internal: Track Usage Error');
+    }
+};
+
+export const sendEmail = async (req: Request, res: Response) => {
+    try {
+        const { to, subject, html, text } = req.body;
+
+        if (!to || !subject) {
+            return res.status(400).json({ message: 'to and subject are required' });
+        }
+
+        if (!html && !text) {
+            return res.status(400).json({ message: 'html or text body is required' });
+        }
+
+        await mailService.sendMail({ to, subject, html, text });
+
+        res.json({ message: 'Email sent', source: req.serviceName });
+    } catch (error) {
+        handleError(res, error, 'Internal: Send Email Error');
     }
 };
 
