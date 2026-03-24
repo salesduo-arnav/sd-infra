@@ -302,11 +302,13 @@ export default function IntegrationOnboarding() {
 
     // Derived connection states (Issue #12)
     const isConnected = (type: string) => {
+        // Check session-created accounts first
         const id = createdAccountIds[type];
         if (id) {
             return accounts.find(a => a.id === id)?.status === 'connected';
         }
-        return false;
+        // Also check any existing connected account of this type
+        return accounts.some(a => a.integration_type === type && a.status === 'connected');
     };
 
     const isSellerConnected = !!isConnected('sp_api_sc');
