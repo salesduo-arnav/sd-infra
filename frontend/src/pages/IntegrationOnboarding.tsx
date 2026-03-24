@@ -64,7 +64,7 @@ const ALL_INTEGRATIONS = ["sp_api", "ads_api"];
 
 export default function IntegrationOnboarding() {
     const { t } = useTranslation();
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     captureRedirectContext(searchParams);
     const navigate = useNavigate();
 
@@ -156,6 +156,41 @@ export default function IntegrationOnboarding() {
         fetchRequirements();
         refreshIntegrations();
     }, [fetchRequirements, refreshIntegrations]);
+
+    // Handle SP-API OAuth redirect callback (same-tab flow)
+    useEffect(() => {
+        const spAuth = searchParams.get("sp_auth");
+        if (!spAuth) return;
+
+        if (spAuth === "success") {
+            toast.success("Seller Central connected successfully!");
+            refreshIntegrations();
+
+            // Restore saved state from sessionStorage
+            const saved = sessionStorage.getItem("sp_oauth_state");
+            if (saved) {
+                try {
+                    const { accountName: savedName, marketplace: savedMarketplace, createdAccountIds: savedIds } = JSON.parse(saved);
+                    if (savedName) setAccountName(savedName);
+                    if (savedMarketplace) setMarketplace(savedMarketplace);
+                    if (savedIds) setCreatedAccountIds(prev => ({ ...prev, ...savedIds }));
+                } catch { /* ignore parse errors */ }
+                sessionStorage.removeItem("sp_oauth_state");
+            }
+        } else if (spAuth === "error") {
+            const message = searchParams.get("message") || "Failed to connect Seller Central";
+            toast.error(message);
+        }
+
+        // Clean up URL params
+        searchParams.delete("sp_auth");
+        searchParams.delete("accountId");
+        searchParams.delete("message");
+        setSearchParams(searchParams, { replace: true });
+
+        setConnecting(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Auto-redirect when there's nothing to connect:
     // - No required integrations for this app
@@ -362,28 +397,20 @@ export default function IntegrationOnboarding() {
                 setConnecting(null);
 
             } else {
-                // --- Real OAuth Flow for SP-API (SC & VC) ---
+                // --- Real OAuth Flow for SP-API (SC & VC) — same-tab redirect ---
                 const { getSpAuthUrl } = await import("@/services/integration.service");
                 const url = await getSpAuthUrl(orgId, accountId);
 
-                const success = await openOAuthPopup({
-                    orgId,
-                    accountId,
-                    url,
-                    title: "Connect Amazon SP-API",
-                    width: window.screen.width,
-                    height: window.screen.height,
-                    successType: "SP_AUTH_SUCCESS",
-                    errorType: "SP_AUTH_ERROR"
-                });
+                // Save current state so we can restore it after redirect back
+                sessionStorage.setItem("sp_oauth_state", JSON.stringify({
+                    accountName: accountName.trim(),
+                    marketplace,
+                    createdAccountIds: { ...createdAccountIds, [integrationTypeKey]: accountId },
+                }));
 
-                if (success) {
-                    toast.success("Integration connected successfully!");
-                    await refreshIntegrations();
-                } else {
-                    toast.error("Failed to connect integration");
-                }
-                setConnecting(null);
+                // Navigate to Amazon in the same tab
+                window.location.href = url;
+                return; // Page will unload
             }
 
         } catch (error: unknown) {
