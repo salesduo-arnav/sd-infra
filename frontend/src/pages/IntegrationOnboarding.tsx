@@ -197,7 +197,7 @@ export default function IntegrationOnboarding() {
     // - OR all required integrations are already connected
     const [autoRedirected, setAutoRedirected] = useState(false);
     useEffect(() => {
-        if (isLoadingRequirements || autoRedirected) return;
+        if (isLoadingRequirements || autoRedirected || accounts.length === 0) return;
 
         const hasAny = requiredIntegrations.length > 0;
         if (!hasAny) {
@@ -206,8 +206,24 @@ export default function IntegrationOnboarding() {
             if (!finalizeRedirect()) {
                 window.location.replace("/apps");
             }
+            return;
         }
-    }, [isLoadingRequirements, requiredIntegrations, autoRedirected]);
+
+        // Check if all required integrations are already connected
+        const allSatisfied = requiredIntegrations.every(req => {
+            if (req === 'sp_api') {
+                return accounts.some(a => (a.integration_type === 'sp_api_sc' || a.integration_type === 'sp_api_vc') && a.status === 'connected');
+            }
+            return accounts.some(a => a.integration_type === req && a.status === 'connected');
+        });
+
+        if (allSatisfied) {
+            setAutoRedirected(true);
+            if (!finalizeRedirect()) {
+                window.location.replace("/apps");
+            }
+        }
+    }, [isLoadingRequirements, requiredIntegrations, autoRedirected, accounts]);
 
     // Check for existing account when user types Name + Region
     useEffect(() => {
