@@ -61,7 +61,7 @@ const createSession = async (req: Request, res: Response, user: User) => {
         secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
         sameSite: 'lax', // CSRF protection
         maxAge: sessionTTL * 1000, // Match Redis TTL
-        domain: process.env.NODE_ENV === 'production' ? process.env.COOKIE_DOMAIN : undefined
+        domain: process.env.COOKIE_DOMAIN || undefined
     });
 };
 
@@ -286,7 +286,7 @@ export const logout = async (req: Request, res: Response) => {
         });
     }
 
-    res.clearCookie('session_id');
+    res.clearCookie('session_id', { domain: process.env.COOKIE_DOMAIN || undefined });
     res.json({ message: 'Logged out successfully' });
 };
 
@@ -312,7 +312,7 @@ export const getMe = async (req: Request, res: Response) => {
 
         if (!userWithOrg) {
             // User no longer exists in DB — clear stale session
-            res.clearCookie('session_id');
+            res.clearCookie('session_id', { domain: process.env.COOKIE_DOMAIN || undefined });
             return res.status(401).json({ message: 'User not found' });
         }
 

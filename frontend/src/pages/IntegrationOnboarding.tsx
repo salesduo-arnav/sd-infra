@@ -85,8 +85,11 @@ export default function IntegrationOnboarding() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Derive orgId reactively from auth context
-    const orgId = activeOrganization?.id || searchParams.get("orgId") || "";
+    // Derive orgId reactively from auth context.
+    // Fall back to localStorage because switchOrganization() writes there
+    // synchronously, while the React state update may not have propagated
+    // yet when navigating here immediately after an org switch.
+    const orgId = activeOrganization?.id || searchParams.get("orgId") || localStorage.getItem("activeOrganizationId") || "";
 
     // Build URL for "switch org" back button
     const switchOrgUrl = (() => {
@@ -303,6 +306,7 @@ export default function IntegrationOnboarding() {
 
     // Handlers
     const handleConnect = async (type: "seller" | "vendor" | "ads") => {
+        console.log(`Connecting ${type}...`, { accountName, marketplace, orgId, createdAccountIds });
         if (!accountName.trim() || !marketplace) {
             toast.error(t('pages.integrationOnboarding.fillAccountDetails'));
             return;

@@ -26,6 +26,7 @@ export enum IntegrationStatus {
 export interface IntegrationAccountAttributes {
     id: string;
     organization_id: string;
+    group_id?: string | null;
     account_name: string;
     marketplace: Marketplace;
     region: string;
@@ -41,7 +42,7 @@ export interface IntegrationAccountAttributes {
 
 export type IntegrationAccountCreationAttributes = Optional<
     IntegrationAccountAttributes,
-    'id' | 'marketplace' | 'status' | 'credentials' | 'connected_at' | 'deleted_at' | 'created_at' | 'updated_at'
+    'id' | 'group_id' | 'marketplace' | 'status' | 'credentials' | 'connected_at' | 'deleted_at' | 'created_at' | 'updated_at'
 >;
 
 export class IntegrationAccount
@@ -49,6 +50,7 @@ export class IntegrationAccount
     implements IntegrationAccountAttributes {
     public id!: string;
     public organization_id!: string;
+    public group_id!: string | null;
     public account_name!: string;
     public marketplace!: Marketplace;
     public region!: string;
@@ -77,6 +79,16 @@ IntegrationAccount.init(
                 key: 'id',
             },
             onDelete: 'CASCADE',
+            onUpdate: 'CASCADE',
+        },
+        group_id: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: {
+                model: 'integration_account_groups',
+                key: 'id',
+            },
+            onDelete: 'SET NULL',
             onUpdate: 'CASCADE',
         },
         account_name: {

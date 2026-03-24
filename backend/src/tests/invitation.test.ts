@@ -41,7 +41,7 @@ describe('Invitation API Integration Tests', () => {
         await Organization.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await User.destroy({ where: {}, truncate: true, cascade: true, force: true });
         await Role.destroy({ where: {}, truncate: true, cascade: true, force: true });
-        await redisClient.flushAll();
+        await redisClient.flushDb();
 
         // Register Owner
         const res = await request(app).post('/auth/register').send(ownerUser);

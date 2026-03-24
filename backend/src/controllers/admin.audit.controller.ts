@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
+import sequelize from '../config/db';
 import AuditLog from '../models/audit_log';
 import { User } from '../models/user';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
@@ -8,7 +9,7 @@ import { handleError } from '../utils/error';
 export const getAuditLogs = async (req: Request, res: Response) => {
     try {
         const { page, limit, offset, sortBy, sortOrder } = getPaginationOptions(req);
-        const { action, entity_type, actor_id, start_date, end_date, search } = req.query;
+        const { action, entity_type, actor_id, start_date, end_date, search, source } = req.query;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const whereClause: any = {};
@@ -34,6 +35,19 @@ export const getAuditLogs = async (req: Request, res: Response) => {
 
         if (actor_id) {
             whereClause.actor_id = actor_id;
+        }
+
+        // Filter by source tool (stored in details.source JSONB field)
+        if (source && typeof source === 'string') {
+            if (source === 'core-platform') {
+                // Core platform logs have no source field in details
+                whereClause[Op.and] = sequelize.where(
+                    sequelize.fn('coalesce', sequelize.json('details.source'), sequelize.literal("''")),
+                    ''
+                );
+            } else {
+                whereClause['details.source'] = source;
+            }
         }
 
         if (start_date || end_date) {
@@ -113,6 +127,7 @@ export const getAuditLogActions = async (req: Request, res: Response) => {
             "User": [],
             "Billing": [],
             "Catalog": [],
+            "Creatives": [],
             "System": [],
             "Other": []
         };
@@ -129,6 +144,8 @@ export const getAuditLogActions = async (req: Request, res: Response) => {
                 actionCategories["Billing"].push(action);
             } else if (upperAction.includes('PLAN') || upperAction.includes('TOOL') || upperAction.includes('FEATURE') || upperAction.includes('BUNDLE') || upperAction.includes('ENTITLEMENT')) {
                 actionCategories["Catalog"].push(action);
+            } else if (upperAction.includes('PROJECT') || upperAction.includes('IMAGE') || upperAction.includes('QUICK_FLOW') || upperAction.includes('MAIN_IMAGE') || upperAction.includes('MOBILE') || upperAction.includes('BRANDIFY') || upperAction.includes('SEGMENT') || upperAction.includes('LOGO')) {
+                actionCategories["Creatives"].push(action);
             } else if (upperAction.includes('SYSTEM') || upperAction.includes('CRON') || upperAction.includes('WEBHOOK')) {
                 actionCategories["System"].push(action);
             } else {

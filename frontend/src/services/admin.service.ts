@@ -100,7 +100,7 @@ export interface AuditLog {
   action: string;
   entity_type: string;
   entity_id: string;
-  details?: object;
+  details?: Record<string, unknown>;
   ip_address?: string | null;
   created_at: string;
   actor?: {
@@ -246,7 +246,7 @@ export const removePlanFromBundle = async (bundleId: string, planId: string) => 
 };
 
 // Audit Logs
-export const getAuditLogs = async (params?: PaginationParams & { action?: string; entity_type?: string; actor_id?: string; start_date?: string; end_date?: string; search?: string }) => {
+export const getAuditLogs = async (params?: PaginationParams & { action?: string; entity_type?: string; actor_id?: string; start_date?: string; end_date?: string; search?: string; source?: string }) => {
   const response = await api.get('/admin/audit-logs', { params });
   return response.data; // { audit_logs: [], meta: {} }
 };
@@ -258,6 +258,50 @@ export const getAuditLogActions = async () => {
 
 export const getAuditLogById = async (id: string) => {
   const response = await api.get(`/admin/audit-logs/${id}`);
+  return response.data;
+};
+
+// Organization Entitlements
+export interface OrganizationEntitlement {
+  id: string;
+  organization_id: string;
+  tool_id: string;
+  feature_id: string;
+  limit_amount: number | null;
+  usage_amount: number;
+  reset_period: 'monthly' | 'yearly' | 'never' | null;
+  last_reset_at: string | null;
+  created_at: string;
+  updated_at: string;
+  organization?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  tool?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  feature?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+}
+
+export const getEntitlements = async (params?: PaginationParams & { organization_id?: string; tool_id?: string; feature_id?: string }) => {
+  const response = await api.get('/admin/entitlements', { params });
+  return response.data; // { entitlements: [], meta: {} }
+};
+
+export const createEntitlements = async (data: { organization_id: string; tool_id: string; feature_ids: string[]; limit_amount?: number | null; reset_period?: string }) => {
+  const response = await api.post('/admin/entitlements', data);
+  return response.data;
+};
+
+export const updateEntitlement = async (id: string, data: { limit_amount?: number | null; usage_amount?: number; reset_period?: string }) => {
+  const response = await api.put(`/admin/entitlements/${id}`, data);
   return response.data;
 };
 

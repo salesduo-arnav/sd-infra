@@ -18,7 +18,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
         if (!sessionData) {
             // Invalid or expired session
-            res.clearCookie('session_id');
+            res.clearCookie('session_id', { domain: process.env.COOKIE_DOMAIN || undefined });
             return res.status(401).json({ message: 'Session expired' });
         }
 
@@ -34,7 +34,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         if (session.ip && session.userAgent && (!ipMatch || !uaMatch)) {
             Logger.warn('Session binding failed', { sessionId, expectedIp: session.ip, actualIp: req.ip, expectedUa: session.userAgent, actualUa: req.headers['user-agent'] });
             await redisClient.del(`session:${sessionId}`);
-            res.clearCookie('session_id');
+            res.clearCookie('session_id', { domain: process.env.COOKIE_DOMAIN || undefined });
             return res.status(401).json({ message: 'Session invalid' });
         }
 
@@ -43,7 +43,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         if (!userExists) {
             // User was deleted or DB was reset — clean up stale session
             await redisClient.del(`session:${sessionId}`);
-            res.clearCookie('session_id');
+            res.clearCookie('session_id', { domain: process.env.COOKIE_DOMAIN || undefined });
             return res.status(401).json({ message: 'User no longer exists' });
         }
 

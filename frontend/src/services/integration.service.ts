@@ -4,9 +4,21 @@ import api from '@/lib/api';
 // Types
 // ================================
 
+export interface IntegrationAccountGroup {
+    id: string;
+    organization_id: string;
+    account_name: string;
+    marketplace: 'amazon' | 'walmart';
+    region: string;
+    accounts: IntegrationAccount[];
+    created_at: string;
+    updated_at: string;
+}
+
 export interface IntegrationAccount {
     id: string;
     organization_id: string;
+    group_id: string | null;
     account_name: string;
     marketplace: 'amazon' | 'walmart';
     region: string;
@@ -41,6 +53,11 @@ const orgHeaders = (orgId: string) => ({
 // ================================
 // Account Level Integration API
 // ================================
+
+export const getIntegrationAccountGroups = async (orgId: string): Promise<IntegrationAccountGroup[]> => {
+    const { data } = await api.get('/integrations/account-groups', orgHeaders(orgId));
+    return data.groups;
+};
 
 export const getIntegrationAccounts = async (orgId: string): Promise<IntegrationAccount[]> => {
     const { data } = await api.get('/integrations/accounts', orgHeaders(orgId));

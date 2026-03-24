@@ -24,10 +24,21 @@ describe('Admin Plan Management', () => {
     let testFeature: Feature;
 
     beforeAll(async () => {
-        await sequelize.sync({ force: true });
+        if (process.env.PGDATABASE !== 'mydb_test') {
+            throw new Error("CRITICAL: Tests must run against mydb_test!");
+        }
+        await sequelize.authenticate();
         if (!redisClient.isOpen) {
             await redisClient.connect();
         }
+
+        // Clean up before seeding
+        await PlanLimit.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Feature.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Plan.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Tool.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await User.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await redisClient.flushDb();
 
         // Create Admin User
         adminUser = await User.create({

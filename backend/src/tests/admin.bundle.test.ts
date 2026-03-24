@@ -24,10 +24,20 @@ describe('Admin Bundle Management', () => {
     let testPlan: Plan;
 
     beforeAll(async () => {
-        await sequelize.sync({ force: true });
+        if (process.env.PGDATABASE !== 'mydb_test') {
+            throw new Error("CRITICAL: Tests must run against mydb_test!");
+        }
+        await sequelize.authenticate();
         if (!redisClient.isOpen) {
             await redisClient.connect();
         }
+
+        // Clean up before seeding
+        await Bundle.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Plan.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await Tool.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await User.destroy({ where: {}, truncate: true, cascade: true, force: true });
+        await redisClient.flushDb();
 
         // Create Admin User
         adminUser = await User.create({

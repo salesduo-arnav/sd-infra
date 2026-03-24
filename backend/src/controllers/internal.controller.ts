@@ -1,12 +1,14 @@
 import { Request, Response } from 'express';
-import { Organization } from '../models/organization';
+import sequelize from '../config/db';
+import { Organization, OrganizationMember } from '../models/organization';
 import { Subscription } from '../models/subscription';
 import { OrganizationEntitlement } from '../models/organization_entitlement';
 import { Plan } from '../models/plan';
 import { Bundle } from '../models/bundle';
 import { Feature } from '../models/feature';
-import { Tool, ToolUsage } from '../models';
+import { Tool, ToolUsage, User, Role } from '../models';
 import { AuditService } from '../services/audit.service';
+import { mailService } from '../services/mail.service';
 import { handleError } from '../utils/error';
 
 /**
@@ -28,6 +30,37 @@ export const getOrganization = async (req: Request, res: Response) => {
         res.json(org);
     } catch (error) {
         handleError(res, error, 'Internal: Get Organization Error');
+    }
+};
+
+export const getOrganizationMembers = async (req: Request, res: Response) => {
+    try {
+        const members = await OrganizationMember.findAll({
+            where: {
+                organization_id: req.params.id,
+                is_active: true,
+                deleted_at: null,
+            },
+            include: [
+                { model: User, as: 'user', attributes: ['id', 'email', 'full_name'] },
+                { model: Role, as: 'role', attributes: ['id', 'name'] },
+            ],
+            order: [['joined_at', 'ASC']],
+        });
+
+        const result = members.map((m) => ({
+            id: m.id,
+            user_id: m.user?.id,
+            email: m.user?.email,
+            full_name: m.user?.full_name,
+            name: m.user?.full_name,
+            role: m.role?.name,
+            joined_at: m.joined_at,
+        }));
+
+        res.json(result);
+    } catch (error) {
+        handleError(res, error, 'Internal: Get Organization Members Error');
     }
 };
 
@@ -77,52 +110,55 @@ export const consumeEntitlement = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'feature_slug is required in body' });
         }
 
-        // Find the entitlement for this org and feature slug
-        const entitlement = await OrganizationEntitlement.findOne({
-            where: { organization_id },
-            include: [{
-                model: Feature,
-                as: 'feature',
-                where: { slug: feature_slug },
-                required: true
-            }]
-        });
-
-        if (!entitlement) {
-            // If they don't have an entitlement row, they don't have access
-            return res.status(200).json({
-                allowed: false,
-                reason: 'no_entitlement',
-                message: 'No entitlement found for this feature.'
+        // Atomic check + increment inside a transaction with row-level lock
+        // to prevent concurrent over-consumption
+        const result = await sequelize.transaction(async (t) => {
+            const entitlement = await OrganizationEntitlement.findOne({
+                where: { organization_id },
+                include: [{
+                    model: Feature,
+                    as: 'feature',
+                    where: { slug: feature_slug },
+                    required: true
+                }],
+                lock: t.LOCK.UPDATE,
+                transaction: t,
             });
-        }
 
-        const currentUsage = entitlement.usage_amount || 0;
-        const limit = entitlement.limit_amount;
+            if (!entitlement) {
+                return {
+                    allowed: false,
+                    reason: 'no_entitlement',
+                    message: 'No entitlement found for this feature.'
+                };
+            }
 
-        // Check if limit is exceeded (null limit means unlimited)
-        if (limit !== null && limit !== undefined && (currentUsage + amount) > limit) {
-            return res.status(200).json({
-                allowed: false,
-                reason: 'limit_exceeded',
-                usage_amount: currentUsage,
-                limit_amount: limit,
+            const currentUsage = entitlement.usage_amount || 0;
+            const limit = entitlement.limit_amount;
+
+            // null limit means unlimited
+            if (limit !== null && limit !== undefined && (currentUsage + amount) > limit) {
+                return {
+                    allowed: false,
+                    reason: 'limit_exceeded',
+                    usage_amount: currentUsage,
+                    limit_amount: limit,
+                    feature: entitlement.feature
+                };
+            }
+
+            await entitlement.increment('usage_amount', { by: amount, transaction: t });
+            await entitlement.reload({ transaction: t });
+
+            return {
+                allowed: true,
+                usage_amount: entitlement.usage_amount,
+                limit_amount: entitlement.limit_amount,
                 feature: entitlement.feature
-            });
-        }
-
-        // Increment usage
-        await entitlement.increment('usage_amount', { by: amount });
-        
-        // Reload to get updated values
-        await entitlement.reload();
-
-        res.status(200).json({
-            allowed: true,
-            usage_amount: entitlement.usage_amount,
-            limit_amount: entitlement.limit_amount,
-            feature: entitlement.feature
+            };
         });
+
+        res.status(200).json(result);
     } catch (error) {
         handleError(res, error, 'Internal: Consume Entitlement Error');
     }
@@ -174,9 +210,29 @@ export const trackUsage = async (req: Request, res: Response) => {
     }
 };
 
+export const sendEmail = async (req: Request, res: Response) => {
+    try {
+        const { to, subject, html, text } = req.body;
+
+        if (!to || !subject) {
+            return res.status(400).json({ message: 'to and subject are required' });
+        }
+
+        if (!html && !text) {
+            return res.status(400).json({ message: 'html or text body is required' });
+        }
+
+        await mailService.sendMail({ to, subject, html, text });
+
+        res.json({ message: 'Email sent', source: req.serviceName });
+    } catch (error) {
+        handleError(res, error, 'Internal: Send Email Error');
+    }
+};
+
 export const createAuditLog = async (req: Request, res: Response) => {
     try {
-        const { actor_id, action, entity_type, entity_id, details } = req.body;
+        const { actor_id, action, entity_type, entity_id, details, ip_address } = req.body;
 
         if (!action || !entity_type || !entity_id) {
             return res.status(400).json({ message: 'action, entity_type, and entity_id are required' });
@@ -192,6 +248,7 @@ export const createAuditLog = async (req: Request, res: Response) => {
                 ...details,
                 source: req.serviceName,
             },
+            ipAddress: ip_address,
         });
 
         res.json({ message: 'Audit log created', source: req.serviceName });

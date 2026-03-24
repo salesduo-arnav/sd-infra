@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { IntegrationAccount, IntegrationType, IntegrationStatus, Marketplace } from '../models/integration_account';
+import { IntegrationAccountGroup } from '../models/integration_account_group';
 import { GlobalIntegration, GlobalIntegrationStatus } from '../models/global_integration';
 import { OrganizationMember } from '../models/organization';
 import { handleError } from '../utils/error';
@@ -44,6 +45,29 @@ const getOrgId = async (req: Request, res: Response): Promise<string | null> => 
 // Account Level Integration CRUD
 // ================================
 
+/** GET /integrations/account-groups */
+export const getIntegrationAccountGroups = async (req: Request, res: Response) => {
+    try {
+        const orgId = await getOrgId(req, res);
+        if (!orgId) return;
+
+        const groups = await IntegrationAccountGroup.findAll({
+            where: { organization_id: orgId },
+            include: [{
+                model: IntegrationAccount,
+                as: 'accounts',
+                where: { deleted_at: null },
+                required: false,
+            }],
+            order: [['created_at', 'DESC']],
+        });
+
+        res.status(200).json({ groups });
+    } catch (error) {
+        handleError(res, error, 'Get Integration Account Groups Error');
+    }
+};
+
 /** GET /integrations/accounts */
 export const getIntegrationAccounts = async (req: Request, res: Response) => {
     try {
@@ -52,6 +76,10 @@ export const getIntegrationAccounts = async (req: Request, res: Response) => {
 
         const accounts = await IntegrationAccount.findAll({
             where: { organization_id: orgId },
+            include: [{
+                model: IntegrationAccountGroup,
+                as: 'group',
+            }],
             order: [['created_at', 'DESC']],
         });
 
@@ -124,9 +152,27 @@ export const createIntegrationAccount = async (req: Request, res: Response) => {
                 }
             }
 
+            // Find or create the parent group
+            const [group] = await IntegrationAccountGroup.findOrCreate({
+                where: {
+                    organization_id: orgId,
+                    marketplace: resolvedMarketplace,
+                    account_name,
+                    region,
+                },
+                defaults: {
+                    organization_id: orgId,
+                    marketplace: resolvedMarketplace,
+                    account_name,
+                    region,
+                },
+                transaction: t,
+            });
+
             return await IntegrationAccount.create(
                 {
                     organization_id: orgId,
+                    group_id: group.id,
                     account_name,
                     marketplace: resolvedMarketplace,
                     region,
@@ -158,7 +204,18 @@ export const deleteIntegrationAccount = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Integration account not found' });
         }
 
+        const groupId = account.group_id;
         await account.destroy();
+
+        // Clean up empty group: if no remaining accounts, soft-delete the group
+        if (groupId) {
+            const remainingCount = await IntegrationAccount.count({
+                where: { group_id: groupId },
+            });
+            if (remainingCount === 0) {
+                await IntegrationAccountGroup.destroy({ where: { id: groupId } });
+            }
+        }
 
         res.status(200).json({ message: 'Integration account deleted successfully' });
     } catch (error) {

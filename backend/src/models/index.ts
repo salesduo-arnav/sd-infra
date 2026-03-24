@@ -14,6 +14,7 @@ import { OrganizationEntitlement } from './organization_entitlement';
 import { OneTimePurchase } from './one_time_purchase';
 import { ToolUsage } from './tool_usage';
 import { IntegrationAccount, IntegrationType, IntegrationStatus } from './integration_account';
+import { IntegrationAccountGroup } from './integration_account_group';
 import { GlobalIntegration, GlobalIntegrationStatus } from './global_integration';
 import { WebhookEvent, WebhookEventStatus } from './webhook_event';
 import { PriceInterval, TierType, SubStatus, FeatureResetPeriod, InvitationStatus, OrgStatus } from './enums';
@@ -180,6 +181,14 @@ ToolUsage.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organiza
 // Integration Associations
 // =====================
 
+// Organization <-> IntegrationAccountGroup
+Organization.hasMany(IntegrationAccountGroup, { foreignKey: 'organization_id', as: 'integration_account_groups', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+IntegrationAccountGroup.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
+
+// IntegrationAccountGroup <-> IntegrationAccount
+IntegrationAccountGroup.hasMany(IntegrationAccount, { foreignKey: 'group_id', as: 'accounts', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+IntegrationAccount.belongsTo(IntegrationAccountGroup, { foreignKey: 'group_id', as: 'group' });
+
 // Organization <-> IntegrationAccount
 Organization.hasMany(IntegrationAccount, { foreignKey: 'organization_id', as: 'integration_accounts', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 IntegrationAccount.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
@@ -209,6 +218,7 @@ export {
   OneTimePurchase,
   ToolUsage,
   IntegrationAccount,
+  IntegrationAccountGroup,
   IntegrationType,
   IntegrationStatus,
   GlobalIntegration,

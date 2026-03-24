@@ -48,7 +48,7 @@ describe('Soft Delete Integrity & Cascade Tests', () => {
         await Role.findOrCreate({ where: { name: 'Member' }, defaults: { name: 'Member', description: 'desc' } });
         await Role.findOrCreate({ where: { name: 'Admin' }, defaults: { name: 'Admin', description: 'desc' } });
 
-        await redisClient.flushAll();
+        await redisClient.flushDb();
 
         await seedPermissions();
     });

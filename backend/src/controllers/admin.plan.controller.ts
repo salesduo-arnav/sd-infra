@@ -12,6 +12,7 @@ import { getPaginationOptions, formatPaginationResponse } from '../utils/paginat
 import { handleError } from '../utils/error';
 import { SubStatus } from '../models/enums';
 import { AuditService } from '../services/audit.service';
+import { entitlementService } from '../services/entitlement.service';
 import Logger from '../utils/logger';
 
 // ==========================
@@ -404,12 +405,23 @@ export const upsertPlanLimit = async (req: Request, res: Response) => {
             });
 
             if (!created) {
-                return await limitInstance.update({
+                await limitInstance.update({
                     default_limit: default_limit !== undefined ? default_limit : limitInstance.default_limit,
                     is_enabled: is_enabled !== undefined ? is_enabled : limitInstance.is_enabled,
                     reset_period: reset_period || limitInstance.reset_period
                 }, { transaction: t });
             }
+
+            // Cascade the limit update to all org entitlements derived from this plan
+            const resolvedIsEnabled = is_enabled !== undefined ? is_enabled : (created ? true : limitInstance.is_enabled);
+            await entitlementService.cascadePlanLimitUpdate(
+                plan_id,
+                feature_id,
+                default_limit,
+                reset_period,
+                resolvedIsEnabled,
+                t
+            );
 
             return limitInstance;
         });

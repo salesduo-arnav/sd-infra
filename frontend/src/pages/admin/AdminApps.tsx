@@ -90,6 +90,11 @@ export default function AdminApps() {
     // Feature State
     const [selectedToolForFeatures, setSelectedToolForFeatures] = useState<Tool | null>(null);
     const [features, setFeatures] = useState<Feature[]>([]);
+    const [featuresLoading, setFeaturesLoading] = useState(false);
+    const [featurePagination, setFeaturePagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+    const [featureSorting, setFeatureSorting] = useState<SortingState>([]);
+    const [featureRowCount, setFeatureRowCount] = useState(0);
+    const [featureSearch, setFeatureSearch] = useState("");
     const [editingFeature, setEditingFeature] = useState<Feature | null>(null);
     const [featureFormData, setFeatureFormData] = useState({
         name: "",
@@ -201,19 +206,37 @@ export default function AdminApps() {
     const handleManageFeatures = useCallback(async (tool: Tool) => {
         setSelectedToolForFeatures(tool);
         setIsFeatureDialogOpen(true);
-        refreshFeatures(tool.id);
+        setFeaturePagination({ pageIndex: 0, pageSize: 10 });
+        setFeatureSorting([]);
+        setFeatureSearch("");
         setEditingFeature(null);
         setFeatureFormData({ name: "", slug: "", description: "" });
     }, []);
 
-    const refreshFeatures = async (toolId: string) => {
+    const refreshFeatures = useCallback(async (toolId: string) => {
+        setFeaturesLoading(true);
         try {
-            const data = await AdminService.getFeatures(toolId);
+            const data = await AdminService.getFeatures(toolId, {
+                page: featurePagination.pageIndex + 1,
+                limit: featurePagination.pageSize,
+                search: featureSearch,
+                sort_by: featureSorting.length ? featureSorting[0].id : undefined,
+                sort_dir: featureSorting.length ? (featureSorting[0].desc ? 'desc' : 'asc') : undefined,
+            });
             setFeatures(data.features || []);
+            setFeatureRowCount(data.meta?.totalItems || 0);
         } catch (error) {
             console.error("Failed to fetch features", error);
+        } finally {
+            setFeaturesLoading(false);
         }
-    };
+    }, [featurePagination.pageIndex, featurePagination.pageSize, featureSorting, featureSearch]);
+
+    useEffect(() => {
+        if (selectedToolForFeatures && isFeatureDialogOpen) {
+            refreshFeatures(selectedToolForFeatures.id);
+        }
+    }, [selectedToolForFeatures, isFeatureDialogOpen, refreshFeatures]);
 
     const handleFeatureSave = async () => {
         if (!selectedToolForFeatures) return;
@@ -236,7 +259,7 @@ export default function AdminApps() {
         }
     };
 
-    const handleEditFeature = (feature: Feature) => {
+    const handleEditFeature = useCallback((feature: Feature) => {
         setEditingFeature(feature);
         setFeatureFormData({
             name: feature.name,
@@ -244,9 +267,9 @@ export default function AdminApps() {
 
             description: feature.description || ""
         });
-    };
+    }, []);
 
-    const handleDeleteFeature = async (featureId: string) => {
+    const handleDeleteFeature = useCallback(async (featureId: string) => {
         if (!selectedToolForFeatures) return;
         try {
             await AdminService.deleteFeature(featureId);
@@ -256,13 +279,13 @@ export default function AdminApps() {
             console.error("Failed to delete feature", error);
             toast.error("Failed to delete feature.");
         }
-    };
+    }, [selectedToolForFeatures, refreshFeatures]);
 
     const handleViewDetails = useCallback(async (tool: Tool) => {
         setViewingTool(tool);
         setIsViewSheetOpen(true);
         try {
-            const data = await AdminService.getFeatures(tool.id);
+            const data = await AdminService.getFeatures(tool.id, { limit: 100 });
             setViewingFeatures(data.features || []);
         } catch (error) {
             console.error("Failed to fetch features for view", error);
@@ -355,6 +378,60 @@ export default function AdminApps() {
         }
     ], [handleManageFeatures, handleViewDetails, handleOpenDialog, handleDelete]);
 
+    const featureColumns: ColumnDef<Feature>[] = useMemo(() => [
+        {
+            accessorKey: "name",
+            header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
+            cell: ({ row }) => <span className="font-medium">{row.getValue("name")}</span>,
+        },
+        {
+            accessorKey: "slug",
+            header: ({ column }) => <DataTableColumnHeader column={column} title="Slug" />,
+            cell: ({ row }) => <span className="text-xs font-mono">{row.getValue("slug")}</span>,
+        },
+        {
+            accessorKey: "description",
+            header: "Description",
+            cell: ({ row }) => {
+                const desc = row.getValue("description") as string;
+                return desc ? (
+                    <span className="text-xs text-muted-foreground truncate max-w-[200px] block">{desc}</span>
+                ) : <span className="text-muted-foreground text-xs">-</span>;
+            },
+        },
+        {
+            id: "actions",
+            cell: ({ row }) => {
+                const f = row.original;
+                return (
+                    <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleEditFeature(f)}>
+                            <Pencil className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="text-destructive">
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will delete feature <strong>{f.name}</strong>.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteFeature(f.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
+                );
+            },
+        },
+    ], [handleEditFeature, handleDeleteFeature]);
 
     return (
         <>
@@ -523,58 +600,20 @@ export default function AdminApps() {
                             <DialogTitle>Manage Features for {selectedToolForFeatures?.name}</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-6 max-h-[80vh] overflow-y-auto py-5 px-4">
-                            {/* List Features - Features table could be paginated too but keeping simple for now inside dialog */}
                             <div className="border rounded-md">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Name</TableHead>
-                                            <TableHead>Slug</TableHead>
-
-                                            <TableHead className="text-right">Actions</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {features.map(f => (
-                                            <TableRow key={f.id}>
-                                                <TableCell className="font-medium">{f.name}</TableCell>
-                                                <TableCell className="text-xs font-mono">{f.slug}</TableCell>
-
-                                                <TableCell className="text-right">
-                                                    <div className="flex justify-end gap-2">
-                                                        <Button variant="ghost" size="sm" onClick={() => handleEditFeature(f)}>
-                                                            <Pencil className="h-4 w-4" />
-                                                        </Button>
-                                                        <AlertDialog>
-                                                            <AlertDialogTrigger asChild>
-                                                                <Button variant="ghost" size="sm" className="text-destructive">
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
-                                                            </AlertDialogTrigger>
-                                                            <AlertDialogContent>
-                                                                <AlertDialogHeader>
-                                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                                    <AlertDialogDescription>
-                                                                        This will delete feature <strong>{f.name}</strong>.
-                                                                    </AlertDialogDescription>
-                                                                </AlertDialogHeader>
-                                                                <AlertDialogFooter>
-                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                    <AlertDialogAction onClick={() => handleDeleteFeature(f.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                                                                </AlertDialogFooter>
-                                                            </AlertDialogContent>
-                                                        </AlertDialog>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                        {features.length === 0 && (
-                                            <TableRow>
-                                                <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">No features found</TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
+                                <DataTable
+                                    columns={featureColumns}
+                                    data={features}
+                                    pageCount={Math.ceil(featureRowCount / featurePagination.pageSize)}
+                                    pagination={featurePagination}
+                                    onPaginationChange={setFeaturePagination}
+                                    sorting={featureSorting}
+                                    onSortingChange={setFeatureSorting}
+                                    searchQuery={featureSearch}
+                                    onSearchChange={setFeatureSearch}
+                                    placeholder="Search features..."
+                                    isLoading={featuresLoading}
+                                />
                             </div>
 
                             {/* Add/Edit Feature Form */}

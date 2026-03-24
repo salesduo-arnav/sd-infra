@@ -79,16 +79,22 @@ export default function SignUp() {
     // Has org — if external redirect, route through integration onboarding
     if (hasRedirectContext()) {
       if (user.memberships!.length === 1) {
-        switchOrganization(user.memberships![0].organization.id);
-      }
-      const appId = getAppSlug();
-      if (!appId) {
-        if (!finalizeRedirect()) {
-          navigate("/apps");
+        // Single org: auto-select and proceed to integration onboarding.
+        // Pass org object directly to avoid stale context closure.
+        const membership = user.memberships![0];
+        switchOrganization(membership.organization.id, membership.organization);
+        const appId = getAppSlug();
+        if (!appId) {
+          if (!finalizeRedirect()) {
+            navigate("/apps");
+          }
+          return;
         }
+        navigate("/integration-onboarding");
         return;
       }
-      navigate("/integration-onboarding");
+      // Multi-org: user must pick an org first
+      navigate("/choose-organisation");
       return;
     }
 

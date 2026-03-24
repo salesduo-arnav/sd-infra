@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+    getIntegrationAccountGroups,
     getIntegrationAccounts,
     createIntegrationAccount,
     deleteIntegrationAccount,
@@ -20,6 +21,9 @@ const oauthRateLimiter = rateLimit({
 });
 
 const router = Router();
+
+// Account groups
+router.get('/account-groups', authenticate, getIntegrationAccountGroups);
 
 // Account-level integrations
 router.get('/accounts', authenticate, getIntegrationAccounts);

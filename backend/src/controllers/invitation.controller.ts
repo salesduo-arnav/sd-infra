@@ -225,9 +225,23 @@ export const acceptInvitation = async (req: Request, res: Response) => {
             return res.status(403).json({ message: `You have reached the limit of ${limit} organizations.` });
         }
 
-        // Add user to organization
+        // Check for a soft-deleted membership (user was previously removed)
+        const softDeletedMember = await OrganizationMember.findOne({
+            where: { user_id: userId, organization_id: invitation.organization_id },
+            paranoid: false  // include soft-deleted rows
+        });
+
+        // Add user to organization (restore if previously removed, otherwise create)
         await sequelize.transaction(async (t) => {
-            await OrganizationMember.create({ user_id: userId, organization_id: invitation.organization_id, role_id: invitation.role_id }, { transaction: t });
+            if (softDeletedMember) {
+                await softDeletedMember.restore({ transaction: t });
+                await softDeletedMember.update(
+                    { role_id: invitation.role_id, is_active: true },
+                    { transaction: t }
+                );
+            } else {
+                await OrganizationMember.create({ user_id: userId, organization_id: invitation.organization_id, role_id: invitation.role_id }, { transaction: t });
+            }
             invitation.status = InvitationStatus.ACCEPTED;
             await invitation.save({ transaction: t });
         });
