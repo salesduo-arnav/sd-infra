@@ -13,7 +13,7 @@ const PORT = Number(process.env.PORT) || 3000;
 
 const validateEnv = () => {
     const requiredEnv = [
-        'PGHOST', 'PGUSER', 'PGPASSWORD', 'PGDATABASE', 'REDIS_URL', 'REDIS_PASSWORD',
+        'PGHOST', 'PGUSER', 'PGPASSWORD', 'PGDATABASE', 'REDIS_URL',
         'GOOGLE_CLIENT_ID', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET',
         'FRONTEND_URL'
     ];
