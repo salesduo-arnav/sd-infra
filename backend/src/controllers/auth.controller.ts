@@ -44,7 +44,7 @@ const createSession = async (req: Request, res: Response, user: User) => {
         email: user.email,
         name: user.full_name,
         is_superuser: user.is_superuser,
-        ip: req.ip,
+        ip: req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : (req.ip || ''),
         userAgent: req.headers['user-agent']
     };
 

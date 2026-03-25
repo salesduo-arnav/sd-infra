@@ -27,7 +27,9 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
         // Security check: Session binding to IP and User-Agent
         const isLocalhost = (ip: string) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(ip);
-        const reqIp = req.ip || '';
+        const forwarded = req.headers['x-forwarded-for'];
+        const clientIp = forwarded ? String(forwarded).split(',')[0].trim() : (req.ip || '');
+        const reqIp = clientIp;
         const ipMatch = session.ip === reqIp || (isLocalhost(session.ip) && isLocalhost(reqIp));
         const uaMatch = session.userAgent === req.headers['user-agent'];
 
