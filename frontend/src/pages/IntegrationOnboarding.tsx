@@ -417,7 +417,7 @@ export default function IntegrationOnboarding() {
             } else {
                 // --- Real OAuth Flow for SP-API (SC & VC) — same-tab redirect ---
                 const { getSpAuthUrl } = await import("@/services/integration.service");
-                const url = await getSpAuthUrl(orgId, accountId);
+                const url = await getSpAuthUrl(orgId, accountId, '/integration-onboarding');
 
                 // Save current state so we can restore it after redirect back
                 sessionStorage.setItem("sp_oauth_state", JSON.stringify({

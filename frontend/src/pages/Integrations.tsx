@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -154,6 +155,7 @@ export default function Integrations() {
   const orgId = activeOrganization?.id || "";
   const { openOAuthPopup } = useOAuthPopup();
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Account-level state
   const [accountGroups, setAccountGroups] = useState<IntegrationAccountGroup[]>([]);
@@ -219,35 +221,47 @@ export default function Integrations() {
     fetchGlobal();
   }, [fetchAccounts, fetchGlobal]);
 
+  // Handle SP-API OAuth redirect callback (same-tab flow)
+  useEffect(() => {
+    const spAuth = searchParams.get("sp_auth");
+    if (!spAuth) return;
+
+    if (spAuth === "success") {
+      toast.success("Seller Central connected successfully!");
+      fetchAccounts();
+    } else if (spAuth === "error") {
+      toast.error(searchParams.get("message") || "Failed to connect Seller Central");
+    }
+
+    searchParams.delete("sp_auth");
+    searchParams.delete("accountId");
+    searchParams.delete("message");
+    setSearchParams(searchParams, { replace: true });
+    sessionStorage.removeItem("sp_oauth_state_integrations");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /* ------------- OAuth popup simulation ------------- */
 
-  // Helper for Real SP-API Auth (SC & VC)
-  const connectSpAccount = (account: IntegrationAccount): Promise<boolean> => {
-    return new Promise((resolve) => {
-      (async () => {
-        try {
-          // Dynamic import to avoid circular dependencies if any, though not strictly needed here
-          const { getSpAuthUrl } = await import("@/services/integration.service");
-          const url = await getSpAuthUrl(orgId, account.id);
-          const success = await openOAuthPopup({
-            orgId,
-            accountId: account.id,
-            url,
-            title: "Connect Amazon SP-API",
-            width: window.screen.width,
-            height: window.screen.height,
-            successType: "SP_AUTH_SUCCESS",
-            errorType: "SP_AUTH_ERROR",
-          });
-          resolve(success);
+  // Helper for Real SP-API Auth (SC & VC) — same-tab redirect
+  const connectSpAccount = async (account: IntegrationAccount): Promise<boolean> => {
+    try {
+      const { getSpAuthUrl } = await import("@/services/integration.service");
+      const url = await getSpAuthUrl(orgId, account.id, '/integrations');
 
-        } catch (error) {
-          console.error(error);
-          toast.error("Failed to initiate SP-API connection");
-          resolve(false);
-        }
-      })();
-    });
+      // Save state so we can restore after redirect back
+      sessionStorage.setItem("sp_oauth_state_integrations", JSON.stringify({
+        accountId: account.id,
+      }));
+
+      // Navigate to Amazon in the same tab
+      window.location.href = url;
+      return true; // Won't actually reach here — page unloads
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to initiate SP-API connection");
+      return false;
+    }
   };
 
   const simulateOAuth = (typeName: string): Promise<boolean> => {

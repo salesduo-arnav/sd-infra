@@ -41,7 +41,7 @@ const TOKEN_URL = 'https://api.amazon.com/auth/o2/token';
 // ========================================
 export const getSpAuthUrl = async (req: Request, res: Response) => {
     try {
-        const { accountId } = req.query;
+        const { accountId, returnPath } = req.query;
 
         if (!accountId) {
             return res.status(400).json({ message: 'accountId is required' });
@@ -58,7 +58,9 @@ export const getSpAuthUrl = async (req: Request, res: Response) => {
             oauth_state: state
         });
 
-        const statePayload = `${accountId}##${state}`; // accountId##state
+        // Format: accountId##state##returnPath
+        const encodedPath = returnPath ? encodeURIComponent(returnPath as string) : '';
+        const statePayload = encodedPath ? `${accountId}##${state}##${encodedPath}` : `${accountId}##${state}`;
 
         // Determine Base URL based on region
         const regionCode = MARKETPLACE_REGION_MAP[account.region];
@@ -93,10 +95,12 @@ export const handleSpCallback = async (req: Request, res: Response) => {
     Logger.info('Amazon SP Callback', { query: req.query });
 
     const { spapi_oauth_code, state, selling_partner_id, error, error_description } = req.query;
-    const redirectBase = `${FRONTEND_URL}/integration-onboarding`;
+    // Determine redirect path from state (format: accountId##state##returnPath)
+    // Falls back to /integrations if no return path encoded
+    let redirectPath = '/integrations';
 
     if (!state) {
-        return res.redirect(`${redirectBase}?sp_auth=error&message=${encodeURIComponent('Missing state parameter')}`);
+        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=error&message=${encodeURIComponent('Missing state parameter')}`);
     }
 
     let accountId: string;
@@ -104,16 +108,17 @@ export const handleSpCallback = async (req: Request, res: Response) => {
 
     try {
         const parsed = (state as string).split("##");
-        if (parsed.length !== 2) throw new Error('Invalid format');
+        if (parsed.length < 2) throw new Error('Invalid format');
         accountId = parsed[0];
         returnedState = parsed[1];
+        if (parsed[2]) redirectPath = decodeURIComponent(parsed[2]);
     } catch {
-        return res.redirect(`${redirectBase}?sp_auth=error&message=${encodeURIComponent('Invalid state format')}`);
+        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=error&message=${encodeURIComponent('Invalid state format')}`);
     }
 
     const account = await IntegrationAccount.findByPk(accountId);
     if (!account) {
-        return res.redirect(`${redirectBase}?sp_auth=error&message=${encodeURIComponent('Integration account not found')}`);
+        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=error&message=${encodeURIComponent('Integration account not found')}`);
     }
 
     const storedStateBuffer = Buffer.from(account.oauth_state || '');
@@ -123,15 +128,15 @@ export const handleSpCallback = async (req: Request, res: Response) => {
         storedStateBuffer.length !== returnedStateBuffer.length ||
         !crypto.timingSafeEqual(storedStateBuffer, returnedStateBuffer)
     ) {
-        return res.redirect(`${redirectBase}?sp_auth=error&message=${encodeURIComponent('Invalid OAuth state')}`);
+        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=error&message=${encodeURIComponent('Invalid OAuth state')}`);
     }
 
     if (error) {
-        return res.redirect(`${redirectBase}?sp_auth=error&message=${encodeURIComponent(error_description as string || 'Authorization denied')}`);
+        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=error&message=${encodeURIComponent(error_description as string || 'Authorization denied')}`);
     }
 
     if (!spapi_oauth_code) {
-        return res.redirect(`${redirectBase}?sp_auth=error&message=${encodeURIComponent('Missing authorization code')}`);
+        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=error&message=${encodeURIComponent('Missing authorization code')}`);
     }
 
     try {
@@ -185,7 +190,7 @@ export const handleSpCallback = async (req: Request, res: Response) => {
             req
         });
 
-        return res.redirect(`${redirectBase}?sp_auth=success&accountId=${accountId}`);
+        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=success&accountId=${accountId}`);
 
     } catch (err) {
         Logger.error('Amazon SP Token Exchange Failed', { error: err });
@@ -194,7 +199,7 @@ export const handleSpCallback = async (req: Request, res: Response) => {
             status: IntegrationStatus.ERROR
         });
 
-        return res.redirect(`${redirectBase}?sp_auth=error&message=${encodeURIComponent('Token exchange failed')}`);
+        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=error&message=${encodeURIComponent('Token exchange failed')}`);
     }
 };
 
