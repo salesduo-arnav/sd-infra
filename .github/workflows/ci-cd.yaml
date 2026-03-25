@@ -7,8 +7,31 @@ on:
     branches: [ main, master, dev ]
 
 jobs:
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Detect changed paths
+        id: changes
+        run: |
+          BACKEND_CHANGED=$(git diff --name-only HEAD~1 HEAD -- backend/ | head -1)
+          FRONTEND_CHANGED=$(git diff --name-only HEAD~1 HEAD -- frontend/ | head -1)
+          echo "backend=$( [ -n "$BACKEND_CHANGED" ] && echo true || echo false )" >> "$GITHUB_OUTPUT"
+          echo "frontend=$( [ -n "$FRONTEND_CHANGED" ] && echo true || echo false )" >> "$GITHUB_OUTPUT"
+          echo "Backend changed: $( [ -n "$BACKEND_CHANGED" ] && echo yes || echo no )"
+          echo "Frontend changed: $( [ -n "$FRONTEND_CHANGED" ] && echo yes || echo no )"
+
   lint-backend:
     name: Lint Backend
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -35,6 +58,8 @@ jobs:
 
   lint-frontend:
     name: Lint Frontend
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -61,11 +86,13 @@ jobs:
 
   tests:
     name: E2E & Unit Tests
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -93,13 +120,13 @@ jobs:
         run: |
           echo "=== Docker PS ==="
           docker compose -f docker-compose.yml -f docker-compose.ci.yml ps
-          
+
           echo "=== All Containers ==="
           docker ps -a
-          
+
           echo "=== Backend Logs ==="
           docker compose -f docker-compose.yml -f docker-compose.ci.yml logs backend || true
-          
+
           echo "=== Postgres Logs ==="
           docker compose -f docker-compose.yml -f docker-compose.ci.yml logs postgres || true
       - name: Prepare Backend Test Database
@@ -147,7 +174,7 @@ jobs:
 
   report:
     name: Generate CML Report
-    needs: [lint-backend, lint-frontend, tests]
+    needs: [detect-changes, lint-backend, lint-frontend, tests]
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -162,36 +189,43 @@ jobs:
 
       - name: Download Artifacts
         uses: actions/download-artifact@v4
-      
+
       - name: Generate Report
         env:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "## Backend Test Results" > report.md
           echo "\`\`\`" >> report.md
-          cat test-reports/backend_report.md >> report.md || echo "Tests failed to run/not found." >> report.md
+          cat test-reports/backend_report.md >> report.md || echo "Tests skipped or not found." >> report.md
           echo "\`\`\`" >> report.md
-          
+
           echo "## Backend Lint Results" >> report.md
           echo "\`\`\`" >> report.md
-          cat backend-lint-report/backend_lint_report.md >> report.md || echo "Linting failed to run/not found." >> report.md
+          cat backend-lint-report/backend_lint_report.md >> report.md || echo "Lint skipped or not found." >> report.md
           echo "\`\`\`" >> report.md
 
           echo "## Frontend Test Results" >> report.md
           echo "\`\`\`" >> report.md
-          cat test-reports/frontend_report.md >> report.md || echo "Tests failed to run/not found." >> report.md
+          cat test-reports/frontend_report.md >> report.md || echo "Tests skipped or not found." >> report.md
           echo "\`\`\`" >> report.md
 
           echo "## Frontend Lint Results" >> report.md
           echo "\`\`\`" >> report.md
-          cat frontend-lint-report/frontend_lint_report.md >> report.md || echo "Linting failed to run/not found." >> report.md
+          cat frontend-lint-report/frontend_lint_report.md >> report.md || echo "Lint skipped or not found." >> report.md
           echo "\`\`\`" >> report.md
 
           cml comment create report.md
 
   cd:
     name: Continuous Deployment
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev') && always()
+    needs: [detect-changes, lint-backend, lint-frontend, tests]
+    if: |
+      always() &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev') &&
+      (needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.frontend == 'true') &&
+      (needs.lint-backend.result == 'success' || needs.lint-backend.result == 'skipped') &&
+      (needs.lint-frontend.result == 'success' || needs.lint-frontend.result == 'skipped') &&
+      (needs.tests.result == 'success' || needs.tests.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -202,6 +236,8 @@ jobs:
       APP_SERVICE_NAME: ${{ vars.APP_SERVICE_NAME }}
       IMAGE_TAG: ${{ vars.IMAGE_TAG || 'test' }}
       PROJECT_NAME: ${{ vars.PROJECT_NAME || 'sd-core-platform' }}
+      BACKEND_CHANGED: ${{ needs.detect-changes.outputs.backend }}
+      FRONTEND_CHANGED: ${{ needs.detect-changes.outputs.frontend }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -217,13 +253,14 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and Push Backend Image
+        if: env.BACKEND_CHANGED == 'true'
         run: |
           BACKEND_URI="${{ steps.ecr-login.outputs.registry }}/${{ env.PROJECT_NAME }}/backend:${{ env.IMAGE_TAG }}"
           docker build -t "$BACKEND_URI" ./backend
           docker push "$BACKEND_URI"
-          echo "backend_image=$BACKEND_URI" >> "$GITHUB_OUTPUT"
 
       - name: Build and Push Frontend Image
+        if: env.FRONTEND_CHANGED == 'true'
         run: |
           FRONTEND_URI="${{ steps.ecr-login.outputs.registry }}/${{ env.PROJECT_NAME }}/frontend:${{ env.IMAGE_TAG }}"
           docker build -t "$FRONTEND_URI" \
@@ -232,7 +269,6 @@ jobs:
             --build-arg VITE_STRIPE_PUBLISHABLE_KEY="${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}" \
             ./frontend
           docker push "$FRONTEND_URI"
-          echo "frontend_image=$FRONTEND_URI" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to ECS
         run: |
@@ -251,7 +287,6 @@ jobs:
 
       - name: Verify deployment
         run: |
-          # Check that only one deployment exists (no stuck old deployments)
           DEPLOYMENT_COUNT=$(aws ecs describe-services \
             --cluster "${{ env.ECS_CLUSTER }}" \
             --services "${{ env.APP_SERVICE_NAME }}" \
@@ -268,7 +303,6 @@ jobs:
             exit 1
           fi
 
-          # Check that desired == running
           RUNNING=$(aws ecs describe-services \
             --cluster "${{ env.ECS_CLUSTER }}" \
             --services "${{ env.APP_SERVICE_NAME }}" \
