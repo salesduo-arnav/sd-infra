@@ -3,6 +3,7 @@ import { PlanLimit } from '../models/plan_limit';
 import { OrganizationEntitlement } from '../models/organization_entitlement';
 import { Subscription } from '../models/subscription';
 import { BundlePlan } from '../models/bundle_plan';
+import { Plan } from '../models/plan';
 import { Feature } from '../models/feature';
 import { SubStatus } from '../models/enums';
 import redisClient from '../config/redis';
@@ -52,7 +53,7 @@ export class EntitlementService {
                     // Update only limit-related fields. Preserve usage and reset time.
                     Logger.info(`[EntitlementService] Updating existing entitlement for Org ${organizationId} / Feature ${limit.feature.slug}: Setting limit to ${newLimitAmount}`);
                     await entitlement.update({
-                        limit_amount: newLimitAmount === null ? undefined : newLimitAmount,
+                        limit_amount: newLimitAmount,
                         reset_period: limit.reset_period
                     }, { transaction });
                 } else {
@@ -62,7 +63,7 @@ export class EntitlementService {
                         organization_id: organizationId,
                         tool_id: limit.feature.tool_id,
                         feature_id: limit.feature.id,
-                        limit_amount: newLimitAmount === null ? undefined : newLimitAmount,
+                        limit_amount: newLimitAmount,
                         usage_amount: 0,
                         reset_period: limit.reset_period,
                         last_reset_at: new Date()
@@ -103,6 +104,88 @@ export class EntitlementService {
             throw error;
         }
     }
+    /**
+     * Revokes (soft-deletes) entitlements for an organization, scoped to the
+     * tools associated with the canceled subscription's plan or bundle.
+     * This ensures entitlements from other active tool subscriptions are preserved.
+     */
+    public async revokeEntitlements(
+        organizationId: string,
+        planId: string | null | undefined,
+        bundleId: string | null | undefined,
+        transaction?: Transaction
+    ) {
+        try {
+            // 1. Resolve tool IDs from the canceled plan/bundle
+            const toolIds: string[] = [];
+
+            if (planId) {
+                const plan = await Plan.findByPk(planId, { attributes: ['tool_id'], transaction });
+                if (plan) toolIds.push(plan.tool_id);
+            } else if (bundleId) {
+                const bundlePlans = await BundlePlan.findAll({
+                    where: { bundle_id: bundleId },
+                    attributes: ['plan_id'],
+                    transaction
+                });
+                for (const bp of bundlePlans) {
+                    const plan = await Plan.findByPk(bp.plan_id, { attributes: ['tool_id'], transaction });
+                    if (plan && !toolIds.includes(plan.tool_id)) toolIds.push(plan.tool_id);
+                }
+            }
+
+            if (toolIds.length === 0) {
+                Logger.warn(`[EntitlementService] Could not resolve tool IDs for revocation. Org ${organizationId}, Plan ${planId}, Bundle ${bundleId}`);
+                return;
+            }
+
+            Logger.info(`[EntitlementService] Revoking entitlements for Org ${organizationId}, Tools [${toolIds.join(', ')}]`);
+
+            // 2. For each tool, check if the org has another active subscription for that tool
+            for (const toolId of toolIds) {
+                const activeSubForTool = await Subscription.findOne({
+                    where: {
+                        organization_id: organizationId,
+                        status: { [Op.in]: [SubStatus.ACTIVE, SubStatus.TRIALING, SubStatus.PAST_DUE] }
+                    },
+                    include: [{
+                        model: Plan,
+                        as: 'plan',
+                        where: { tool_id: toolId },
+                        required: true
+                    }],
+                    transaction
+                });
+
+                if (activeSubForTool) {
+                    Logger.info(`[EntitlementService] Org ${organizationId} still has active subscription for tool ${toolId}. Skipping revocation for this tool.`);
+                    continue;
+                }
+
+                // 3. Soft-delete entitlements scoped to this tool
+                const deletedCount = await OrganizationEntitlement.destroy({
+                    where: {
+                        organization_id: organizationId,
+                        tool_id: toolId
+                    },
+                    transaction
+                });
+
+                Logger.info(`[EntitlementService] Revoked ${deletedCount} entitlements for Org ${organizationId}, Tool ${toolId}`);
+            }
+
+            // 4. Invalidate Redis cache
+            try {
+                await redisClient.del(`cache:entitlements:${organizationId}`);
+            } catch (cacheError) {
+                Logger.warn(`[EntitlementService] Failed to invalidate cache during revocation:`, cacheError);
+            }
+        } catch (error) {
+            Logger.error(`[EntitlementService] Failed to revoke entitlements for Org ${organizationId}:`, error);
+            throw error;
+        }
+    }
+
     /**
      * Cascades a plan limit update to all organization entitlements that derive from this plan.
      * Called when an admin updates a PlanLimit — propagates the new limit to all affected orgs.
