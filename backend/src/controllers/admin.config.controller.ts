@@ -24,6 +24,13 @@ export const updateConfig = async (req: Request, res: Response) => {
       }
     }
 
+    if (key === 'session_ttl_seconds') {
+      const seconds = parseInt(value, 10);
+      if (isNaN(seconds) || seconds < 300 || seconds > 604800) {
+        return res.status(400).json({ message: 'session_ttl_seconds must be between 300 (5 minutes) and 604800 (7 days)' });
+      }
+    }
+
     const [config] = await SystemConfig.upsert({
       key,
       value,

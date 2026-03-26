@@ -11,6 +11,7 @@ import { Role } from '../models/role';
 import { Invitation } from '../models/invitation';
 import { InvitationStatus } from '../models/enums';
 import redisClient from '../config/redis';
+import { SystemConfig } from '../models/system_config';
 import { isSuperuserEmail } from '../config/superuser';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -36,7 +37,18 @@ const isValidPassword = (password: string): boolean => {
 // Helper to create session
 const createSession = async (req: Request, res: Response, user: User) => {
     const sessionId = uuidv4();
-    const sessionTTL = 86400; // 24 hours
+    // Priority: SystemConfig DB value > env var > default (24 hours)
+    let sessionTTL = 86400;
+    try {
+        const config = await SystemConfig.findByPk('session_ttl_seconds');
+        if (config) {
+            sessionTTL = parseInt(config.value, 10) || 86400;
+        } else if (process.env.SESSION_TTL_SECONDS) {
+            sessionTTL = parseInt(process.env.SESSION_TTL_SECONDS, 10) || 86400;
+        }
+    } catch {
+        // DB error — fall back to default
+    }
 
     // Data we want to store in Redis (avoid sensitive data like password)
     const sessionData = {
