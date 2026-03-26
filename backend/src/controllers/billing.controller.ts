@@ -483,6 +483,20 @@ class BillingController {
                     if (fingerprint && (status === SubStatus.TRIALING || status === SubStatus.ACTIVE)) {
                         await this.checkAndEnforceTrialAbuse(newSub, stripeSub, finalPlanId, fingerprint, req.user?.id);
                     }
+
+                    // Provision entitlements for the newly synced subscription
+                    if (status === SubStatus.ACTIVE || status === SubStatus.TRIALING) {
+                        try {
+                            if (finalPlanId) {
+                                await entitlementService.provisionEntitlementsForPlan(organization.id, finalPlanId);
+                            } else if (finalBundleId) {
+                                await entitlementService.provisionEntitlementsForBundle(organization.id, finalBundleId);
+                            }
+                        } catch (provErr) {
+                            Logger.error(`[Billing] Error provisioning entitlements during sync for org ${organization.id}:`, provErr);
+                        }
+                    }
+
                     console.log(`[Billing] Created missing subscription record for Stripe Sub ${stripeSub.id}`);
                     updatedCount++;
                 }
@@ -673,11 +687,22 @@ class BillingController {
 
                 // Immediately update local DB with new plan/bundle
                 await subscription.update({
-                    plan_id: targetPlanId || subscription.plan_id,
-                    bundle_id: targetBundleId || subscription.bundle_id,
+                    plan_id: targetPlanId,
+                    bundle_id: targetBundleId,
                     upcoming_plan_id: null,
                     upcoming_bundle_id: null
                 });
+
+                // Provision entitlements immediately for the upgrade
+                try {
+                    if (targetPlanId) {
+                        await entitlementService.provisionEntitlementsForPlan(organization!.id, targetPlanId);
+                    } else if (targetBundleId) {
+                        await entitlementService.provisionEntitlementsForBundle(organization!.id, targetBundleId);
+                    }
+                } catch (provErr) {
+                    Logger.error(`[Billing] Error provisioning entitlements during upgrade for org ${organization!.id}:`, provErr);
+                }
 
                 res.status(200).json({ message: 'Subscription updated successfully' });
 
@@ -865,6 +890,13 @@ class BillingController {
                 status: SubStatus.CANCELED,
                 cancel_at_period_end: false,
             });
+
+            // Revoke entitlements scoped to this subscription's tool
+            try {
+                await entitlementService.revokeEntitlements(organization!.id, subscription.plan_id, subscription.bundle_id);
+            } catch (provErr) {
+                Logger.error(`[Billing] Error revoking entitlements during trial cancel for org ${organization!.id}:`, provErr);
+            }
 
             res.status(200).json({ message: 'Trial cancelled successfully' });
         } catch (error) {

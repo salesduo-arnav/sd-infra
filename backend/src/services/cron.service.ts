@@ -5,6 +5,7 @@ import { OrganizationEntitlement } from '../models/organization_entitlement';
 import { SystemConfig } from '../models/system_config';
 import { SubStatus, FeatureResetPeriod } from '../models/enums';
 import { stripeService } from './stripe.service';
+import { entitlementService } from './entitlement.service';
 import { AuditService } from './audit.service';
 import Logger from '../utils/logger';
 import redisClient from '../config/redis';
@@ -91,6 +92,13 @@ export class CronService {
                         status: SubStatus.CANCELED,
                         cancellation_reason: 'auto_cancel_past_due'
                     });
+
+                    // Revoke entitlements scoped to this subscription's tool(s)
+                    try {
+                        await entitlementService.revokeEntitlements(sub.organization_id, sub.plan_id, sub.bundle_id);
+                    } catch (provErr) {
+                        Logger.error(`[Cron] Failed to revoke entitlements for org ${sub.organization_id}:`, provErr);
+                    }
 
                     // Log Audit
                     await AuditService.log({

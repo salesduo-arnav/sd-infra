@@ -343,6 +343,13 @@ class WebhookController {
         if (subscriptions && subscriptions.length > 0) {
             for (const sub of subscriptions) {
                 await sub.update({ status: SubStatus.CANCELED });
+
+                // Revoke entitlements scoped to this subscription's tool(s)
+                try {
+                    await entitlementService.revokeEntitlements(sub.organization_id, sub.plan_id, sub.bundle_id);
+                } catch (provErr) {
+                    Logger.error(`[WebhookController] Failed to revoke entitlements on sub deletion for org ${sub.organization_id}:`, provErr);
+                }
             }
         }
     }

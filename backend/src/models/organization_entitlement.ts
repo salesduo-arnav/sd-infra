@@ -14,7 +14,7 @@ export interface OrganizationEntitlementAttributes {
   organization_id: string;
   tool_id: string;
   feature_id: string;
-  limit_amount?: number;
+  limit_amount?: number | null;
   usage_amount: number;
   reset_period?: FeatureResetPeriod;
   last_reset_at?: Date;
