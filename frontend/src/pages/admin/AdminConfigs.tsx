@@ -122,8 +122,9 @@ export default function AdminConfigs() {
 
       // Update original to match saved value so dirty tracking resets
       setOriginalValues(prev => ({ ...prev, [key]: editValues[key] }));
-    } catch (error: any) {
-      const message = error?.response?.data?.message || "Failed to update configuration";
+    } catch (error: unknown) {
+      const axiosError = error as { response?: { data?: { message?: string } } };
+      const message = axiosError?.response?.data?.message || "Failed to update configuration";
       toast.error(message);
     } finally {
       setSaving(null);
