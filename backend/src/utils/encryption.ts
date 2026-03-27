@@ -1,7 +1,10 @@
 import crypto from 'crypto';
 
-// Note: Ensure ENCRYPTION_KEY is exactly 32 bytes (64 hex characters)
-const ENCRYPTION_KEY_HEX = process.env.ENCRYPTION_KEY || '0000000000000000000000000000000000000000000000000000000000000000';
+// ENCRYPTION_KEY must be exactly 32 bytes (64 hex characters)
+const ENCRYPTION_KEY_HEX = process.env.ENCRYPTION_KEY;
+if (!ENCRYPTION_KEY_HEX) {
+    throw new Error('ENCRYPTION_KEY environment variable is required (64 hex characters)');
+}
 const ENCRYPTION_KEY = Buffer.from(ENCRYPTION_KEY_HEX, 'hex');
 const ALGORITHM = 'aes-256-gcm';
 

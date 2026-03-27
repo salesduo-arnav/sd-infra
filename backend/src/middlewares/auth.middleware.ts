@@ -3,6 +3,7 @@ import redisClient from '../config/redis';
 import User from '../models/user';
 import { handleError } from '../utils/error';
 import Logger from '../utils/logger';
+import { LOCALHOST_IPS } from '../constants/app.constants';
 
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -26,7 +27,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         const session = JSON.parse(sessionData);
 
         // Security check: Session binding to IP and User-Agent
-        const isLocalhost = (ip: string) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(ip);
+        const isLocalhost = (ip: string) => LOCALHOST_IPS.includes(ip);
         const forwarded = req.headers['x-forwarded-for'];
         const clientIp = forwarded ? String(forwarded).split(',')[0].trim() : (req.ip || '');
         const reqIp = clientIp;

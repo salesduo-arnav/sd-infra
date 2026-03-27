@@ -6,6 +6,7 @@ import { closeDB, connectDB } from "./config/db";
 import { connectRedis, closeRedis } from "./config/redis";
 import Logger from "./utils/logger";
 import { cronService } from "./services/cron.service";
+import { configService } from "./services/config.service";
 
 dotenv.config({ path: path.join(__dirname, "../.env") });
 
@@ -15,7 +16,7 @@ const validateEnv = () => {
     const requiredEnv = [
         'PGHOST', 'PGUSER', 'PGPASSWORD', 'PGDATABASE', 'REDIS_URL',
         'GOOGLE_CLIENT_ID', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET',
-        'FRONTEND_URL'
+        'FRONTEND_URL', 'ENCRYPTION_KEY'
     ];
 
     const missing = requiredEnv.filter(env => !process.env[env]);
@@ -69,6 +70,9 @@ const startServer = async () => {
 
         await connectDB();
         await connectRedis();
+
+        // Initialize config cache from system_configs table
+        await configService.initialize();
 
         // Start Cron Jobs
         cronService.startJobs();
