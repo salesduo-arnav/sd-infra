@@ -7,6 +7,8 @@ import { Organization, OrganizationMember } from '../models/organization';
 import { Role, Permission, RolePermission } from '../models/role';
 import { Invitation } from '../models/invitation';
 import { mailService } from '../services/mail.service';
+import { SystemConfig } from '../models/system_config';
+import { configService } from '../services/config.service';
 import { seedPermissions } from './test-helpers';
 
 describe('Invitation API Integration Tests', () => {
@@ -119,7 +121,10 @@ describe('Invitation API Integration Tests', () => {
         });
 
         it('should set expiry based on INVITATION_EXPIRY_DAYS', async () => {
-            process.env.INVITATION_EXPIRY_DAYS = '10';
+            // The invitation service reads expiry from configService (SystemConfig DB table), not process.env
+            await SystemConfig.upsert({ key: 'invitation_expiry_days', value: '10', category: 'general' });
+            await configService.refresh();
+
             const res = await request(app)
                 .post('/invitations')
                 .set('Cookie', authCookie)
@@ -134,7 +139,9 @@ describe('Invitation API Integration Tests', () => {
             const diffDays = Math.round((invite!.expires_at.getTime() - new Date().getTime()) / (1000 * 3600 * 24));
             expect(diffDays).toEqual(10);
 
-            delete process.env.INVITATION_EXPIRY_DAYS;
+            // Clean up the config entry
+            await SystemConfig.destroy({ where: { key: 'invitation_expiry_days' } });
+            await configService.refresh();
         });
     });
 
