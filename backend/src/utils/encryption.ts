@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import path from 'path';
-require('dotenv').config({ path: path.join(__dirname, '../../.env') }); // ensure .env is valid
+import dotenv from 'dotenv';
+dotenv.config({ path: path.join(__dirname, '../../.env') }); // ensure .env is valid
 
 // ENCRYPTION_KEY must be exactly 32 bytes (64 hex characters)
 const ENCRYPTION_KEY_HEX = process.env.ENCRYPTION_KEY;
