@@ -508,13 +508,20 @@ export const addPlanToBundle = async (req: Request, res: Response) => {
             const plan = await Plan.findByPk(plan_id, { transaction: t });
             if (!plan) throw new Error('PLAN_NOT_FOUND');
 
-            await BundlePlan.findOrCreate({
-                where: {
-                    bundle_id: id,
-                    plan_id: plan_id
-                },
+            // Include soft-deleted to allow re-adding a plan after removal
+            const existingBundlePlan = await BundlePlan.findOne({
+                where: { bundle_id: id, plan_id: plan_id },
+                paranoid: false,
                 transaction: t
             });
+
+            if (existingBundlePlan) {
+                if (existingBundlePlan.deleted_at) {
+                    await existingBundlePlan.restore({ transaction: t });
+                }
+            } else {
+                await BundlePlan.create({ bundle_id: id, plan_id: plan_id }, { transaction: t });
+            }
         });
 
         await AuditService.log({

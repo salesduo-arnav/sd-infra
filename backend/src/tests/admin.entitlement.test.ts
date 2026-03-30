@@ -557,6 +557,44 @@ describe('Admin Entitlement Management Integration Tests', () => {
             expect(updated?.usage_amount).toBe(45); // Should preserve usage count
         });
 
+        it('should restore and update soft-deleted entitlements', async () => {
+            // Soft-delete an existing entitlement (simulates subscription cancellation)
+            const entitlement = await OrganizationEntitlement.findOne({
+                where: { organization_id: org1.id, feature_id: feature1.id }
+            });
+            await entitlement!.destroy(); // soft-delete
+
+            // Verify it's soft-deleted
+            const deleted = await OrganizationEntitlement.findOne({
+                where: { organization_id: org1.id, feature_id: feature1.id }
+            });
+            expect(deleted).toBeNull();
+
+            // Admin re-adds the entitlement
+            const res = await request(app)
+                .post('/admin/entitlements')
+                .set('Cookie', [`session_id=${adminSession}`])
+                .send({
+                    organization_id: org1.id,
+                    tool_id: tool1.id,
+                    feature_ids: [feature1.id],
+                    limit_amount: 200,
+                    reset_period: 'monthly'
+                });
+
+            expect(res.status).toBe(201);
+
+            // Verify the entitlement is restored with updated values
+            const restored = await OrganizationEntitlement.findOne({
+                where: { organization_id: org1.id, feature_id: feature1.id }
+            });
+            expect(restored).not.toBeNull();
+            expect(restored!.limit_amount).toBe(200);
+            expect(restored!.reset_period).toBe('monthly');
+            expect(restored!.usage_amount).toBe(0); // Usage should be reset
+            expect(restored!.deleted_at).toBeNull();
+        });
+
          it('should return 400 if required fields are missing', async () => {
             const res = await request(app)
                 .post('/admin/entitlements')

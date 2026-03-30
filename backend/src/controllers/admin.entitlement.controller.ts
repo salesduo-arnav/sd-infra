@@ -93,16 +93,25 @@ export const createEntitlements = async (req: Request, res: Response) => {
         
         for (const featureId of feature_ids) {
             let entitlement = await OrganizationEntitlement.findOne({
-                where: { organization_id, feature_id: featureId }
+                where: { organization_id, feature_id: featureId },
+                paranoid: false, // Include soft-deleted records to allow re-adding after cancellation
             });
 
             if (entitlement) {
+                const wasDeleted = !!entitlement.deleted_at;
+
+                // Restore soft-deleted entitlement before updating
+                if (wasDeleted) {
+                    await entitlement.restore();
+                }
+
                 const newLimit = limit_amount !== undefined ? limit_amount : entitlement.limit_amount;
                 const newReset = reset_period !== undefined ? (reset_period as FeatureResetPeriod) : entitlement.reset_period;
 
                 await entitlement.update({
                     limit_amount: newLimit !== null ? newLimit : null,
                     reset_period: newReset !== null ? newReset : (null as unknown as FeatureResetPeriod),
+                    ...(wasDeleted && { usage_amount: 0 }), // Reset usage when restoring
                 });
             } else {
                 entitlement = await OrganizationEntitlement.create({

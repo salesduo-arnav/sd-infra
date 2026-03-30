@@ -129,7 +129,6 @@ Subscription.init(
     stripe_subscription_id: {
       type: DataTypes.STRING,
       allowNull: true,
-      unique: true,
     },
     status: {
       type: DataTypes.ENUM(...Object.values(SubStatus)),
@@ -181,6 +180,15 @@ Subscription.init(
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     deletedAt: 'deleted_at',
+    indexes: [
+      {
+        unique: true,
+        fields: ['stripe_subscription_id'],
+        where: {
+          deleted_at: null,
+        },
+      },
+    ],
     validate: {
       eitherPlanOrBundle() {
         if (!this.plan_id && !this.bundle_id) {

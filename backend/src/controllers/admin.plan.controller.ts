@@ -391,24 +391,31 @@ export const upsertPlanLimit = async (req: Request, res: Response) => {
                 throw new Error('PLAN_NOT_FOUND');
             }
 
-            // Check if limit exists
-            const [limitInstance, created] = await PlanLimit.findOrCreate({
+            // Check if limit exists (include soft-deleted to allow re-adding after removal)
+            let limitInstance = await PlanLimit.findOne({
                 where: { plan_id, feature_id },
-                defaults: {
+                paranoid: false,
+                transaction: t
+            });
+
+            let created = false;
+            if (limitInstance) {
+                if (limitInstance.deleted_at) {
+                    await limitInstance.restore({ transaction: t });
+                }
+                await limitInstance.update({
+                    default_limit: default_limit !== undefined ? default_limit : limitInstance.default_limit,
+                    is_enabled: is_enabled !== undefined ? is_enabled : limitInstance.is_enabled,
+                    reset_period: reset_period || limitInstance.reset_period
+                }, { transaction: t });
+            } else {
+                created = true;
+                limitInstance = await PlanLimit.create({
                     plan_id,
                     feature_id,
                     default_limit,
                     is_enabled: is_enabled !== undefined ? is_enabled : true,
                     reset_period: reset_period || FeatureResetPeriod.MONTHLY
-                },
-                transaction: t
-            });
-
-            if (!created) {
-                await limitInstance.update({
-                    default_limit: default_limit !== undefined ? default_limit : limitInstance.default_limit,
-                    is_enabled: is_enabled !== undefined ? is_enabled : limitInstance.is_enabled,
-                    reset_period: reset_period || limitInstance.reset_period
                 }, { transaction: t });
             }
 

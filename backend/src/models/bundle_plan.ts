@@ -66,6 +66,9 @@ BundlePlan.init(
       {
         unique: true,
         fields: ['bundle_id', 'plan_id'],
+        where: {
+          deleted_at: null,
+        },
       },
     ],
   }

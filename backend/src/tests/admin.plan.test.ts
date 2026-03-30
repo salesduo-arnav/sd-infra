@@ -176,12 +176,58 @@ describe('Admin Plan Management', () => {
                     .set('Cookie', [`session_id=${adminSession}`]);
 
                 expect(res.status).toBe(200);
-                
+
                 // Verify deletion
-                const check = await PlanLimit.findOne({ 
-                    where: { plan_id: planId, feature_id: testFeature.id } 
+                const check = await PlanLimit.findOne({
+                    where: { plan_id: planId, feature_id: testFeature.id }
                 });
                 expect(check).toBeNull();
+            });
+
+            it('should restore a soft-deleted plan limit when re-adding the same feature', async () => {
+                // 1. Create a plan limit
+                await request(app)
+                    .put(`/admin/plans/${planId}/limits`)
+                    .set('Cookie', [`session_id=${adminSession}`])
+                    .send({
+                        feature_id: testFeature.id,
+                        default_limit: 50,
+                        reset_period: FeatureResetPeriod.MONTHLY,
+                        is_enabled: true
+                    });
+
+                // 2. Soft-delete it
+                await request(app)
+                    .delete(`/admin/plans/${planId}/limits/${testFeature.id}`)
+                    .set('Cookie', [`session_id=${adminSession}`]);
+
+                // Verify it's soft-deleted
+                const deleted = await PlanLimit.findOne({
+                    where: { plan_id: planId, feature_id: testFeature.id }
+                });
+                expect(deleted).toBeNull();
+
+                // 3. Re-add the same feature limit (should restore, not fail)
+                const res = await request(app)
+                    .put(`/admin/plans/${planId}/limits`)
+                    .set('Cookie', [`session_id=${adminSession}`])
+                    .send({
+                        feature_id: testFeature.id,
+                        default_limit: 200,
+                        reset_period: FeatureResetPeriod.YEARLY,
+                        is_enabled: true
+                    });
+
+                expect(res.status).toBe(200);
+                expect(res.body.default_limit).toBe(200);
+
+                // 4. Verify it was restored
+                const restored = await PlanLimit.findOne({
+                    where: { plan_id: planId, feature_id: testFeature.id }
+                });
+                expect(restored).not.toBeNull();
+                expect(restored!.default_limit).toBe(200);
+                expect(restored!.deleted_at).toBeNull();
             });
         });
 

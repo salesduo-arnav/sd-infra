@@ -178,10 +178,11 @@ class WebhookController {
             }
         }
 
-        // 2. Final fallback: check local DB
+        // 2. Final fallback: check local DB (include soft-deleted to resolve orgId)
         if (!orgId) {
             const existingSub = await Subscription.findOne({
-                where: { stripe_subscription_id: stripeSub.id }
+                where: { stripe_subscription_id: stripeSub.id },
+                paranoid: false,
             });
             if (existingSub) {
                 orgId = existingSub.organization_id;
@@ -213,9 +214,10 @@ class WebhookController {
             }
         }
 
-        // Find existing sub by Stripe ID
+        // Find existing sub by Stripe ID (include soft-deleted to restore instead of hitting unique constraint)
         let subscription = await Subscription.findOne({
-            where: { stripe_subscription_id: stripeSub.id, organization_id: orgId }
+            where: { stripe_subscription_id: stripeSub.id, organization_id: orgId },
+            paranoid: false,
         });
 
         // Fingerprint & Abuse Check
@@ -265,6 +267,9 @@ class WebhookController {
         }
 
         if (subscription) {
+            if (subscription.deleted_at) {
+                await subscription.restore();
+            }
             await subscription.update(subData);
         } else {
             subscription = await Subscription.create({ organization_id: orgId, ...subData });
@@ -307,13 +312,14 @@ class WebhookController {
                     const toolPlans = await Plan.findAll({ where: { tool_id: toolId }, attributes: ['id'] });
                     const toolPlanIds = toolPlans.map(p => p.id);
 
-                    // Check for OTHER subscriptions with same card for this tool (ANY STATUS)
+                    // Check for OTHER subscriptions with same card for this tool (ANY STATUS, including canceled/soft-deleted)
                     const duplicateSub = await Subscription.findOne({
                         where: {
                             card_fingerprint: fingerprint,
                             plan_id: { [Op.in]: toolPlanIds },
                             id: { [Op.ne]: subscription?.id } // Exclude current
-                        }
+                        },
+                        paranoid: false, // Include soft-deleted to prevent trial abuse via cancel + re-subscribe
                     });
 
                     if (duplicateSub) {
@@ -339,7 +345,7 @@ class WebhookController {
 
     private async handleSubscriptionDeleted(stripeSub: Stripe.Subscription) {
         Logger.info(`[WebhookController] Subscription deleted: ${stripeSub.id}`);
-        const subscriptions = await Subscription.findAll({ where: { stripe_subscription_id: stripeSub.id } });
+        const subscriptions = await Subscription.findAll({ where: { stripe_subscription_id: stripeSub.id }, paranoid: false });
         if (subscriptions && subscriptions.length > 0) {
             for (const sub of subscriptions) {
                 await sub.update({ status: SubStatus.CANCELED });

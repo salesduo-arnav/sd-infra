@@ -92,6 +92,9 @@ PlanLimit.init(
       {
         unique: true,
         fields: ['plan_id', 'feature_id'],
+        where: {
+          deleted_at: null,
+        },
       },
     ],
   }

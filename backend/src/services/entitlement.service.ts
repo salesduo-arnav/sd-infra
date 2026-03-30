@@ -38,23 +38,31 @@ export class EntitlementService {
                     ? 0
                     : (limit.default_limit !== null && limit.default_limit !== undefined ? limit.default_limit : null);
 
-                // Upsert logic: Sequelize doesn't have a simple standard upsert for compound unqiue constraints
-                // easily across dialects, so we do a findOrCreate / update pattern for safety
-                // We find by org_id + feature_id
+                // Upsert logic
                 const entitlement = await OrganizationEntitlement.findOne({
                     where: {
                         organization_id: organizationId,
                         feature_id: limit.feature.id
                     },
+                    paranoid: false, // Include soft-deleted records to allow re-provisioning after cancellation
                     transaction
                 });
 
                 if (entitlement) {
+                    const wasDeleted = !!entitlement.deleted_at;
+
+                    // Restore soft-deleted entitlement before updating
+                    if (wasDeleted) {
+                        Logger.info(`[EntitlementService] Restoring soft-deleted entitlement for Org ${organizationId} / Feature ${limit.feature.slug}`);
+                        await entitlement.restore({ transaction });
+                    }
+
                     // Update only limit-related fields. Preserve usage and reset time.
                     Logger.info(`[EntitlementService] Updating existing entitlement for Org ${organizationId} / Feature ${limit.feature.slug}: Setting limit to ${newLimitAmount}`);
                     await entitlement.update({
                         limit_amount: newLimitAmount,
-                        reset_period: limit.reset_period
+                        reset_period: limit.reset_period,
+                        ...(wasDeleted && { usage_amount: 0 }), // Reset usage when restoring
                     }, { transaction });
                 } else {
                     // Create new entitlement
