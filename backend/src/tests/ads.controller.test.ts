@@ -18,6 +18,9 @@ describe('Ads Controller Integration Tests', () => {
     let authCookie: string;
 
     beforeAll(async () => {
+        // Set a dummy encryption key for testing (64 hex chars = 32 bytes)
+        process.env.ENCRYPTION_KEY = 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2';
+
         if (process.env.PGDATABASE !== 'mydb_test') {
             throw new Error("CRITICAL: Tests must run against mydb_test!");
         }

@@ -6,6 +6,8 @@ import { encrypt } from '../utils/encryption';
 import { AuditService } from '../services/audit.service';
 import { handleError } from '../utils/error';
 import Logger from '../utils/logger';
+import { configService } from '../services/config.service';
+import { STATE_PAYLOAD_DELIMITER } from '../constants/app.constants';
 
 // --- ENV ---
 const APP_ID = process.env.AMZN_SP_APP_ID!;
@@ -14,27 +16,26 @@ const CLIENT_SECRET = process.env.AMZN_SP_CLIENT_SECRET!;
 const REDIRECT_URI = process.env.AMZN_SP_REDIRECT_URI!;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-// Map region → Amazon Seller Central Base URL
-const SC_REGION_URLS: Record<string, string> = {
+// Defaults used when DB config is not yet seeded
+const DEFAULT_SC_REGION_URLS: Record<string, string> = {
     NA: "https://sellercentral.amazon.com",
     EU: "https://sellercentral.amazon.co.uk",
     FE: "https://sellercentral.amazon.co.jp"
 };
 
-const VC_REGION_URLS: Record<string, string> = {
+const DEFAULT_VC_REGION_URLS: Record<string, string> = {
     NA: "https://vendorcentral.amazon.com",
     EU: "https://vendorcentral.amazon.co.uk",
     FE: "https://vendorcentral.amazon.co.jp"
 };
 
-// Map marketplace ID to region code (simple mapping for now, can be expanded)
-const MARKETPLACE_REGION_MAP: Record<string, string> = {
+const DEFAULT_MARKETPLACE_REGION_MAP: Record<string, string> = {
     'us': 'NA', 'ca': 'NA', 'mx': 'NA', 'br': 'NA',
     'uk': 'EU', 'de': 'EU', 'fr': 'EU', 'it': 'EU', 'es': 'EU', 'nl': 'EU', 'se': 'EU', 'tr': 'EU', 'pl': 'EU', 'be': 'EU',
     'jp': 'FE', 'au': 'FE', 'sg': 'FE'
 };
 
-const TOKEN_URL = 'https://api.amazon.com/auth/o2/token';
+const DEFAULT_TOKEN_URL = 'https://api.amazon.com/auth/o2/token';
 
 // ========================================
 // Generate Auth URL
@@ -60,10 +61,13 @@ export const getSpAuthUrl = async (req: Request, res: Response) => {
 
         // Format: accountId##state##returnPath
         const encodedPath = returnPath ? encodeURIComponent(returnPath as string) : '';
-        const statePayload = encodedPath ? `${accountId}##${state}##${encodedPath}` : `${accountId}##${state}`;
+        const statePayload = encodedPath
+            ? `${accountId}${STATE_PAYLOAD_DELIMITER}${state}${STATE_PAYLOAD_DELIMITER}${encodedPath}`
+            : `${accountId}${STATE_PAYLOAD_DELIMITER}${state}`;
 
-        // Determine Base URL based on region
-        const regionCode = MARKETPLACE_REGION_MAP[account.region];
+        // Determine Base URL based on region (admin-configurable)
+        const marketplaceRegionMap = configService.getJson<Record<string, string>>('marketplace_region_map', DEFAULT_MARKETPLACE_REGION_MAP);
+        const regionCode = marketplaceRegionMap[account.region];
         if (!regionCode) {
             return res.status(400).json({ message: `Unsupported or unknown region: ${account.region}` });
         }
@@ -71,11 +75,13 @@ export const getSpAuthUrl = async (req: Request, res: Response) => {
         let authUrl: string;
 
         if (account.integration_type === 'sp_api_vc') {
-            const baseUrl = VC_REGION_URLS[regionCode];
+            const vcRegionUrls = configService.getJson<Record<string, string>>('vc_region_urls', DEFAULT_VC_REGION_URLS);
+            const baseUrl = vcRegionUrls[regionCode];
             authUrl = `${baseUrl}/apps/authorize/consent?application_id=${APP_ID}&state=${statePayload}&redirect_uri=${REDIRECT_URI}`;
         } else {
             // Seller Central
-            const baseUrl = SC_REGION_URLS[regionCode];
+            const scRegionUrls = configService.getJson<Record<string, string>>('sc_region_urls', DEFAULT_SC_REGION_URLS);
+            const baseUrl = scRegionUrls[regionCode];
             authUrl = `${baseUrl}/selling-partner-appstore/dp/${APP_ID}?state=${statePayload}&redirect_uri=${REDIRECT_URI}`;
         }
 
@@ -107,7 +113,7 @@ export const handleSpCallback = async (req: Request, res: Response) => {
     let returnedState: string;
 
     try {
-        const parsed = (state as string).split("##");
+        const parsed = (state as string).split(STATE_PAYLOAD_DELIMITER);
         if (parsed.length < 2) throw new Error('Invalid format');
         accountId = parsed[0];
         returnedState = parsed[1];
@@ -148,7 +154,8 @@ export const handleSpCallback = async (req: Request, res: Response) => {
             redirect_uri: REDIRECT_URI,
         });
 
-        const tokenResponse = await fetch(TOKEN_URL, {
+        const tokenUrl = configService.get('amazon_token_url', DEFAULT_TOKEN_URL)!;
+        const tokenResponse = await fetch(tokenUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',

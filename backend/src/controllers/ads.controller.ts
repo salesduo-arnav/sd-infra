@@ -6,14 +6,13 @@ import { encrypt } from '../utils/encryption';
 import { AuditService } from '../services/audit.service';
 import { handleError } from '../utils/error';
 import Logger from '../utils/logger';
+import { configService } from '../services/config.service';
+import { STATE_PAYLOAD_DELIMITER } from '../constants/app.constants';
 
 // --- ENV ---
 const CLIENT_ID = process.env.AMAZON_ADS_CLIENT_ID!;
 const CLIENT_SECRET = process.env.AMAZON_ADS_CLIENT_SECRET!;
 const REDIRECT_URI = process.env.AMAZON_ADS_REDIRECT_URI!;
-
-const AUTH_URL = 'https://www.amazon.com/ap/oa';
-const TOKEN_URL = 'https://api.amazon.com/auth/o2/token';
 
 // ========================================
 // Generate Auth URL
@@ -37,17 +36,20 @@ export const getAdsAuthUrl = async (req: Request, res: Response) => {
             oauth_state: state
         });
 
-        const statePayload = `${accountId}##${state}`; // accountId##state
+        const statePayload = `${accountId}${STATE_PAYLOAD_DELIMITER}${state}`;
+
+        const authUrl = configService.get('amazon_ads_auth_url', 'https://www.amazon.com/ap/oa')!;
+        const adsScope = configService.get('amazon_ads_scope', 'advertising::campaign_management')!;
 
         const params = new URLSearchParams({
             client_id: CLIENT_ID,
-            scope: 'advertising::campaign_management',
+            scope: adsScope,
             response_type: 'code',
             redirect_uri: REDIRECT_URI,
             state: statePayload,
         });
 
-        const url = `${AUTH_URL}?${params.toString()}`;
+        const url = `${authUrl}?${params.toString()}`;
         return res.json({ url });
 
     } catch (error) {
@@ -71,7 +73,7 @@ export const handleAdsCallback = async (req: Request, res: Response) => {
     let returnedState: string;
 
     try {
-        const parsed = (state as string).split("##");
+        const parsed = (state as string).split(STATE_PAYLOAD_DELIMITER);
         if (parsed.length !== 2) throw new Error('Invalid format');
         accountId = parsed[0];
         returnedState = parsed[1];
@@ -111,7 +113,8 @@ export const handleAdsCallback = async (req: Request, res: Response) => {
             redirect_uri: REDIRECT_URI,
         });
 
-        const tokenResponse = await fetch(TOKEN_URL, {
+        const tokenUrl = configService.get('amazon_token_url', 'https://api.amazon.com/auth/o2/token')!;
+        const tokenResponse = await fetch(tokenUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
