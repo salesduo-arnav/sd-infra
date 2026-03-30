@@ -290,9 +290,39 @@ jobs:
 
       - name: Verify deployment
         run: |
+          echo "=== Task Count ==="
           RUNNING=$(aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.APP_SERVICE_NAME }}" --query "services[0].deployments[0].runningCount" --output text --region "${{ env.AWS_REGION }}")
           DESIRED=$(aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.APP_SERVICE_NAME }}" --query "services[0].deployments[0].desiredCount" --output text --region "${{ env.AWS_REGION }}")
-          echo "Staging deployment verified: $RUNNING/$DESIRED tasks running"
+          echo "Tasks: $RUNNING/$DESIRED"
+          [ "$RUNNING" -ge 1 ] || { echo "::error::No tasks running"; exit 1; }
+
+          echo "=== Health Checks ==="
+          API_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" https://api-test.salesduo.com/health)
+          echo "API health: $API_STATUS"
+          [ "$API_STATUS" = "200" ] || { echo "::error::API health check failed ($API_STATUS)"; exit 1; }
+
+          FE_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" https://app-test.salesduo.com)
+          echo "Frontend: $FE_STATUS"
+          [ "$FE_STATUS" = "200" ] || { echo "::error::Frontend health check failed ($FE_STATUS)"; exit 1; }
+
+          echo "=== Frontend Integrity ==="
+          BODY=$(curl -sk https://app-test.salesduo.com)
+          echo "$BODY" | grep -qi "error" && { echo "::warning::Frontend HTML contains 'error'"; } || echo "No errors in HTML"
+          [ ${#BODY} -gt 100 ] || { echo "::error::Frontend returned empty/minimal response"; exit 1; }
+
+          echo "=== Env Var Check ==="
+          TASK_DEF=$(aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.APP_SERVICE_NAME }}" --query 'services[0].taskDefinition' --output text --region "${{ env.AWS_REGION }}")
+          CONTAINER=$(aws ecs describe-task-definition --task-definition "$TASK_DEF" --region "${{ env.AWS_REGION }}" --query 'taskDefinition.containerDefinitions[0]' --output json)
+
+          for VAR in PGHOST REDIS_URL CORS_ORIGINS FRONTEND_URL COOKIE_DOMAIN; do
+            echo "$CONTAINER" | python3 -c "import sys,json; d=json.load(sys.stdin); assert any(e['name']=='$VAR' for e in d.get('environment',[])), '$VAR missing'" 2>&1 || echo "::warning::$VAR not found in env"
+          done
+
+          for SECRET in PGPASSWORD JWT_SECRET GOOGLE_CLIENT_ID ENCRYPTION_KEY INTERNAL_API_KEY MIXPANEL_TOKEN; do
+            echo "$CONTAINER" | python3 -c "import sys,json; d=json.load(sys.stdin); assert any(e['name']=='$SECRET' for e in d.get('secrets',[])), '$SECRET missing'" 2>&1 || echo "::warning::$SECRET not found in secrets"
+          done
+
+          echo "✅ Staging verification complete"
 
   cd-production:
     name: Deploy to Production
@@ -356,6 +386,36 @@ jobs:
 
       - name: Verify deployment
         run: |
+          echo "=== Task Count ==="
           RUNNING=$(aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.APP_SERVICE_NAME }}" --query "services[0].deployments[0].runningCount" --output text --region "${{ env.AWS_REGION }}")
           DESIRED=$(aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.APP_SERVICE_NAME }}" --query "services[0].deployments[0].desiredCount" --output text --region "${{ env.AWS_REGION }}")
-          echo "Production deployment verified: $RUNNING/$DESIRED tasks running"
+          echo "Tasks: $RUNNING/$DESIRED"
+          [ "$RUNNING" -ge 1 ] || { echo "::error::No tasks running"; exit 1; }
+
+          echo "=== Health Checks ==="
+          API_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" https://api.salesduo.com/health)
+          echo "API health: $API_STATUS"
+          [ "$API_STATUS" = "200" ] || { echo "::error::API health check failed ($API_STATUS)"; exit 1; }
+
+          FE_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" https://app.salesduo.com)
+          echo "Frontend: $FE_STATUS"
+          [ "$FE_STATUS" = "200" ] || { echo "::error::Frontend health check failed ($FE_STATUS)"; exit 1; }
+
+          echo "=== Frontend Integrity ==="
+          BODY=$(curl -sk https://app.salesduo.com)
+          echo "$BODY" | grep -qi "error" && { echo "::warning::Frontend HTML contains 'error'"; } || echo "No errors in HTML"
+          [ ${#BODY} -gt 100 ] || { echo "::error::Frontend returned empty/minimal response"; exit 1; }
+
+          echo "=== Env Var Check ==="
+          TASK_DEF=$(aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.APP_SERVICE_NAME }}" --query 'services[0].taskDefinition' --output text --region "${{ env.AWS_REGION }}")
+          CONTAINER=$(aws ecs describe-task-definition --task-definition "$TASK_DEF" --region "${{ env.AWS_REGION }}" --query 'taskDefinition.containerDefinitions[0]' --output json)
+
+          for VAR in PGHOST REDIS_URL CORS_ORIGINS FRONTEND_URL COOKIE_DOMAIN; do
+            echo "$CONTAINER" | python3 -c "import sys,json; d=json.load(sys.stdin); assert any(e['name']=='$VAR' for e in d.get('environment',[])), '$VAR missing'" 2>&1 || echo "::warning::$VAR not found in env"
+          done
+
+          for SECRET in PGPASSWORD JWT_SECRET GOOGLE_CLIENT_ID ENCRYPTION_KEY INTERNAL_API_KEY MIXPANEL_TOKEN; do
+            echo "$CONTAINER" | python3 -c "import sys,json; d=json.load(sys.stdin); assert any(e['name']=='$SECRET' for e in d.get('secrets',[])), '$SECRET missing'" 2>&1 || echo "::warning::$SECRET not found in secrets"
+          done
+
+          echo "✅ Production verification complete"
