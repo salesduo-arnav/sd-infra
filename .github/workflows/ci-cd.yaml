@@ -267,6 +267,7 @@ jobs:
             --build-arg VITE_API_BASE_URL="${{ secrets.VITE_API_BASE_URL }}" \
             --build-arg VITE_GOOGLE_CLIENT_ID="${{ secrets.VITE_GOOGLE_CLIENT_ID }}" \
             --build-arg VITE_STRIPE_PUBLISHABLE_KEY="${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}" \
+            --build-arg VITE_MIXPANEL_TOKEN="${{ secrets.VITE_MIXPANEL_TOKEN }}" \
             ./frontend
           docker push "$FRONTEND_URI"
 
@@ -332,6 +333,7 @@ jobs:
             --build-arg VITE_API_BASE_URL="${{ secrets.PROD_VITE_API_BASE_URL }}" \
             --build-arg VITE_GOOGLE_CLIENT_ID="${{ secrets.PROD_VITE_GOOGLE_CLIENT_ID }}" \
             --build-arg VITE_STRIPE_PUBLISHABLE_KEY="${{ secrets.PROD_VITE_STRIPE_PUBLISHABLE_KEY }}" \
+            --build-arg VITE_MIXPANEL_TOKEN="${{ secrets.PROD_VITE_MIXPANEL_TOKEN }}" \
             ./frontend
           docker push "$FRONTEND_URI"
 
