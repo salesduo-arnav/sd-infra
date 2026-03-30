@@ -3,7 +3,6 @@ import redisClient from '../config/redis';
 import User from '../models/user';
 import { handleError } from '../utils/error';
 import Logger from '../utils/logger';
-import { LOCALHOST_IPS } from '../constants/app.constants';
 
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
     try {
