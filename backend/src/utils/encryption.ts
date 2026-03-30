@@ -2,19 +2,21 @@ import crypto from 'crypto';
 import path from 'path';
 import dotenv from 'dotenv';
 dotenv.config({ path: path.join(__dirname, '../../.env') }); // ensure .env is valid
-
-// ENCRYPTION_KEY must be exactly 32 bytes (64 hex characters)
-const ENCRYPTION_KEY_HEX = process.env.ENCRYPTION_KEY;
-if (!ENCRYPTION_KEY_HEX) {
-    throw new Error('ENCRYPTION_KEY environment variable is required (64 hex characters)');
-}
-const ENCRYPTION_KEY = Buffer.from(ENCRYPTION_KEY_HEX, 'hex');
 const ALGORITHM = 'aes-256-gcm';
+
+function getEncryptionKey(): Buffer {
+    const hex = process.env.ENCRYPTION_KEY;
+    if (!hex) {
+        throw new Error('ENCRYPTION_KEY environment variable is required (64 hex characters)');
+    }
+    return Buffer.from(hex, 'hex');
+}
 
 export const encrypt = (text: string): string => {
     try {
+        const key = getEncryptionKey();
         const iv = crypto.randomBytes(12);
-        const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+        const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
 
         let encrypted = cipher.update(text, 'utf8', 'hex');
         encrypted += cipher.final('hex');
@@ -42,7 +44,8 @@ export const decrypt = (encryptedData: string): string => {
         const iv = Buffer.from(ivHex, 'hex');
         const authTag = Buffer.from(authTagHex, 'hex');
 
-        const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+        const key = getEncryptionKey();
+        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
         decipher.setAuthTag(authTag);
 
         let decrypted = decipher.update(encryptedTextHex, 'hex', 'utf8');
