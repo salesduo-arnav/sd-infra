@@ -26,16 +26,13 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         // 3. Parse session and verify user still exists in DB (DB is source of truth)
         const session = JSON.parse(sessionData);
 
-        // Security check: Session binding to IP and User-Agent
-        const isLocalhost = (ip: string) => LOCALHOST_IPS.includes(ip);
-        const forwarded = req.headers['x-forwarded-for'];
-        const clientIp = forwarded ? String(forwarded).split(',')[0].trim() : (req.ip || '');
-        const reqIp = clientIp;
-        const ipMatch = session.ip === reqIp || (isLocalhost(session.ip) && isLocalhost(reqIp));
-        const uaMatch = session.userAgent === req.headers['user-agent'];
+        // Security check: Session binding to User-Agent only
+        // Note: IP binding removed — dynamic IPs, VPNs, and mobile networks
+        // cause frequent false positives that log users out unexpectedly.
+        const uaMatch = !session.userAgent || session.userAgent === req.headers['user-agent'];
 
-        if (session.ip && session.userAgent && (!ipMatch || !uaMatch)) {
-            Logger.warn('Session binding failed', { sessionId, expectedIp: session.ip, actualIp: req.ip, expectedUa: session.userAgent, actualUa: req.headers['user-agent'] });
+        if (!uaMatch) {
+            Logger.warn('Session binding failed (UA mismatch)', { sessionId, expectedUa: session.userAgent, actualUa: req.headers['user-agent'] });
             await redisClient.del(`session:${sessionId}`);
             res.clearCookie('session_id', { domain: process.env.COOKIE_DOMAIN || undefined });
             return res.status(401).json({ message: 'Session invalid' });
