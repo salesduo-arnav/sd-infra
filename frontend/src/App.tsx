@@ -7,6 +7,7 @@ import { Layout } from "@/components/layout/Layout";
 import { FullPageLoader } from "@/components/layout/FullPageLoader";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { captureRedirectContext, clearRedirectContext, hasRedirectContext } from "@/lib/redirectContext";
+import { trackPageView } from "@/lib/mixpanel";
 import { PermissionsProvider } from "@/contexts/PermissionsContext";
 import { usePermissions } from "@/contexts/PermissionsContext";
 import Login from "./pages/Login";
@@ -156,8 +157,18 @@ function AppLayout() {
   );
 }
 
+function PageViewTracker() {
+  const location = useLocation();
+  useEffect(() => {
+    trackPageView(location.pathname);
+  }, [location.pathname]);
+  return null;
+}
+
 function AppRoutes() {
   return (
+    <>
+    <PageViewTracker />
     <Routes>
       {/* Public routes */}
       <Route
@@ -395,6 +406,7 @@ function AppRoutes() {
       {/* 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </>
   );
 }
 

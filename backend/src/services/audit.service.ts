@@ -1,6 +1,7 @@
 import AuditLog from "../models/audit_log";
 import { Request } from 'express';
 import Logger from '../utils/logger';
+import { trackAuditEvent } from './mixpanel.service';
 
 interface LogParams {
     actorId?: string;
@@ -34,6 +35,16 @@ export class AuditService {
                 entity_id: entityId,
                 details,
                 ip_address: finalIp,
+            });
+
+            // Mirror to Mixpanel (fire-and-forget, never throws)
+            trackAuditEvent({
+                actorId,
+                action,
+                entityType,
+                entityId,
+                details,
+                ipAddress: finalIp,
             });
         } catch (error) {
             Logger.error("Failed to create audit log:", { error });
