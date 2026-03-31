@@ -40,6 +40,7 @@ const CATEGORY_META: Record<string, { label: string; description: string; order:
   entitlement:  { label: 'Entitlements',             description: 'Feature usage reset periods',                         order: 5 },
   cron:         { label: 'Scheduled Jobs',           description: 'Cron schedules (changes require app restart)',        order: 6 },
   integration:  { label: 'Amazon Integration',       description: 'Marketplace mappings, region URLs, and OAuth settings', order: 7 },
+  slack:        { label: 'Slack Integration',        description: 'Slack OAuth, bot scopes, and notification channel settings', order: 8 },
   general:      { label: 'General',                  description: 'Other platform settings',                             order: 99 },
 };
 
