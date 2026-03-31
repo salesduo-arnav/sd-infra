@@ -26,6 +26,7 @@ import {
     Building2,
     Package,
     ArrowLeft,
+    LogOut,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -72,7 +73,7 @@ export default function IntegrationOnboarding() {
     const ctx = getRedirectContext();
     const redirectUrl = ctx?.redirect || null;
     const appId = ctx?.app || null;
-    const { activeOrganization, switchOrganization } = useAuth();
+    const { activeOrganization, switchOrganization, logout } = useAuth();
     const { openOAuthPopup } = useOAuthPopup();
 
     // Sync org from URL param
@@ -523,7 +524,19 @@ export default function IntegrationOnboarding() {
             showBrandOnMobile={false}
             contentMaxWidth="max-w-2xl"
         >
-            <div className="pb-6 w-full">
+            <div className="pb-6 w-full relative">
+                {/* Sign out */}
+                <button
+                    onClick={() => {
+                        logout();
+                        navigate('/login');
+                    }}
+                    className="group absolute top-0 right-0 flex items-center gap-2 text-sm text-muted-foreground/70 transition-colors hover:text-foreground"
+                >
+                    <span className="font-medium tracking-tight">{t('auth.signOut')}</span>
+                    <LogOut className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
+                </button>
+
                 {/* Mobile Logo */}
                 <div className="lg:hidden mb-8 shrink-0">
                     <Link to="/" className="flex items-center gap-2">
