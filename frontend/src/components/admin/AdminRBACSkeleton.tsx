@@ -48,19 +48,9 @@ function RoleCardSkeleton() {
 
 export function AdminRBACSkeleton() {
   return (
-    <div className="container py-8">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-2">
-        <Skeleton className="h-7 w-7 rounded" />
-        <Skeleton className="h-9 w-[250px]" />
-      </div>
-      <Skeleton className="h-5 w-[300px] mb-8" />
-
-      {/* Role cards */}
-      <div className="space-y-6">
-        <RoleCardSkeleton />
-        <RoleCardSkeleton />
-      </div>
+    <div className="space-y-6">
+      <RoleCardSkeleton />
+      <RoleCardSkeleton />
     </div>
   );
 }

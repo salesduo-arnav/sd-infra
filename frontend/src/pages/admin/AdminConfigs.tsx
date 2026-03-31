@@ -170,10 +170,6 @@ export default function AdminConfigs() {
     ([a], [b]) => getCategoryMeta(a).order - getCategoryMeta(b).order
   );
 
-  if (loading) {
-    return <AdminConfigsSkeleton />;
-  }
-
   return (
     <div className="container py-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
@@ -194,14 +190,15 @@ export default function AdminConfigs() {
         </div>
       </div>
 
-      {sortedCategories.length === 0 && (
+      {loading ? (
+        <AdminConfigsSkeleton />
+      ) : sortedCategories.length === 0 ? (
         <div className="text-center py-10">
           <p className="text-muted-foreground">
             {searchQuery ? "No configurations match your search." : "No configurations found."}
           </p>
         </div>
-      )}
-
+      ) : (
       <div className="space-y-6">
         {sortedCategories.map(([category, items]) => {
           const meta = getCategoryMeta(category);
@@ -337,6 +334,7 @@ export default function AdminConfigs() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }

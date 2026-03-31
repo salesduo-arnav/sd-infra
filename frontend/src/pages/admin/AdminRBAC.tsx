@@ -88,10 +88,6 @@ export default function AdminRBAC() {
 
 
 
-  if (loading) {
-    return <AdminRBACSkeleton />;
-  }
-
   return (
     <>
       <div className="container py-8">
@@ -103,6 +99,9 @@ export default function AdminRBAC() {
           Configure which permissions each role has.
         </p>
 
+        {loading ? (
+          <AdminRBACSkeleton />
+        ) : (
         <div className="space-y-6">
           {roles.map((role) => (
             <Card key={role.id} className="overflow-hidden">
@@ -175,6 +174,7 @@ export default function AdminRBAC() {
             </Card>
           ))}
         </div>
+        )}
       </div>
     </>
   );
