@@ -7,7 +7,7 @@ import { OrganizationEntitlement } from '../models/organization_entitlement';
 import { Plan } from '../models/plan';
 import { Bundle } from '../models/bundle';
 import { BundleGroup } from '../models/bundle_group';
-import { BundlePlan } from '../models/bundle_plan';
+
 import { Feature } from '../models/feature';
 import { Tool, ToolUsage, User, Role } from '../models';
 import { AuditService } from '../services/audit.service';
@@ -193,9 +193,9 @@ export const getSubscriptions = async (req: Request, res: Response) => {
         if (toolIds) {
             const toolIdSet = new Set(toolIds);
             bundleSubs = bundleSubs.filter((sub) => {
-                const bundle = (sub as any).bundle;
+                const bundle = sub.bundle as Bundle & { plans?: (Plan & { tool?: Tool })[] };
                 if (!bundle?.plans) return false;
-                return bundle.plans.some((p: any) => p.tool && toolIdSet.has(p.tool.id));
+                return bundle.plans.some((p) => p.tool && toolIdSet.has(p.tool.id));
             });
         }
 
