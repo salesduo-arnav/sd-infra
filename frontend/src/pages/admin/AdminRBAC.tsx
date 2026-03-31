@@ -12,6 +12,7 @@ import {
   RBACRole,
   RBACPermission,
 } from "@/services/admin.service";
+import { AdminRBACSkeleton } from "@/components/admin/AdminRBACSkeleton";
 
 export default function AdminRBAC() {
   const [roles, setRoles] = useState<RBACRole[]>([]);
@@ -88,13 +89,7 @@ export default function AdminRBAC() {
 
 
   if (loading) {
-    return (
-      <>
-        <div className="flex h-[50vh] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </>
-    );
+    return <AdminRBACSkeleton />;
   }
 
   return (
