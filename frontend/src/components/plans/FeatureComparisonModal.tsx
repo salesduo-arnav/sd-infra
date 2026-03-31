@@ -1,9 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Check, Minus, X } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Check, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 
 interface FeatureTier {
   id: string;
@@ -91,7 +89,7 @@ export function FeatureComparisonModal({
             </div>
         </DialogHeader>
         
-        <ScrollArea className="flex-1">
+        <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="p-6 pt-2">
                 <Table>
                     <TableHeader className="sticky top-0 bg-background z-10">
@@ -186,7 +184,7 @@ export function FeatureComparisonModal({
                     </TableBody>
                 </Table>
             </div>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
