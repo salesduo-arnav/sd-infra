@@ -1,10 +1,13 @@
 import { Request, Response } from 'express';
+import { Op } from 'sequelize';
 import sequelize from '../config/db';
 import { Organization, OrganizationMember } from '../models/organization';
 import { Subscription } from '../models/subscription';
 import { OrganizationEntitlement } from '../models/organization_entitlement';
 import { Plan } from '../models/plan';
 import { Bundle } from '../models/bundle';
+import { BundleGroup } from '../models/bundle_group';
+import { BundlePlan } from '../models/bundle_plan';
 import { Feature } from '../models/feature';
 import { Tool, ToolUsage, User, Role } from '../models';
 import { AuditService } from '../services/audit.service';
@@ -82,6 +85,124 @@ export const getSubscription = async (req: Request, res: Response) => {
         res.json(subscription);
     } catch (error) {
         handleError(res, error, 'Internal: Get Subscription Error');
+    }
+};
+
+export const getSubscriptions = async (req: Request, res: Response) => {
+    try {
+        // Optional ?tool_slugs=slug1,slug2 — filters to subs whose plan's tool
+        // or whose bundle contains a plan for one of the given tool slugs.
+        const toolSlugsParam = req.query.tool_slugs as string | undefined;
+        const toolSlugs = toolSlugsParam
+            ? toolSlugsParam.split(',').map((s) => s.trim()).filter(Boolean)
+            : null;
+
+        // Resolve tool IDs from slugs (if provided) for efficient WHERE clauses
+        let toolIds: string[] | null = null;
+        if (toolSlugs && toolSlugs.length > 0) {
+            const tools = await Tool.findAll({
+                where: { slug: { [Op.in]: toolSlugs } },
+                attributes: ['id'],
+            });
+            toolIds = tools.map((t) => t.id);
+            if (toolIds.length === 0) {
+                return res.json([]);
+            }
+        }
+
+        // Build plan-level where clause for tool filtering
+        const planToolInclude = toolIds
+            ? { model: Tool, as: 'tool', attributes: ['id', 'name', 'slug'], where: { id: { [Op.in]: toolIds } } }
+            : { model: Tool, as: 'tool', attributes: ['id', 'name', 'slug'] };
+
+        // Fetch plan-based subscriptions (optionally filtered by tool)
+        const planSubs = await Subscription.findAll({
+            where: {
+                organization_id: req.params.id,
+                plan_id: { [Op.ne]: null },
+            },
+            include: [
+                {
+                    model: Plan,
+                    as: 'plan',
+                    attributes: ['id', 'name', 'tier'],
+                    required: true,
+                    include: [planToolInclude],
+                },
+                {
+                    model: Plan,
+                    as: 'upcoming_plan',
+                    attributes: ['id', 'name', 'tier'],
+                    include: [{ model: Tool, as: 'tool', attributes: ['id', 'name', 'slug'] }],
+                },
+                {
+                    model: Bundle,
+                    as: 'upcoming_bundle',
+                    attributes: ['id', 'name', 'slug'],
+                    include: [{ model: BundleGroup, as: 'group', attributes: ['id', 'name'] }],
+                },
+            ],
+            order: [['created_at', 'DESC']],
+        });
+
+        // Fetch bundle-based subscriptions
+        const bundleWhere: Record<string, unknown> = {
+            organization_id: req.params.id,
+            bundle_id: { [Op.ne]: null },
+        };
+
+        let bundleSubs = await Subscription.findAll({
+            where: bundleWhere,
+            include: [
+                {
+                    model: Bundle,
+                    as: 'bundle',
+                    attributes: ['id', 'name', 'slug'],
+                    include: [
+                        { model: BundleGroup, as: 'group', attributes: ['id', 'name'] },
+                        {
+                            model: Plan,
+                            as: 'plans',
+                            attributes: ['id', 'name', 'tier'],
+                            through: { attributes: [] },
+                            include: [{ model: Tool, as: 'tool', attributes: ['id', 'name', 'slug'] }],
+                        },
+                    ],
+                },
+                {
+                    model: Plan,
+                    as: 'upcoming_plan',
+                    attributes: ['id', 'name', 'tier'],
+                    include: [{ model: Tool, as: 'tool', attributes: ['id', 'name', 'slug'] }],
+                },
+                {
+                    model: Bundle,
+                    as: 'upcoming_bundle',
+                    attributes: ['id', 'name', 'slug'],
+                    include: [{ model: BundleGroup, as: 'group', attributes: ['id', 'name'] }],
+                },
+            ],
+            order: [['created_at', 'DESC']],
+        });
+
+        // Filter bundle subs: keep only those whose bundle contains a plan for a matching tool
+        if (toolIds) {
+            const toolIdSet = new Set(toolIds);
+            bundleSubs = bundleSubs.filter((sub) => {
+                const bundle = (sub as any).bundle;
+                if (!bundle?.plans) return false;
+                return bundle.plans.some((p: any) => p.tool && toolIdSet.has(p.tool.id));
+            });
+        }
+
+        // Merge and sort by created_at DESC
+        const allSubs = [...planSubs, ...bundleSubs].sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        );
+
+        res.json(allSubs);
+    } catch (error) {
+        handleError(res, error, 'Internal: Get Subscriptions Error');
     }
 };
 

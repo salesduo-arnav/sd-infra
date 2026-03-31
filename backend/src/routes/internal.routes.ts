@@ -4,6 +4,7 @@ import {
     getOrganization,
     getOrganizationMembers,
     getSubscription,
+    getSubscriptions,
     getEntitlements,
     consumeEntitlement,
     trackUsage,
@@ -20,6 +21,7 @@ router.use(requireServiceAuth);
 router.get('/organizations/:id', getOrganization);
 router.get('/organizations/:id/members', getOrganizationMembers);
 router.get('/organizations/:id/subscription', getSubscription);
+router.get('/organizations/:id/subscriptions', getSubscriptions);
 router.get('/organizations/:id/entitlements', getEntitlements);
 router.post('/organizations/:id/entitlements/consume', consumeEntitlement);
 
