@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Save, RotateCcw, Search } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import { AdminConfigsSkeleton } from "@/components/admin/AdminConfigsSkeleton";
 
 interface SystemConfig {
   key: string;
@@ -170,11 +171,7 @@ export default function AdminConfigs() {
   );
 
   if (loading) {
-    return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <AdminConfigsSkeleton />;
   }
 
   return (
