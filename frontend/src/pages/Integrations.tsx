@@ -44,6 +44,7 @@ import {
   Link2Off,
   Loader2,
   MessageSquare,
+  SlackIcon,
   Globe,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -60,6 +61,7 @@ import {
   disconnectGlobalIntegration,
   getAdsAuthUrl,
   getSpAuthUrl,
+  getSlackAuthUrl,
   type IntegrationAccount,
   type IntegrationAccountGroup,
   type GlobalIntegration,
@@ -107,13 +109,13 @@ const INTEGRATION_TYPES = [
 ];
 
 const GLOBAL_SERVICES = [
-  // {
-  //   key: "slack",
-  //   name: "Slack",
-  //   description: "Get notifications and alerts directly in your Slack workspace.",
-  //   icon: MessageSquare,
-  //   color: "text-green-600 bg-green-50",
-  // },
+  {
+    key: "slack",
+    name: "Slack",
+    description: "Get notifications and alerts directly in your Slack workspace.",
+    icon: SlackIcon,
+    color: "text-purple-600 bg-purple-50",
+  },
 ];
 
 const getRegion = (id: string) => REGIONS.find((r) => r.id === id);
@@ -430,20 +432,46 @@ export default function Integrations() {
   const handleConnectGlobal = async (serviceName: string) => {
     setActionLoading(`global-${serviceName}`);
     try {
-      const success = await simulateOAuth(serviceName);
-      if (success) {
-        const integration = await connectGlobalIntegration(orgId, {
-          service_name: serviceName,
-          credentials: { simulated: true },
+      if (serviceName === "slack") {
+        const url = await getSlackAuthUrl(orgId);
+        const success = await openOAuthPopup({
+          orgId,
+          accountId: orgId,
+          url,
+          title: "Connect Slack",
+          width: 600,
+          height: 700,
+          successType: "SLACK_AUTH_SUCCESS",
+          errorType: "SLACK_AUTH_ERROR",
+          verifyFn: async () => {
+            const integrations = await getGlobalIntegrations(orgId);
+            return integrations.some(
+              (g) => g.service_name === "slack" && g.status === "connected"
+            );
+          },
         });
-        setGlobalIntegrations((prev) => {
-          const existing = prev.find((g) => g.service_name === serviceName);
-          if (existing) {
-            return prev.map((g) => (g.service_name === serviceName ? integration : g));
-          }
-          return [...prev, integration];
-        });
-        toast.success(`${serviceName} connected!`);
+        if (success) {
+          await fetchGlobal();
+          toast.success("Slack workspace connected!");
+        }
+      } else {
+        const success = await simulateOAuth(serviceName);
+        if (success) {
+          const integration = await connectGlobalIntegration(orgId, {
+            service_name: serviceName,
+            credentials: { simulated: true },
+          });
+          setGlobalIntegrations((prev) => {
+            const existing = prev.find((g) => g.service_name === serviceName);
+            if (existing) {
+              return prev.map((g) =>
+                g.service_name === serviceName ? integration : g
+              );
+            }
+            return [...prev, integration];
+          });
+          toast.success(`${serviceName} connected!`);
+        }
       }
     } catch {
       toast.error(`Failed to connect ${serviceName}`);
@@ -823,6 +851,11 @@ export default function Integrations() {
                         </div>
                         <CardTitle className="mt-4">{service.name}</CardTitle>
                         <CardDescription>{service.description}</CardDescription>
+                        {isConnected && existing?.config && (existing.config as Record<string, unknown>).team_name && (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Workspace: <strong>{String((existing.config as Record<string, unknown>).team_name)}</strong>
+                          </p>
+                        )}
                       </CardHeader>
                       <CardContent className="flex-1 flex flex-col justify-end">
                         {isConnected && existing ? (

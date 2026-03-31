@@ -9,7 +9,11 @@ import { Feature } from '../models/feature';
 import { Tool, ToolUsage, User, Role } from '../models';
 import { AuditService } from '../services/audit.service';
 import { mailService } from '../services/mail.service';
+import { slackService } from '../services/slack.service';
+import { GlobalIntegration, GlobalIntegrationStatus } from '../models/global_integration';
 import { handleError } from '../utils/error';
+
+const MAX_SLACK_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB (Slack's limit)
 
 /**
  * Internal controller — thin wrappers over existing models/services.
@@ -227,6 +231,151 @@ export const sendEmail = async (req: Request, res: Response) => {
         res.json({ message: 'Email sent', source: req.serviceName });
     } catch (error) {
         handleError(res, error, 'Internal: Send Email Error');
+    }
+};
+
+// ================================
+// Slack
+// ================================
+
+export const sendSlackToChannel = async (req: Request, res: Response) => {
+    try {
+        const { organization_id, channel, text, blocks } = req.body;
+
+        if (!organization_id || !text) {
+            return res.status(400).json({ message: 'organization_id and text are required' });
+        }
+
+        // If no channel specified, use the default notification channel
+        let targetChannel = channel;
+        if (!targetChannel) {
+            const integration = await GlobalIntegration.findOne({
+                where: { organization_id, service_name: 'slack', status: GlobalIntegrationStatus.CONNECTED },
+            });
+            targetChannel = (integration?.config as Record<string, unknown>)?.default_channel_id as string;
+            if (!targetChannel) {
+                return res.status(400).json({ message: 'channel is required (no default channel configured)' });
+            }
+        }
+
+        await slackService.sendToChannel({ organization_id, channel: targetChannel, text, blocks });
+
+        res.json({ message: 'Slack message sent to channel', source: req.serviceName });
+    } catch (error) {
+        handleError(res, error, 'Internal: Send Slack To Channel Error');
+    }
+};
+
+export const sendSlackToUser = async (req: Request, res: Response) => {
+    try {
+        const { organization_id, user_email, user_id, text, blocks } = req.body;
+
+        if (!organization_id || !text) {
+            return res.status(400).json({ message: 'organization_id and text are required' });
+        }
+
+        if (!user_email && !user_id) {
+            return res.status(400).json({ message: 'user_email or user_id is required' });
+        }
+
+        await slackService.sendToUser({ organization_id, user_email, user_id, text, blocks });
+
+        res.json({ message: 'Slack DM sent', source: req.serviceName });
+    } catch (error) {
+        handleError(res, error, 'Internal: Send Slack To User Error');
+    }
+};
+
+export const sendSlackFileToChannel = async (req: Request, res: Response) => {
+    try {
+        const { organization_id, channel, file, filename, title, initial_comment } = req.body;
+
+        if (!organization_id || !file || !filename) {
+            return res.status(400).json({ message: 'organization_id, file (base64), and filename are required' });
+        }
+
+        if (file.length * 0.95 > MAX_SLACK_FILE_SIZE_BYTES) {
+            return res.status(400).json({ message: 'File exceeds maximum size of 50MB' });
+        }
+
+        // If no channel specified, use the default notification channel
+        let targetChannel = channel;
+        if (!targetChannel) {
+            const integration = await GlobalIntegration.findOne({
+                where: { organization_id, service_name: 'slack', status: GlobalIntegrationStatus.CONNECTED },
+            });
+            targetChannel = (integration?.config as Record<string, unknown>)?.default_channel_id as string;
+            if (!targetChannel) {
+                return res.status(400).json({ message: 'channel is required (no default channel configured)' });
+            }
+        }
+
+        const fileBuffer = Buffer.from(file, 'base64');
+        await slackService.sendFileToChannel({ organization_id, channel: targetChannel, file: fileBuffer, filename, title, initial_comment });
+
+        res.json({ message: 'File sent to channel', source: req.serviceName });
+    } catch (error) {
+        handleError(res, error, 'Internal: Send Slack File To Channel Error');
+    }
+};
+
+export const sendSlackFileToUser = async (req: Request, res: Response) => {
+    try {
+        const { organization_id, user_email, user_id, file, filename, title, initial_comment } = req.body;
+
+        if (!organization_id || !file || !filename) {
+            return res.status(400).json({ message: 'organization_id, file (base64), and filename are required' });
+        }
+
+        if (!user_email && !user_id) {
+            return res.status(400).json({ message: 'user_email or user_id is required' });
+        }
+
+        if (file.length * 0.95 > MAX_SLACK_FILE_SIZE_BYTES) {
+            return res.status(400).json({ message: 'File exceeds maximum size of 50MB' });
+        }
+
+        const fileBuffer = Buffer.from(file, 'base64');
+        await slackService.sendFileToUser({ organization_id, user_email, user_id, file: fileBuffer, filename, title, initial_comment });
+
+        res.json({ message: 'File sent to user', source: req.serviceName });
+    } catch (error) {
+        handleError(res, error, 'Internal: Send Slack File To User Error');
+    }
+};
+
+export const listSlackChannels = async (req: Request, res: Response) => {
+    try {
+        const { organization_id } = req.params;
+
+        if (!organization_id) {
+            return res.status(400).json({ message: 'organization_id is required' });
+        }
+
+        const channels = await slackService.listChannels(organization_id);
+        res.json({ channels });
+    } catch (error) {
+        handleError(res, error, 'Internal: List Slack Channels Error');
+    }
+};
+
+export const lookupSlackUser = async (req: Request, res: Response) => {
+    try {
+        const { organization_id } = req.params;
+        const { email } = req.query;
+
+        if (!organization_id) {
+            return res.status(400).json({ message: 'organization_id is required' });
+        }
+
+        if (!email) {
+            return res.status(400).json({ message: 'email query parameter is required' });
+        }
+
+        const user = await slackService.lookupUserByEmail(organization_id, email as string);
+        res.json({ user });
+    } catch (error) {
+        handleError(res, error, 'Internal: Lookup Slack User Error');
     }
 };
 

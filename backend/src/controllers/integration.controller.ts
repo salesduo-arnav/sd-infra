@@ -421,6 +421,7 @@ export const disconnectGlobalIntegration = async (req: Request, res: Response) =
             status: GlobalIntegrationStatus.DISCONNECTED,
             connected_at: null,
             credentials: null,
+            config: null,
         });
 
         await AuditService.log({

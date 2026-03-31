@@ -12,6 +12,8 @@ interface OAuthPopupOptions {
     successType: string;
     errorType: string;
     timeoutMs?: number;
+    /** Custom verification function for non-account-level integrations (e.g., global integrations). */
+    verifyFn?: () => Promise<boolean>;
 }
 
 export const useOAuthPopup = () => {
@@ -37,6 +39,7 @@ export const useOAuthPopup = () => {
         successType,
         errorType,
         timeoutMs = 120000,
+        verifyFn,
     }: OAuthPopupOptions): Promise<boolean> => {
         return new Promise((resolve) => {
             const left = window.screen.width / 2 - width / 2;
@@ -80,9 +83,15 @@ export const useOAuthPopup = () => {
 
                     // Issue #10: Verify connection status before resolving
                     try {
-                        const accounts = await getIntegrationAccounts(orgId);
-                        const updatedAccount = accounts.find((a) => a.id === accountId);
-                        if (updatedAccount?.status === "connected") {
+                        let verified = false;
+                        if (verifyFn) {
+                            verified = await verifyFn();
+                        } else {
+                            const accounts = await getIntegrationAccounts(orgId);
+                            const updatedAccount = accounts.find((a) => a.id === accountId);
+                            verified = updatedAccount?.status === "connected";
+                        }
+                        if (verified) {
                             doResolve(true);
                         } else {
                             toast.error(`Backend verification failed for ${title}`);
@@ -104,16 +113,24 @@ export const useOAuthPopup = () => {
             const pollInterval = setInterval(async () => {
                 if (!orgId) return;
                 try {
-                    const accounts = await getIntegrationAccounts(orgId);
-                    const updatedAccount = accounts.find((a) => a.id === accountId);
+                    if (verifyFn) {
+                        const verified = await verifyFn();
+                        if (verified) {
+                            if (!popup.closed) popup.close();
+                            doResolve(true);
+                        }
+                    } else {
+                        const accounts = await getIntegrationAccounts(orgId);
+                        const updatedAccount = accounts.find((a) => a.id === accountId);
 
-                    if (updatedAccount?.status === "connected") {
-                        if (!popup.closed) popup.close();
-                        doResolve(true); // Success!
-                    } else if (updatedAccount?.status === "error") {
-                        if (!popup.closed) popup.close();
-                        toast.error(`Failed to connect ${title}`);
-                        doResolve(false);
+                        if (updatedAccount?.status === "connected") {
+                            if (!popup.closed) popup.close();
+                            doResolve(true);
+                        } else if (updatedAccount?.status === "error") {
+                            if (!popup.closed) popup.close();
+                            toast.error(`Failed to connect ${title}`);
+                            doResolve(false);
+                        }
                     }
                 } catch (e) {
                     // ignore errors during polling

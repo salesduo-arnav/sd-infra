@@ -136,3 +136,24 @@ export const disconnectGlobalIntegration = async (
 ): Promise<void> => {
     await api.delete(`/integrations/global/${integrationId}`, orgHeaders(orgId));
 };
+
+// ================================
+// Slack Integration API
+// ================================
+
+export interface SlackChannel {
+    id: string;
+    name: string;
+    is_private: boolean;
+    num_members: number;
+}
+
+export const getSlackAuthUrl = async (orgId: string): Promise<string> => {
+    const { data } = await api.get(`/integrations/slack/auth-url`, orgHeaders(orgId));
+    return data.url;
+};
+
+export const getSlackChannels = async (orgId: string): Promise<SlackChannel[]> => {
+    const { data } = await api.get('/integrations/slack/channels', orgHeaders(orgId));
+    return data.channels;
+};
