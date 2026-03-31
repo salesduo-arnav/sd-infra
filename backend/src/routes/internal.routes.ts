@@ -9,6 +9,12 @@ import {
     trackUsage,
     createAuditLog,
     sendEmail,
+    sendSlackToChannel,
+    sendSlackToUser,
+    sendSlackFileToChannel,
+    sendSlackFileToUser,
+    listSlackChannels,
+    lookupSlackUser,
 } from '../controllers/internal.controller';
 
 const router = Router();
@@ -29,5 +35,13 @@ router.post('/audit-logs', createAuditLog);
 
 // Email
 router.post('/email/send', sendEmail);
+
+// Slack
+router.post('/slack/send-to-channel', sendSlackToChannel);
+router.post('/slack/send-to-user', sendSlackToUser);
+router.post('/slack/send-file-to-channel', sendSlackFileToChannel);
+router.post('/slack/send-file-to-user', sendSlackFileToUser);
+router.get('/slack/channels/:organization_id', listSlackChannels);
+router.get('/slack/lookup-user/:organization_id', lookupSlackUser);
 
 export default router;

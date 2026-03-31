@@ -37,6 +37,12 @@ router.get('/global', authenticate, getGlobalIntegrations);
 router.post('/global', authenticate, connectGlobalIntegration);
 router.delete('/global/:id', authenticate, disconnectGlobalIntegration);
 
+// Slack
+import { getSlackAuthUrl, handleSlackCallback, getSlackChannels } from '../controllers/slack.controller';
+router.get('/slack/auth-url', authenticate, oauthRateLimiter, getSlackAuthUrl);
+router.get('/slack/callback', oauthRateLimiter, handleSlackCallback);
+router.get('/slack/channels', authenticate, getSlackChannels);
+
 // Amazon Ads
 import { getAdsAuthUrl, handleAdsCallback } from '../controllers/ads.controller';
 router.get('/amazon-ads/auth-url', authenticate, oauthRateLimiter, getAdsAuthUrl);
