@@ -8,6 +8,8 @@ import { mailService } from '../services/mail.service';
 import { Organization } from '../models/organization';
 import { Transaction } from 'sequelize';
 import Logger from '../utils/logger';
+import { configService } from './config.service';
+import { invitationEmail } from '../utils/email-templates';
 
 class InvitationService {
     async sendInvitation(
@@ -46,7 +48,7 @@ class InvitationService {
 
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date();
-        const expiryDays = process.env.INVITATION_EXPIRY_DAYS ? parseInt(process.env.INVITATION_EXPIRY_DAYS, 10) : 7;
+        const expiryDays = configService.getNumber('invitation_expiry_days', 7);
         expiresAt.setDate(expiresAt.getDate() + expiryDays);
 
         const invitation = await Invitation.create({
@@ -67,31 +69,13 @@ class InvitationService {
 
             // Get Org Name for the email
             const org = await Organization.findByPk(orgId, { transaction });
-            const orgName = org?.name || 'SalesDuo';
+            const orgName = org?.name || configService.get('brand_name', 'SalesDuo')!;
 
+            const invite = invitationEmail(orgName, inviteLink);
             await mailService.sendMail({
                 to: email,
-                subject: `You've Been Invited to Join ${orgName} on SalesDuo`,
-                html: `
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #ff9900;">Organization Invitation</h2>
-                    <p>You've been invited to join <strong>${orgName}</strong> on <strong>SalesDuo</strong>.</p>
-
-                    <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
-                        <a 
-                        href="${inviteLink}"
-                        style="display: inline-block; padding: 12px 24px; background-color: #ff9900; color: #fff; text-decoration: none; font-weight: bold; border-radius: 4px;"
-                        >
-                        Accept Invitation
-                        </a>
-                    </div>
-
-                    <p>If you weren't expecting this invite, you can ignore this email.</p>
-
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="color: #666; font-size: 12px;">This is an automated message from SalesDuo.</p>
-                    </div>
-                `,
+                subject: invite.subject,
+                html: invite.html,
             });
         } catch (mailError) {
             Logger.error('Mail Error during invitation:', { error: mailError });

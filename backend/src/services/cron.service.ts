@@ -2,32 +2,33 @@ import cron from 'node-cron';
 import { Op } from 'sequelize';
 import { Subscription } from '../models/subscription';
 import { OrganizationEntitlement } from '../models/organization_entitlement';
-import { SystemConfig } from '../models/system_config';
 import { SubStatus, FeatureResetPeriod } from '../models/enums';
 import { stripeService } from './stripe.service';
 import { entitlementService } from './entitlement.service';
 import { AuditService } from './audit.service';
 import Logger from '../utils/logger';
 import redisClient from '../config/redis';
+import { configService } from './config.service';
 
 export class CronService {
     // Start Cron Jobs
     public startJobs() {
         Logger.info('Initializing Cron Jobs...');
 
-        // Run every day at 00:00
-        cron.schedule('00 00 * * *', async () => {
+        const cancelSchedule = configService.get('cron_cancel_past_due', '00 00 * * *')!;
+        const resetSchedule = configService.get('cron_reset_entitlements', '00 01 * * *')!;
+
+        cron.schedule(cancelSchedule, async () => {
             Logger.info('[Cron] Starting check for past_due subscriptions...');
             await this.checkAndCancelPastDueSubscriptions();
         });
 
-        // Run every day at 01:00
-        cron.schedule('00 01 * * *', async () => {
+        cron.schedule(resetSchedule, async () => {
             Logger.info('[Cron] Starting entitlement usage reset check...');
             await this.resetEntitlementUsage();
         });
 
-        Logger.info('Cron Jobs scheduled.');
+        Logger.info(`Cron Jobs scheduled. Cancel past-due: "${cancelSchedule}", Reset entitlements: "${resetSchedule}"`);
     }
 
     public async checkAndCancelPastDueSubscriptions() {
@@ -43,8 +44,7 @@ export class CronService {
             }
 
             // 1. Get Grace Period from Config (Default to 3 days if not set)
-            const config = (await SystemConfig.findByPk('payment_grace_period_days')) as SystemConfig | null;
-            const gracePeriodDays = config ? parseInt(config.value, 10) : 3;
+            const gracePeriodDays = configService.getNumber('payment_grace_period_days', 3);
 
             // 2. Calculate Cutoff Date
             const cutoffDate = new Date();
@@ -137,10 +137,12 @@ export class CronService {
             }
 
             const now = new Date();
-            
-            // Calculate cutoff dates
-            const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-            const oneYearAgo = new Date(now.getTime() - (365 * 24 * 60 * 60 * 1000));
+
+            // Calculate cutoff dates from admin-configurable reset periods
+            const monthlyDays = configService.getNumber('feature_reset_monthly_days', 30);
+            const yearlyDays = configService.getNumber('feature_reset_yearly_days', 365);
+            const thirtyDaysAgo = new Date(now.getTime() - (monthlyDays * 24 * 60 * 60 * 1000));
+            const oneYearAgo = new Date(now.getTime() - (yearlyDays * 24 * 60 * 60 * 1000));
 
             // Find all entitlements that need resetting
             // 1. Monthly resets older than 30 days that have usage > 0 

@@ -4,6 +4,9 @@ import App from "./App.tsx";
 import "./index.css";
 import "@/i18n"; // Initialize i18next before app renders
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { initMixpanel } from "@/lib/mixpanel";
+
+initMixpanel();
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 

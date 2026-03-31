@@ -2,13 +2,16 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { FullPageLoader } from "@/components/layout/FullPageLoader";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { captureRedirectContext, clearRedirectContext, hasRedirectContext } from "@/lib/redirectContext";
+import { trackPageView } from "@/lib/mixpanel";
 import { PermissionsProvider } from "@/contexts/PermissionsContext";
 import { usePermissions } from "@/contexts/PermissionsContext";
+import { PageTitle } from "@/components/PageTitle";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -156,15 +159,25 @@ function AppLayout() {
   );
 }
 
+function PageViewTracker() {
+  const location = useLocation();
+  useEffect(() => {
+    trackPageView(location.pathname);
+  }, [location.pathname]);
+  return null;
+}
+
 function AppRoutes() {
   return (
+    <>
+    <PageViewTracker />
     <Routes>
       {/* Public routes */}
       <Route
         path="/login"
         element={
           <PublicRoute>
-            <Login />
+            <PageTitle title="Login"><Login /></PageTitle>
           </PublicRoute>
         }
       />
@@ -172,7 +185,7 @@ function AppRoutes() {
         path="/signup"
         element={
           <PublicRoute>
-            <SignUp />
+            <PageTitle title="Sign Up"><SignUp /></PageTitle>
           </PublicRoute>
         }
       />
@@ -180,7 +193,7 @@ function AppRoutes() {
         path="/forgot-password"
         element={
           <PublicRoute>
-            <ForgotPassword />
+            <PageTitle title="Forgot Password"><ForgotPassword /></PageTitle>
           </PublicRoute>
         }
       />
@@ -188,7 +201,7 @@ function AppRoutes() {
         path="/reset-password"
         element={
           <PublicRoute>
-            <ResetPassword />
+            <PageTitle title="Reset Password"><ResetPassword /></PageTitle>
           </PublicRoute>
         }
       />
@@ -198,7 +211,7 @@ function AppRoutes() {
         path="/choose-organisation"
         element={
           <ProtectedRoute>
-            <ChooseOrganisation />
+            <PageTitle title="Choose Organisation"><ChooseOrganisation /></PageTitle>
           </ProtectedRoute>
         }
       />
@@ -207,7 +220,7 @@ function AppRoutes() {
         path="/create-organisation"
         element={
           <ProtectedRoute>
-            <CreateOrganisation />
+            <PageTitle title="Create Organisation"><CreateOrganisation /></PageTitle>
           </ProtectedRoute>
         }
       />
@@ -216,7 +229,7 @@ function AppRoutes() {
         path="/pending-invites"
         element={
           <ProtectedRoute>
-            <PendingInvitations />
+            <PageTitle title="Pending Invitations"><PendingInvitations /></PageTitle>
           </ProtectedRoute>
         }
       />
@@ -224,7 +237,7 @@ function AppRoutes() {
         path="/integration-onboarding"
         element={
           <ProtectedRoute>
-            <IntegrationOnboarding />
+            <PageTitle title="Integration Setup"><IntegrationOnboarding /></PageTitle>
           </ProtectedRoute>
         }
       />
@@ -233,7 +246,7 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <PermissionRoute permission="billing.manage">
-              <CheckoutPage />
+              <PageTitle title="Checkout"><CheckoutPage /></PageTitle>
             </PermissionRoute>
           </ProtectedRoute>
         }
@@ -242,7 +255,7 @@ function AppRoutes() {
         path="/tools/listing-generator"
         element={
           <ProtectedRoute>
-            <ListingGenerator />
+            <PageTitle title="Listing Generator"><ListingGenerator /></PageTitle>
           </ProtectedRoute>
         }
       />
@@ -251,7 +264,7 @@ function AppRoutes() {
           path="/apps"
           element={
             <ProtectedRoute>
-              <Apps />
+              <PageTitle title="Apps"><Apps /></PageTitle>
             </ProtectedRoute>
           }
         />
@@ -260,7 +273,7 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <PermissionRoute permission="plans.view">
-                <Plans />
+                <PageTitle title="Plans"><Plans /></PageTitle>
               </PermissionRoute>
             </ProtectedRoute>
           }
@@ -270,7 +283,7 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <PermissionRoute permission="billing.view">
-                <Billing />
+                <PageTitle title="Billing"><Billing /></PageTitle>
               </PermissionRoute>
             </ProtectedRoute>
           }
@@ -279,7 +292,7 @@ function AppRoutes() {
           path="/integrations"
           element={
             <ProtectedRoute>
-              <Integrations />
+              <PageTitle title="Integrations"><Integrations /></PageTitle>
             </ProtectedRoute>
           }
         />
@@ -287,7 +300,7 @@ function AppRoutes() {
           path="/profile"
           element={
             <ProtectedRoute>
-              <Profile />
+              <PageTitle title="Profile"><Profile /></PageTitle>
             </ProtectedRoute>
           }
         />
@@ -295,7 +308,7 @@ function AppRoutes() {
           path="/organisation"
           element={
             <ProtectedRoute>
-              <Organisation />
+              <PageTitle title="Organisation"><Organisation /></PageTitle>
             </ProtectedRoute>
           }
         />
@@ -305,7 +318,7 @@ function AppRoutes() {
           path="/admin"
           element={
             <AdminRoute>
-              <AdminDashboard />
+              <PageTitle title="Admin Dashboard"><AdminDashboard /></PageTitle>
             </AdminRoute>
           }
         />
@@ -313,7 +326,7 @@ function AppRoutes() {
           path="/admin/apps"
           element={
             <AdminRoute>
-              <AdminApps />
+              <PageTitle title="Admin - Apps"><AdminApps /></PageTitle>
             </AdminRoute>
           }
         />
@@ -321,7 +334,7 @@ function AppRoutes() {
           path="/admin/plans"
           element={
             <AdminRoute>
-              <AdminPlans />
+              <PageTitle title="Admin - Plans"><AdminPlans /></PageTitle>
             </AdminRoute>
           }
         />
@@ -329,7 +342,7 @@ function AppRoutes() {
           path="/admin/users"
           element={
             <AdminRoute>
-              <AdminUsers />
+              <PageTitle title="Admin - Users"><AdminUsers /></PageTitle>
             </AdminRoute>
           }
         />
@@ -337,7 +350,7 @@ function AppRoutes() {
           path="/admin/audit-logs"
           element={
             <AdminRoute>
-              <AuditLogs />
+              <PageTitle title="Audit Logs"><AuditLogs /></PageTitle>
             </AdminRoute>
           }
         />
@@ -345,7 +358,7 @@ function AppRoutes() {
           path="/admin/organizations"
           element={
             <AdminRoute>
-              <AdminOrganizations />
+              <PageTitle title="Admin - Organizations"><AdminOrganizations /></PageTitle>
             </AdminRoute>
           }
         />
@@ -395,6 +408,7 @@ function AppRoutes() {
       {/* 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </>
   );
 }
 

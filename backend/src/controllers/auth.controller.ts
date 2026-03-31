@@ -17,6 +17,8 @@ import path from 'path';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
 import Logger from '../utils/logger';
+import { configService } from '../services/config.service';
+import { passwordResetEmail, loginOtpEmail, signupOtpEmail } from '../utils/email-templates';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -26,17 +28,28 @@ const client = new OAuth2Client(
     'postmessage' // Special redirect URI for credentials.getToken() from flow: 'auth-code'
 );
 
-// Helper to validate password strength
+// Helper to validate password strength (reads regex from DB config)
+const DEFAULT_PASSWORD_REGEX = '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$';
+const DEFAULT_PASSWORD_MESSAGE = 'Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, and a number.';
+
 const isValidPassword = (password: string): boolean => {
-    // at least 8 chars, 1 uppercase, 1 lowercase, 1 number
-    const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    const pattern = configService.get('password_regex', DEFAULT_PASSWORD_REGEX)!;
+    const regex = new RegExp(pattern);
     return regex.test(password);
+};
+
+const getPasswordMessage = (): string => {
+    return configService.get('password_regex_message', DEFAULT_PASSWORD_MESSAGE)!;
 };
 
 // Helper to create session
 const createSession = async (req: Request, res: Response, user: User) => {
     const sessionId = uuidv4();
-    const sessionTTL = 86400; // 24 hours
+    // Priority: ConfigService (DB cache) > env var > default (24 hours)
+    const sessionTTL = configService.getNumber(
+        'session_ttl_seconds',
+        parseInt(process.env.SESSION_TTL_SECONDS || '86400', 10)
+    );
 
     // Data we want to store in Redis (avoid sensitive data like password)
     const sessionData = {
@@ -71,7 +84,7 @@ export const register = async (req: Request, res: Response) => {
         const { email, password, full_name, token } = req.body;
 
         if (!isValidPassword(password)) {
-            return res.status(400).json({ message: 'Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, and a number.' });
+            return res.status(400).json({ message: getPasswordMessage() });
         }
 
         const existingUser = await User.findOne({ where: { email } });
@@ -352,30 +365,11 @@ export const forgotPassword = async (req: Request, res: Response) => {
         const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
         // Send Email using MailService
+        const resetEmail = passwordResetEmail(resetLink);
         await mailService.sendMail({
             to: user.email,
-            subject: "Reset Your Password - SalesDuo",
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #ff9900;">Password Reset Request</h2>
-                <p>You requested to reset your SalesDuo password.</p>
-
-                <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
-                    <a 
-                    href="${resetLink}"
-                    style="display: inline-block; padding: 12px 24px; background-color: #ff9900; color: #fff; text-decoration: none; font-weight: bold; border-radius: 4px;"
-                    >
-                    Reset Password
-                    </a>
-                </div>
-
-                <p>This link is valid for <strong>1 hour</strong>.</p>
-                <p>If you didn't request this, you can safely ignore this email.</p>
-
-                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                <p style="color: #666; font-size: 12px;">This is an automated message from SalesDuo.</p>
-                </div>
-            `,
+            subject: resetEmail.subject,
+            html: resetEmail.html,
         });
 
         res.json({ message: 'If an account exists, a reset link has been sent.' });
@@ -403,7 +397,7 @@ export const resetPassword = async (req: Request, res: Response) => {
         }
 
         if (!isValidPassword(newPassword)) {
-            return res.status(400).json({ message: 'Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, and a number.' });
+            return res.status(400).json({ message: getPasswordMessage() });
         }
 
         // Hash new password
@@ -598,22 +592,11 @@ export const sendLoginOtp = async (req: Request, res: Response) => {
         const otp = await otpService.createLoginOtp(email);
 
         // Send OTP via email
+        const otpEmail = loginOtpEmail(otp);
         await mailService.sendMail({
             to: email,
-            subject: 'Your Login OTP',
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #ff9900;">Login Verification</h2>
-                    <p>Your one-time password (OTP) for login is:</p>
-                    <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
-                        <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">${otp}</span>
-                    </div>
-                    <p>This OTP is valid for <strong>5 minutes</strong>.</p>
-                    <p>If you didn't request this OTP, please ignore this email.</p>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="color: #666; font-size: 12px;">This is an automated message from SalesDuo.</p>
-                </div>
-            `,
+            subject: otpEmail.subject,
+            html: otpEmail.html,
         });
 
         res.json({ message: 'If an account exists, an OTP has been sent.' });
@@ -703,7 +686,7 @@ export const sendSignupOtp = async (req: Request, res: Response) => {
         }
 
         if (!isValidPassword(password)) {
-            return res.status(400).json({ message: 'Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, and a number.' });
+            return res.status(400).json({ message: getPasswordMessage() });
         }
 
         // Check if user already exists
@@ -743,22 +726,11 @@ export const sendSignupOtp = async (req: Request, res: Response) => {
         const otp = await otpService.createSignupOtp(email, password_hash, full_name, token);
 
         // Send OTP via email
+        const verifyEmail = signupOtpEmail(otp);
         await mailService.sendMail({
             to: email,
-            subject: 'Verify Your Email - SalesDuo',
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #ff9900;">Welcome to SalesDuo!</h2>
-                    <p>To complete your registration, please verify your email with this one-time password:</p>
-                    <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
-                        <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">${otp}</span>
-                    </div>
-                    <p>This OTP is valid for <strong>5 minutes</strong>.</p>
-                    <p>If you didn't create an account, please ignore this email.</p>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="color: #666; font-size: 12px;">This is an automated message from SalesDuo.</p>
-                </div>
-            `,
+            subject: verifyEmail.subject,
+            html: verifyEmail.html,
         });
 
         res.json({ message: 'Verification OTP sent to your email' });

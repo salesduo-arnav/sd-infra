@@ -1,0 +1,21 @@
+{
+  "name": "SalesDuo",
+  "short_name": "SalesDuo",
+  "description": "Amazon Seller Platform — Manage integrations, billing, and tools",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#FF9900",
+  "icons": [
+    {
+      "src": "/salesduologo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

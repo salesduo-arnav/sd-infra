@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import api from "@/lib/api";
 import { AxiosError } from "axios";
+import { identifyUser, setOrganizationProperties, clearOrganizationProperties, resetMixpanel } from "@/lib/mixpanel";
 
 export interface Organization {
   id: string;
@@ -120,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (org) {
       setActiveOrganization(org);
       localStorage.setItem("activeOrganizationId", org.id);
+      setOrganizationProperties(org);
       return;
     }
 
@@ -128,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (member) {
       setActiveOrganization(member.organization);
       localStorage.setItem("activeOrganizationId", member.organization.id);
+      setOrganizationProperties(member.organization);
     }
   };
 
@@ -142,6 +145,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Batch updates
       setActiveOrganization(org);
       setUser(currentUser);
+
+      // Identify user in Mixpanel
+      identifyUser(currentUser);
+      if (org) setOrganizationProperties(org);
     } catch (error) {
       console.error("Auth check failed", error);
       setUser(null);
@@ -247,6 +254,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.error(e);
     }
+    resetMixpanel();
+    clearOrganizationProperties();
     setUser(null);
     setActiveOrganization(null);
     localStorage.removeItem("activeOrganizationId");
