@@ -177,13 +177,15 @@ export const deletePlan = async (id: string) => {
 };
 
 // Plan Limits
-export const upsertPlanLimit = async (planId: string, data: { feature_id: string; default_limit: number | null; is_enabled: boolean; reset_period?: string }) => {
+export const upsertPlanLimit = async (planId: string, data: { feature_id: string; default_limit: number | null; is_enabled: boolean; reset_period?: string; cascade_to_entitlements?: boolean }) => {
   const response = await api.put(`/admin/plans/${planId}/limits`, data);
   return response.data;
 };
 
-export const deletePlanLimit = async (planId: string, featureId: string) => {
-  const response = await api.delete(`/admin/plans/${planId}/limits/${featureId}`);
+export const deletePlanLimit = async (planId: string, featureId: string, cascadeToEntitlements?: boolean) => {
+  const response = await api.delete(`/admin/plans/${planId}/limits/${featureId}`, {
+    params: cascadeToEntitlements ? { cascade_to_entitlements: 'true' } : undefined
+  });
   return response.data;
 };
 

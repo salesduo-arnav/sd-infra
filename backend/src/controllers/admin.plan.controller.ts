@@ -378,7 +378,7 @@ export const deletePlan = async (req: Request, res: Response) => {
 export const upsertPlanLimit = async (req: Request, res: Response) => {
     try {
         const { plan_id } = req.params;
-        const { feature_id, default_limit, reset_period, is_enabled } = req.body;
+        const { feature_id, default_limit, reset_period, is_enabled, cascade_to_entitlements } = req.body;
         Logger.info('Upserting plan limit', { plan_id, feature_id, userId: req.user?.id });
 
         if (!feature_id) {
@@ -398,7 +398,6 @@ export const upsertPlanLimit = async (req: Request, res: Response) => {
                 transaction: t
             });
 
-            let created = false;
             if (limitInstance) {
                 if (limitInstance.deleted_at) {
                     await limitInstance.restore({ transaction: t });
@@ -409,7 +408,6 @@ export const upsertPlanLimit = async (req: Request, res: Response) => {
                     reset_period: reset_period || limitInstance.reset_period
                 }, { transaction: t });
             } else {
-                created = true;
                 limitInstance = await PlanLimit.create({
                     plan_id,
                     feature_id,
@@ -419,16 +417,14 @@ export const upsertPlanLimit = async (req: Request, res: Response) => {
                 }, { transaction: t });
             }
 
-            // Cascade the limit update to all org entitlements derived from this plan
-            const resolvedIsEnabled = is_enabled !== undefined ? is_enabled : (created ? true : limitInstance.is_enabled);
-            await entitlementService.cascadePlanLimitUpdate(
-                plan_id,
-                feature_id,
-                default_limit,
-                reset_period,
-                resolvedIsEnabled,
-                t
-            );
+            // Cascade the limit update to all org entitlements derived from this plan (only if requested)
+            if (cascade_to_entitlements) {
+                await entitlementService.cascadePlanLimitUpdate(
+                    plan_id,
+                    feature_id,
+                    t
+                );
+            }
 
             return limitInstance;
         });
@@ -438,7 +434,7 @@ export const upsertPlanLimit = async (req: Request, res: Response) => {
             action: 'UPSERT_PLAN_LIMIT',
             entityType: 'PlanLimit',
             entityId: limit.id,
-            details: { plan_id, feature_id, default_limit, is_enabled, reset_period },
+            details: { plan_id, feature_id, default_limit, is_enabled, reset_period, cascade_to_entitlements },
             req
         });
 
@@ -451,6 +447,7 @@ export const upsertPlanLimit = async (req: Request, res: Response) => {
 export const deletePlanLimit = async (req: Request, res: Response) => {
     try {
         const { plan_id, feature_id } = req.params;
+        const { cascade_to_entitlements } = req.query;
         Logger.info('Deleting plan limit', { plan_id, feature_id, userId: req.user?.id });
 
         await sequelize.transaction(async (t) => {
@@ -461,6 +458,11 @@ export const deletePlanLimit = async (req: Request, res: Response) => {
             }
 
             await limit.destroy({ transaction: t });
+
+            // Recalculate entitlements for affected orgs (the deleted limit is now excluded)
+            if (cascade_to_entitlements === 'true') {
+                await entitlementService.cascadePlanLimitUpdate(plan_id, feature_id, t);
+            }
         });
 
         await AuditService.log({
@@ -468,7 +470,7 @@ export const deletePlanLimit = async (req: Request, res: Response) => {
             action: 'DELETE_PLAN_LIMIT',
             entityType: 'PlanLimit',
             entityId: `${plan_id}_${feature_id}`,
-            details: { plan_id, feature_id },
+            details: { plan_id, feature_id, cascade_to_entitlements: cascade_to_entitlements === 'true' },
             req
         });
 

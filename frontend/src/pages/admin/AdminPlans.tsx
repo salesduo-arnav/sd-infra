@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -133,6 +134,7 @@ export default function AdminPlans() {
   const [planLimits, setPlanLimits] = useState<PlanLimit[]>([]);
   const [stagedLimits, setStagedLimits] = useState<Record<string, { limit: number | null, reset_period: string, enabled: boolean }>>({});
   const [isSavingLimits, setIsSavingLimits] = useState(false);
+  const [updateExistingEntitlements, setUpdateExistingEntitlements] = useState(false);
   const [availableFeatures, setAvailableFeatures] = useState<AdminService.Feature[]>([]);
   const [limitFeaturePagination, setLimitFeaturePagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [limitFeatureRowCount, setLimitFeatureRowCount] = useState(0);
@@ -475,6 +477,7 @@ export default function AdminPlans() {
       setPlanLimits(plan.limits || []);
       setStagedLimits({});
       setLimitFeaturePagination({ pageIndex: 0, pageSize: 10 });
+      setUpdateExistingEntitlements(false);
       setIsLimitDialogOpen(true);
   }, []);
 
@@ -498,7 +501,8 @@ export default function AdminPlans() {
                   feature_id: featureId,
                   default_limit: data.limit,
                   reset_period: data.reset_period,
-                  is_enabled: data.enabled
+                  is_enabled: data.enabled,
+                  cascade_to_entitlements: updateExistingEntitlements
               }));
           }
 
@@ -1207,6 +1211,16 @@ export default function AdminPlans() {
                     </div>
                 )}
                 <DialogFooter className="mt-4 border-t pt-4">
+                     <div className="flex items-center gap-2 mr-auto">
+                        <Checkbox
+                            id="cascade-entitlements"
+                            checked={updateExistingEntitlements}
+                            onCheckedChange={(checked) => setUpdateExistingEntitlements(checked === true)}
+                        />
+                        <Label htmlFor="cascade-entitlements" className="text-sm font-normal cursor-pointer">
+                            Update entitlements for existing subscribers
+                        </Label>
+                     </div>
                      <Button variant="outline" onClick={() => setIsLimitDialogOpen(false)}>Cancel</Button>
                      <Button onClick={handleSaveLimits} disabled={isSavingLimits}>
                         {isSavingLimits ? "Saving..." : "Save Changes"}
