@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Save, RotateCcw, Search } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import { AdminConfigsSkeleton } from "@/components/admin/AdminConfigsSkeleton";
 
 interface SystemConfig {
   key: string;
@@ -169,14 +170,6 @@ export default function AdminConfigs() {
     ([a], [b]) => getCategoryMeta(a).order - getCategoryMeta(b).order
   );
 
-  if (loading) {
-    return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   return (
     <div className="container py-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
@@ -197,14 +190,15 @@ export default function AdminConfigs() {
         </div>
       </div>
 
-      {sortedCategories.length === 0 && (
+      {loading ? (
+        <AdminConfigsSkeleton />
+      ) : sortedCategories.length === 0 ? (
         <div className="text-center py-10">
           <p className="text-muted-foreground">
             {searchQuery ? "No configurations match your search." : "No configurations found."}
           </p>
         </div>
-      )}
-
+      ) : (
       <div className="space-y-6">
         {sortedCategories.map(([category, items]) => {
           const meta = getCategoryMeta(category);
@@ -340,6 +334,7 @@ export default function AdminConfigs() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }
