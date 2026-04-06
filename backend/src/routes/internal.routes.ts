@@ -16,6 +16,8 @@ import {
     sendSlackFileToUser,
     listSlackChannels,
     lookupSlackUser,
+    getIntegrationAccounts,
+    getIntegrationCredentials,
 } from '../controllers/internal.controller';
 
 const router = Router();
@@ -30,6 +32,10 @@ router.get('/organizations/:id/subscription', getSubscription);
 router.get('/organizations/:id/subscriptions', getSubscriptions);
 router.get('/organizations/:id/entitlements', getEntitlements);
 router.post('/organizations/:id/entitlements/consume', consumeEntitlement);
+
+// Integration credentials
+router.get('/integrations/accounts', getIntegrationAccounts);
+router.get('/integrations/accounts/:id/credentials', getIntegrationCredentials);
 
 // Fire-and-forget operations
 router.post('/usage/track', trackUsage);

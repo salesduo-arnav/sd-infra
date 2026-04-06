@@ -14,6 +14,8 @@ import { AuditService } from '../services/audit.service';
 import { mailService } from '../services/mail.service';
 import { slackService } from '../services/slack.service';
 import { GlobalIntegration, GlobalIntegrationStatus } from '../models/global_integration';
+import { IntegrationAccount, IntegrationStatus } from '../models/integration_account';
+import { decrypt } from '../utils/encryption';
 import { handleError } from '../utils/error';
 
 const MAX_SLACK_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB (Slack's limit)
@@ -497,6 +499,75 @@ export const lookupSlackUser = async (req: Request, res: Response) => {
         res.json({ user });
     } catch (error) {
         handleError(res, error, 'Internal: Lookup Slack User Error');
+    }
+};
+
+// ================================
+// Integration Credentials
+// ================================
+
+export const getIntegrationAccounts = async (req: Request, res: Response) => {
+    try {
+        const orgId = req.query.org_id as string;
+        if (!orgId) {
+            return res.status(400).json({ message: 'org_id query parameter is required' });
+        }
+
+        const accounts = await IntegrationAccount.findAll({
+            where: {
+                organization_id: orgId,
+                status: IntegrationStatus.CONNECTED,
+                deleted_at: null,
+            },
+            attributes: ['id', 'organization_id', 'account_name', 'marketplace', 'region', 'integration_type', 'status', 'connected_at'],
+        });
+
+        res.json(accounts);
+    } catch (error) {
+        handleError(res, error, 'Internal: Get Integration Accounts Error');
+    }
+};
+
+export const getIntegrationCredentials = async (req: Request, res: Response) => {
+    try {
+        const account = await IntegrationAccount.findOne({
+            where: {
+                id: req.params.id,
+                deleted_at: null,
+            },
+            attributes: ['id', 'organization_id', 'account_name', 'marketplace', 'region', 'integration_type', 'status', 'credentials', 'connected_at'],
+        });
+
+        if (!account) {
+            return res.status(404).json({ message: 'Integration account not found' });
+        }
+
+        let decryptedCredentials = account.credentials;
+
+        if (account.credentials && typeof account.credentials === 'object') {
+            const encrypted = (account.credentials as Record<string, unknown>).encrypted;
+            if (typeof encrypted === 'string') {
+                try {
+                    decryptedCredentials = JSON.parse(decrypt(encrypted));
+                } catch {
+                    decryptedCredentials = account.credentials;
+                }
+            }
+        }
+
+        res.json({
+            account_id: account.id,
+            organization_id: account.organization_id,
+            account_name: account.account_name,
+            marketplace: account.marketplace,
+            region: account.region,
+            integration_type: account.integration_type,
+            status: account.status,
+            credentials: decryptedCredentials,
+            connected_at: account.connected_at,
+        });
+    } catch (error) {
+        handleError(res, error, 'Internal: Get Integration Credentials Error');
     }
 };
 
