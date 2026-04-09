@@ -34,6 +34,9 @@ export interface IntegrationAccountAttributes {
     status: IntegrationStatus;
     oauth_state?: string | null;
     credentials?: Record<string, unknown> | null;
+    vendor_codes?: string[] | null;
+    seller_id?: string | null;
+    marketplace_id?: string | null;
     connected_at?: Date | null;
     deleted_at?: Date | null;
     created_at?: Date;
@@ -42,7 +45,7 @@ export interface IntegrationAccountAttributes {
 
 export type IntegrationAccountCreationAttributes = Optional<
     IntegrationAccountAttributes,
-    'id' | 'group_id' | 'marketplace' | 'status' | 'credentials' | 'connected_at' | 'deleted_at' | 'created_at' | 'updated_at'
+    'id' | 'group_id' | 'marketplace' | 'status' | 'credentials' | 'vendor_codes' | 'seller_id' | 'marketplace_id' | 'connected_at' | 'deleted_at' | 'created_at' | 'updated_at'
 >;
 
 export class IntegrationAccount
@@ -58,6 +61,9 @@ export class IntegrationAccount
     public status!: IntegrationStatus;
     public oauth_state!: string | null;
     public credentials!: Record<string, unknown> | null;
+    public vendor_codes!: string[] | null;
+    public seller_id!: string | null;
+    public marketplace_id!: string | null;
     public connected_at!: Date | null;
     public readonly deleted_at!: Date | null;
     public readonly created_at!: Date;
@@ -120,6 +126,19 @@ IntegrationAccount.init(
             type: DataTypes.JSONB,
             allowNull: true,
             defaultValue: null,
+        },
+        vendor_codes: {
+            type: DataTypes.JSONB,
+            allowNull: true,
+            defaultValue: null,
+        },
+        seller_id: {
+            type: DataTypes.STRING(100),
+            allowNull: true,
+        },
+        marketplace_id: {
+            type: DataTypes.STRING(20),
+            allowNull: true,
         },
         connected_at: {
             type: DataTypes.DATE,

@@ -509,17 +509,18 @@ export const lookupSlackUser = async (req: Request, res: Response) => {
 export const getIntegrationAccounts = async (req: Request, res: Response) => {
     try {
         const orgId = req.query.org_id as string;
-        if (!orgId) {
-            return res.status(400).json({ message: 'org_id query parameter is required' });
+
+        const where: any = {
+            status: IntegrationStatus.CONNECTED,
+            deleted_at: null,
+        };
+        if (orgId) {
+            where.organization_id = orgId;
         }
 
         const accounts = await IntegrationAccount.findAll({
-            where: {
-                organization_id: orgId,
-                status: IntegrationStatus.CONNECTED,
-                deleted_at: null,
-            },
-            attributes: ['id', 'organization_id', 'account_name', 'marketplace', 'region', 'integration_type', 'status', 'connected_at'],
+            where,
+            attributes: ['id', 'organization_id', 'account_name', 'marketplace', 'region', 'integration_type', 'status', 'vendor_codes', 'seller_id', 'marketplace_id', 'connected_at'],
         });
 
         res.json(accounts);
@@ -535,7 +536,7 @@ export const getIntegrationCredentials = async (req: Request, res: Response) => 
                 id: req.params.id,
                 deleted_at: null,
             },
-            attributes: ['id', 'organization_id', 'account_name', 'marketplace', 'region', 'integration_type', 'status', 'credentials', 'connected_at'],
+            attributes: ['id', 'organization_id', 'account_name', 'marketplace', 'region', 'integration_type', 'status', 'credentials', 'vendor_codes', 'seller_id', 'marketplace_id', 'connected_at'],
         });
 
         if (!account) {
@@ -564,6 +565,9 @@ export const getIntegrationCredentials = async (req: Request, res: Response) => 
             integration_type: account.integration_type,
             status: account.status,
             credentials: decryptedCredentials,
+            vendor_codes: account.vendor_codes || null,
+            seller_id: account.seller_id || null,
+            marketplace_id: account.marketplace_id || null,
             connected_at: account.connected_at,
         });
     } catch (error) {
