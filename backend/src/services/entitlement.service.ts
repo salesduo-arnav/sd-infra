@@ -387,26 +387,52 @@ export class EntitlementService {
                 return;
             }
 
-            // 4. For each org, compute the effective limit and update their entitlement
+            // 4. Resolve the feature once so we can create entitlements if they don't exist
+            const feature = await Feature.findByPk(featureId, { transaction });
+            if (!feature) {
+                Logger.warn(`[EntitlementService] Feature ${featureId} not found, skipping cascade.`);
+                return;
+            }
+
+            // 5. For each org, compute the effective limit and upsert their entitlement.
+            //    Using upsert (not update) is required so that adding a NEW feature to a plan
+            //    provisions entitlements for already-subscribed orgs that have no row yet.
             for (const orgId of orgIds) {
                 const effective = await this.computeEffectiveLimit(orgId, featureId, transaction);
 
-                await OrganizationEntitlement.update(
-                    {
-                        limit_amount: effective.limit_amount,
-                        reset_period: effective.reset_period
+                const entitlement = await OrganizationEntitlement.findOne({
+                    where: {
+                        organization_id: orgId,
+                        feature_id: featureId
                     },
-                    {
-                        where: {
-                            organization_id: orgId,
-                            feature_id: featureId
-                        },
-                        transaction
+                    paranoid: false,
+                    transaction
+                });
+
+                if (entitlement) {
+                    const wasDeleted = !!entitlement.deleted_at;
+                    if (wasDeleted) {
+                        await entitlement.restore({ transaction });
                     }
-                );
+                    await entitlement.update({
+                        limit_amount: effective.limit_amount,
+                        reset_period: effective.reset_period,
+                        ...(wasDeleted && { usage_amount: 0 })
+                    }, { transaction });
+                } else {
+                    await OrganizationEntitlement.create({
+                        organization_id: orgId,
+                        tool_id: feature.tool_id,
+                        feature_id: featureId,
+                        limit_amount: effective.limit_amount,
+                        usage_amount: 0,
+                        reset_period: effective.reset_period,
+                        last_reset_at: new Date()
+                    }, { transaction });
+                }
             }
 
-            // 5. Invalidate Redis cache for affected orgs
+            // 6. Invalidate Redis cache for affected orgs
             try {
                 for (const orgId of orgIds) {
                     await redisClient.del(`cache:entitlements:${orgId}`);
