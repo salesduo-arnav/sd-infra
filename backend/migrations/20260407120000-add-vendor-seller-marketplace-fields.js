@@ -1,30 +1,21 @@
 'use strict';
 
 module.exports = {
-    async up(queryInterface, Sequelize) {
-        // vendor_codes: User-provided vendor codes for Vendor Central accounts (can have multiple)
-        await queryInterface.addColumn('integration_accounts', 'vendor_codes', {
-            type: Sequelize.JSONB,
-            allowNull: true,
-            defaultValue: null,
-        });
-
-        // seller_id: Amazon seller/vendor ID (e.g., A1B2C3D4E5)
-        await queryInterface.addColumn('integration_accounts', 'seller_id', {
-            type: Sequelize.STRING(100),
-            allowNull: true,
-        });
-
-        // marketplace_id: Amazon marketplace ID (e.g., ATVPDKIKX0DER for US)
-        await queryInterface.addColumn('integration_accounts', 'marketplace_id', {
-            type: Sequelize.STRING(20),
-            allowNull: true,
-        });
+    async up(queryInterface) {
+        await queryInterface.sequelize.query(`
+            ALTER TABLE integration_accounts
+                ADD COLUMN IF NOT EXISTS vendor_codes JSONB DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS seller_id VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS marketplace_id VARCHAR(20);
+        `);
     },
 
     async down(queryInterface) {
-        await queryInterface.removeColumn('integration_accounts', 'vendor_codes');
-        await queryInterface.removeColumn('integration_accounts', 'seller_id');
-        await queryInterface.removeColumn('integration_accounts', 'marketplace_id');
+        await queryInterface.sequelize.query(`
+            ALTER TABLE integration_accounts
+                DROP COLUMN IF EXISTS vendor_codes,
+                DROP COLUMN IF EXISTS seller_id,
+                DROP COLUMN IF EXISTS marketplace_id;
+        `);
     },
 };
