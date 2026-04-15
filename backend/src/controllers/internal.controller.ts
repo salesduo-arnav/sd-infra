@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Op } from 'sequelize';
+import { Op, WhereOptions } from 'sequelize';
 import sequelize from '../config/db';
 import { Organization, OrganizationMember } from '../models/organization';
 import { Subscription } from '../models/subscription';
@@ -510,7 +510,7 @@ export const getIntegrationAccounts = async (req: Request, res: Response) => {
     try {
         const orgId = req.query.org_id as string;
 
-        const where: any = {
+        const where: WhereOptions<IntegrationAccount> = {
             status: IntegrationStatus.CONNECTED,
             deleted_at: null,
         };
