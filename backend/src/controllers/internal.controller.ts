@@ -521,7 +521,7 @@ export const getIntegrationAccounts = async (req: Request, res: Response) => {
         const accounts = await IntegrationAccount.findAll({
             where,
 
-            attributes: ['id', 'organization_id', 'group_id', 'account_name', 'marketplace', 'region', 'integration_type', 'status', 'vendor_codes', 'seller_id', 'marketplace_id', 'connected_at'],
+            attributes: ['id', 'organization_id', 'group_id', 'account_name', 'marketplace', 'region', 'integration_type', 'status', 'credentials', 'vendor_codes', 'seller_id', 'marketplace_id', 'connected_at'],
         });
 
         res.json(accounts);
@@ -547,10 +547,14 @@ export const getIntegrationCredentials = async (req: Request, res: Response) => 
         let decryptedCredentials = account.credentials;
 
         if (account.credentials && typeof account.credentials === 'object') {
-            const encrypted = (account.credentials as Record<string, unknown>).encrypted;
+            const credsObj = account.credentials as Record<string, unknown>;
+            const encrypted = credsObj.encrypted;
             if (typeof encrypted === 'string') {
                 try {
-                    decryptedCredentials = JSON.parse(decrypt(encrypted));
+                    const decrypted = JSON.parse(decrypt(encrypted));
+                    // Merge decrypted fields back into the credentials object, removing the 'encrypted' key
+                    const { encrypted: _, ...rest } = credsObj;
+                    decryptedCredentials = { ...rest, ...decrypted };
                 } catch {
                     decryptedCredentials = account.credentials;
                 }
