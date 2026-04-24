@@ -17,6 +17,7 @@ import { GlobalIntegration, GlobalIntegrationStatus } from '../models/global_int
 import { IntegrationAccount, IntegrationStatus } from '../models/integration_account';
 import { decrypt } from '../utils/encryption';
 import { handleError } from '../utils/error';
+import Logger from '../utils/logger';
 
 const MAX_SLACK_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB (Slack's limit)
 
@@ -509,9 +510,9 @@ export const lookupSlackUser = async (req: Request, res: Response) => {
 export const getIntegrationAccounts = async (req: Request, res: Response) => {
     try {
         const orgId = req.query.org_id as string;
+        Logger.info('Internal: getIntegrationAccounts called', { orgId });
 
         const where: WhereOptions<IntegrationAccount> = {
-            status: IntegrationStatus.CONNECTED,
             deleted_at: null,
         };
         if (orgId) {
@@ -520,10 +521,12 @@ export const getIntegrationAccounts = async (req: Request, res: Response) => {
 
         const accounts = await IntegrationAccount.findAll({
             where,
-
             attributes: ['id', 'organization_id', 'group_id', 'account_name', 'marketplace', 'region', 'integration_type', 'status', 'credentials', 'vendor_codes', 'seller_id', 'marketplace_id', 'connected_at'],
         });
 
+        Logger.info(`Internal: Found ${accounts.length} total accounts`, {
+            statuses: accounts.map(a => `${a.id.substring(0,8)}:${a.status}`)
+        });
         res.json(accounts);
     } catch (error) {
         handleError(res, error, 'Internal: Get Integration Accounts Error');
@@ -531,18 +534,23 @@ export const getIntegrationAccounts = async (req: Request, res: Response) => {
 };
 
 export const getIntegrationCredentials = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    Logger.info('Internal: getIntegrationCredentials called', { id });
     try {
         const account = await IntegrationAccount.findOne({
             where: {
-                id: req.params.id,
+                id,
                 deleted_at: null,
             },
             attributes: ['id', 'organization_id', 'account_name', 'marketplace', 'region', 'integration_type', 'status', 'credentials', 'vendor_codes', 'seller_id', 'marketplace_id', 'connected_at'],
         });
 
         if (!account) {
+            Logger.warn('Internal: Integration account not found', { id });
             return res.status(404).json({ message: 'Integration account not found' });
         }
+
+        Logger.info('Internal: Account found', { id, status: account.status, hasCredentials: !!account.credentials });
 
         let decryptedCredentials = account.credentials;
 
@@ -555,7 +563,19 @@ export const getIntegrationCredentials = async (req: Request, res: Response) => 
                     // Merge decrypted fields back into the credentials object, removing the 'encrypted' key
                     const { encrypted: _, ...rest } = credsObj;
                     decryptedCredentials = { ...rest, ...decrypted };
-                } catch {
+                    
+                    // Flatten ads_metadata if it exists
+                    if (decryptedCredentials && typeof decryptedCredentials === 'object') {
+                        const dc = decryptedCredentials as any;
+                        if (dc.ads_metadata && typeof dc.ads_metadata === 'object') {
+                            decryptedCredentials = {
+                                ...dc,
+                                ...dc.ads_metadata
+                            };
+                        }
+                    }
+                } catch (e: any) {
+                    Logger.error('Internal: Decryption failed', { id, error: e.message });
                     decryptedCredentials = account.credentials;
                 }
             }

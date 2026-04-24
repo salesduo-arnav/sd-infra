@@ -44,9 +44,11 @@ router.get('/slack/callback', oauthRateLimiter, handleSlackCallback);
 router.get('/slack/channels', authenticate, getSlackChannels);
 
 // Amazon Ads
-import { getAdsAuthUrl, handleAdsCallback } from '../controllers/ads.controller';
+import { getAdsAuthUrl, handleAdsCallback, listAdsAccounts, updateAdsAccount } from '../controllers/ads.controller';
 router.get('/amazon-ads/auth-url', authenticate, oauthRateLimiter, getAdsAuthUrl);
 router.get('/amazon-ads/callback', oauthRateLimiter, handleAdsCallback);
+router.get('/amazon-ads/accounts', authenticate, listAdsAccounts);
+router.post('/amazon-ads/accounts', authenticate, updateAdsAccount);
 
 // Amazon SP-API (SC & VC); Note - Handling the Callback in app.ts
 import { getSpAuthUrl } from '../controllers/sp.controller';

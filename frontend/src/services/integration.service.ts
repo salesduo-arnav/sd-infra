@@ -74,6 +74,22 @@ export const getSpAuthUrl = async (orgId: string, accountId: string): Promise<st
     return data.url;
 };
 
+export const listAdsAccounts = async (orgId: string, accountId: string): Promise<any[]> => {
+    const { data } = await api.get(`/integrations/amazon-ads/accounts?accountId=${accountId}`, {
+        ...orgHeaders(orgId),
+        timeout: 60000,
+    });
+    return data;
+};
+
+export const updateAdsAccount = async (orgId: string, accountId: string, profileId: string): Promise<any> => {
+    const { data } = await api.post(`/integrations/amazon-ads/accounts`, { accountId, profileId }, {
+        ...orgHeaders(orgId),
+        timeout: 60000,
+    });
+    return data;
+};
+
 export const createIntegrationAccount = async (
     orgId: string,
     payload: { account_name: string; marketplace?: string; region: string; integration_type: string }
