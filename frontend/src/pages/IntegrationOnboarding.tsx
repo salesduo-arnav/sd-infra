@@ -39,6 +39,7 @@ import {
     getAdsAuthUrl,
     getSpAuthUrl,
     IntegrationAccount,
+    AdsAccountProfile
 } from "@/services/integration.service";
 import { getToolBySlug } from "@/services/tool.service";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
@@ -132,7 +133,7 @@ export default function IntegrationOnboarding() {
     const isProcessingAdsSuccess = useRef(false);
 
     // Ads account selection
-    const [adsAccounts, setAdsAccounts] = useState<any[]>([]);
+    const [adsAccounts, setAdsAccounts] = useState<AdsAccountProfile[]>([]);
     const [isAdsSelectorOpen, setIsAdsSelectorOpen] = useState(false);
     const [pendingAdsIntId, setPendingAdsIntId] = useState<string | null>(null);
     const [isUpdatingAds, setIsUpdatingAds] = useState(false);
@@ -164,7 +165,7 @@ export default function IntegrationOnboarding() {
         }, 3000);
 
         return () => clearInterval(interval);
-    }, [connecting, isAdsSelectorOpen, orgId, createdAccountIds, isFetchingAdsProfiles]);
+    }, [connecting, isAdsSelectorOpen, orgId, createdAccountIds, isFetchingAdsProfiles, handleAdsAuthSuccess]);
 
     // Fetch required integrations from backend based on app slug
     const fetchRequirements = useCallback(async () => {
@@ -233,7 +234,7 @@ export default function IntegrationOnboarding() {
                 return accounts.some(a => 
                     a.integration_type === 'ads_api' && 
                     a.status === 'connected' && 
-                    (a.credentials as any)?.ads_metadata?.ad_profile_id
+                    a.credentials?.ads_metadata?.ad_profile_id
                 );
             }
             return accounts.some(a => a.integration_type === req && a.status === 'connected');
@@ -324,10 +325,9 @@ export default function IntegrationOnboarding() {
 
         window.addEventListener("message", handler);
         return () => window.removeEventListener("message", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [refreshIntegrations, t, connecting]);
 
-    const handleAdsAuthSuccess = async (forcedId?: string) => {
+    const handleAdsAuthSuccess = useCallback(async (forcedId?: string) => {
         console.log("[Frontend] handleAdsAuthSuccess starting...", { forcedId, orgId });
         setIsFetchingAdsProfiles(true);
         
@@ -368,9 +368,9 @@ export default function IntegrationOnboarding() {
             setIsFetchingAdsProfiles(false);
         }
         setConnecting(null);
-    };
+    }, [createdAccountIds, orgId, refreshIntegrations, handleSelectAdsAccount]);
 
-    const handleSelectAdsAccount = async (profileId: string, forcedIntId?: string) => {
+    const handleSelectAdsAccount = useCallback(async (profileId: string, forcedIntId?: string) => {
         const targetIntId = forcedIntId || pendingAdsIntId;
         if (!orgId || !targetIntId) return;
         setIsUpdatingAds(true);
@@ -384,7 +384,7 @@ export default function IntegrationOnboarding() {
         } finally {
             setIsUpdatingAds(false);
         }
-    };
+    }, [pendingAdsIntId, orgId, refreshIntegrations]);
 
     // Derive UI visibility flags from requirements
     const isSpApiRequired = requiredIntegrations.some(r => ["sp_api", "sp_api_sc", "sp_api_vc"].includes(r));
@@ -414,7 +414,7 @@ export default function IntegrationOnboarding() {
 
         // Special check for Ads: must have metadata
         if (type === 'ads_api') {
-            return account.status === 'connected' && !!(account.credentials as any)?.ads_metadata?.ad_profile_id;
+            return account.status === 'connected' && !!account.credentials?.ads_metadata?.ad_profile_id;
         }
 
         return account.status === 'connected';

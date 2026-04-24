@@ -9,6 +9,36 @@ import Logger from '../utils/logger';
 import { configService } from '../services/config.service';
 import { STATE_PAYLOAD_DELIMITER } from '../constants/app.constants';
 
+interface AdsCredentials {
+    encrypted: string;
+}
+
+interface AmazonProfile {
+    profileId: string | number;
+    countryCode?: string;
+    accountInfo?: {
+        name?: string;
+        type?: string;
+        id?: string;
+    };
+}
+
+interface AmazonAdsAccount {
+    adsAccountId: string;
+    countryCodes?: string[];
+    alternateIds?: {
+        profileId?: string | number;
+        entityId?: string;
+        countryCode?: string;
+    }[];
+    entityId?: string;
+}
+
+interface AmazonAdsAccountListResponse {
+    adsAccounts?: AmazonAdsAccount[];
+    nextToken?: string;
+}
+
 // --- ENV ---
 const CLIENT_ID = process.env.AMAZON_ADS_CLIENT_ID!;
 const CLIENT_SECRET = process.env.AMAZON_ADS_CLIENT_SECRET!;
@@ -218,7 +248,7 @@ export const listAdsAccounts = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Account or credentials not found' });
         }
 
-        const creds = account.credentials as any;
+        const creds = account.credentials as unknown as AdsCredentials;
         if (!creds.encrypted) {
             Logger.warn('listAdsAccounts: Account not encrypted/authenticated', { accountId });
             return res.status(400).json({ message: 'Account not authenticated' });
@@ -248,7 +278,7 @@ export const listAdsAccounts = async (req: Request, res: Response) => {
             throw new Error(`Failed to fetch ads profiles: ${errorText}`);
         }
 
-        const profiles = await response.json() as any[];
+        const profiles = await response.json() as AmazonProfile[];
         Logger.info('listAdsAccounts: Profiles received from Amazon', { count: profiles.length });
         
         // 2. Filter by Country and format
@@ -313,7 +343,7 @@ export const updateAdsAccount = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Account or credentials not found' });
     }
 
-    const creds = account.credentials as any;
+    const creds = account.credentials as unknown as AdsCredentials;
     const decrypted = decrypt(creds.encrypted);
     const { access_token } = JSON.parse(decrypted);
 
@@ -341,8 +371,8 @@ export const updateAdsAccount = async (req: Request, res: Response) => {
       throw new Error('Failed to fetch ads profiles list');
     }
 
-    const profiles = (await profilesRes.json()) as any[];
-    const selectedProfile = profiles.find((p: any) => String(p.profileId) === profileIdStr);
+    const profiles = (await profilesRes.json()) as AmazonProfile[];
+    const selectedProfile = profiles.find((p: AmazonProfile) => String(p.profileId) === profileIdStr);
 
     if (!selectedProfile) {
       Logger.warn('updateAdsAccount: Profile ID not found in Amazon list', { profileIdStr, availableCount: profiles.length });
@@ -355,8 +385,8 @@ export const updateAdsAccount = async (req: Request, res: Response) => {
     });
 
     // 2. Fetch adsAccounts/list to get ad_account_id and ad_entity_id
-    let adsAccountId = null;
-    let adEntityId = null;
+    let adsAccountId: string | null = null;
+    let adEntityId: string | null = null;
     let nextToken: string | undefined = undefined;
     let foundMatch = false;
 
@@ -377,23 +407,23 @@ export const updateAdsAccount = async (req: Request, res: Response) => {
         throw new Error('Failed to fetch ads accounts list');
       }
 
-      const adsAccData = (await adsAccRes.json()) as any;
+      const adsAccData = (await adsAccRes.json()) as AmazonAdsAccountListResponse;
       const adsAccounts = adsAccData?.adsAccounts || [];
 
       // Find match for the profile ID
-      const matchedAccount = adsAccounts.find((acc: any) => {
+      const matchedAccount = adsAccounts.find((acc: AmazonAdsAccount) => {
         const alternateIds = acc.alternateIds || [];
-        return alternateIds.some((alt: any) => String(alt.profileId) === profileIdStr);
+        return alternateIds.some((alt) => String(alt.profileId) === profileIdStr);
       });
 
       if (matchedAccount) {
         Logger.info('updateAdsAccount: Found matching account in adsAccounts/list', { adsAccountId: matchedAccount.adsAccountId });
         adsAccountId = matchedAccount.adsAccountId;
         // Find the entityId for the specific profile/country match if possible, or take from matchedAccount
-        const altMatch = matchedAccount.alternateIds.find(
-          (alt: any) => String(alt.profileId) === profileIdStr
+        const altMatch = (matchedAccount.alternateIds || []).find(
+          (alt) => String(alt.profileId) === profileIdStr
         );
-        adEntityId = altMatch?.entityId || matchedAccount.entityId;
+        adEntityId = altMatch?.entityId || matchedAccount.entityId || null;
         foundMatch = true;
         break;
       }
@@ -627,7 +657,7 @@ async function fetchAdsMetadata(accessToken: string, targetCountry: string) {
         throw new Error(`Failed to fetch ads accounts: ${errorText}`);
     }
 
-    const data = await adsAccRes.json() as any;
+    const data = await adsAccRes.json() as AmazonAdsAccountListResponse;
     const accounts = data?.adsAccounts || [];
 
     if (accounts.length === 0) {
@@ -646,8 +676,8 @@ async function fetchAdsMetadata(accessToken: string, targetCountry: string) {
             
             // Extract profileId and entityId from alternateIds for this specific country
             const alternateIds = acc.alternateIds || [];
-            const profileMatch = alternateIds.find((id: any) => id.countryCode === target && id.profileId);
-            const entityMatch = alternateIds.find((id: any) => id.countryCode === target && id.entityId);
+            const profileMatch = alternateIds.find((id) => id.countryCode === target && id.profileId);
+            const entityMatch = alternateIds.find((id) => id.countryCode === target && id.entityId);
 
             return {
                 ad_profile_id: profileMatch ? String(profileMatch.profileId) : null,

@@ -15,6 +15,19 @@ export interface IntegrationAccountGroup {
     updated_at: string;
 }
 
+export interface AdsMetadata {
+    ad_profile_id?: string;
+    ad_profile_entity_id?: string;
+    ad_account_id?: string;
+    ad_entity_id?: string;
+}
+
+export interface IntegrationAccountCredentials {
+    encrypted?: string;
+    ads_metadata?: AdsMetadata;
+    [key: string]: unknown;
+}
+
 export interface IntegrationAccount {
     id: string;
     organization_id: string;
@@ -24,10 +37,16 @@ export interface IntegrationAccount {
     region: string;
     integration_type: 'sp_api_sc' | 'sp_api_vc' | 'ads_api';
     status: 'connected' | 'disconnected' | 'error';
-    credentials?: Record<string, unknown> | null;
+    credentials?: IntegrationAccountCredentials | null;
     connected_at: string | null;
     created_at: string;
     updated_at: string;
+}
+
+export interface AdsAccountProfile {
+    profileId: string;
+    name: string;
+    entityId?: string;
 }
 
 export interface GlobalIntegration {
@@ -74,7 +93,7 @@ export const getSpAuthUrl = async (orgId: string, accountId: string): Promise<st
     return data.url;
 };
 
-export const listAdsAccounts = async (orgId: string, accountId: string): Promise<any[]> => {
+export const listAdsAccounts = async (orgId: string, accountId: string): Promise<AdsAccountProfile[]> => {
     const { data } = await api.get(`/integrations/amazon-ads/accounts?accountId=${accountId}`, {
         ...orgHeaders(orgId),
         timeout: 60000,
@@ -82,7 +101,7 @@ export const listAdsAccounts = async (orgId: string, accountId: string): Promise
     return data;
 };
 
-export const updateAdsAccount = async (orgId: string, accountId: string, profileId: string): Promise<any> => {
+export const updateAdsAccount = async (orgId: string, accountId: string, profileId: string): Promise<{ success: boolean; ads_metadata: AdsMetadata }> => {
     const { data } = await api.post(`/integrations/amazon-ads/accounts`, { accountId, profileId }, {
         ...orgHeaders(orgId),
         timeout: 60000,

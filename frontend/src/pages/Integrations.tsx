@@ -66,6 +66,7 @@ import {
   type IntegrationAccount,
   type IntegrationAccountGroup,
   type GlobalIntegration,
+  type AdsAccountProfile,
 } from "@/services/integration.service";
 import { ManageIntegrationDialog } from "@/components/integrations/ManageIntegrationDialog";
 import { useOAuthPopup } from "@/hooks/useOAuthPopup";
@@ -187,7 +188,7 @@ export default function Integrations() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Ads account selection
-  const [adsAccounts, setAdsAccounts] = useState<any[]>([]);
+  const [adsAccounts, setAdsAccounts] = useState<AdsAccountProfile[]>([]);
   const [isAdsSelectorOpen, setIsAdsSelectorOpen] = useState(false);
   const [pendingAdsIntId, setPendingAdsIntId] = useState<string | null>(null);
   const [isUpdatingAds, setIsUpdatingAds] = useState(false);
@@ -758,7 +759,7 @@ export default function Integrations() {
                       const hasError = groupAccounts.some((a) => a.status === "error");
                       const allConnected = groupAccounts.length > 0 && groupAccounts.every((a) => {
                         if (a.integration_type === 'ads_api') {
-                          return a.status === 'connected' && !!(a.credentials as any)?.ads_metadata?.ad_profile_id;
+                          return a.status === 'connected' && !!a.credentials?.ads_metadata?.ad_profile_id;
                         }
                         return a.status === "connected";
                       });
@@ -795,7 +796,7 @@ export default function Integrations() {
                                 const account = typeMap[key];
                                 let isConnected = account?.status === "connected";
                                 if (key === 'ads_api' && isConnected) {
-                                  isConnected = !!(account.credentials as any)?.ads_metadata?.ad_profile_id;
+                                  isConnected = !!account?.credentials?.ads_metadata?.ad_profile_id;
                                 }
                                 const isError = account?.status === "error";
 

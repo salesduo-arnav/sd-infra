@@ -14,12 +14,18 @@ import { AuditService } from '../services/audit.service';
 import { mailService } from '../services/mail.service';
 import { slackService } from '../services/slack.service';
 import { GlobalIntegration, GlobalIntegrationStatus } from '../models/global_integration';
-import { IntegrationAccount, IntegrationStatus } from '../models/integration_account';
+import { IntegrationAccount } from '../models/integration_account';
 import { decrypt } from '../utils/encryption';
 import { handleError } from '../utils/error';
 import Logger from '../utils/logger';
 
 const MAX_SLACK_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB (Slack's limit)
+
+interface DecryptedCredentials {
+    encrypted?: string;
+    ads_metadata?: Record<string, unknown>;
+    [key: string]: unknown;
+}
 
 /**
  * Internal controller — thin wrappers over existing models/services.
@@ -566,7 +572,7 @@ export const getIntegrationCredentials = async (req: Request, res: Response) => 
                     
                     // Flatten ads_metadata if it exists
                     if (decryptedCredentials && typeof decryptedCredentials === 'object') {
-                        const dc = decryptedCredentials as any;
+                        const dc = decryptedCredentials as DecryptedCredentials;
                         if (dc.ads_metadata && typeof dc.ads_metadata === 'object') {
                             decryptedCredentials = {
                                 ...dc,
@@ -574,8 +580,9 @@ export const getIntegrationCredentials = async (req: Request, res: Response) => 
                             };
                         }
                     }
-                } catch (e: any) {
-                    Logger.error('Internal: Decryption failed', { id, error: e.message });
+                } catch (e) {
+                    const error = e as Error;
+                    Logger.error('Internal: Decryption failed', { id, error: error.message });
                     decryptedCredentials = account.credentials;
                 }
             }
