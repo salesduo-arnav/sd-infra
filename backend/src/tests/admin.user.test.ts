@@ -132,7 +132,8 @@ describe('Admin User Management', () => {
             const users = res.body.users;
             // Check if sorted by email
             const emails = users.map((u: User) => u.email);
-            const sortedEmails = [...emails].sort();
+            // Database sorting is case-insensitive for strings in most configs
+            const sortedEmails = [...emails].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
             expect(emails).toEqual(sortedEmails);
         });
     });
