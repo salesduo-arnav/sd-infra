@@ -171,7 +171,7 @@ export const handleSpCallback = async (req: Request, res: Response) => {
 
         if (!tokenResponse.ok) {
             const errorBody = await tokenResponse.text();
-            throw new Error(errorBody);
+            throw new Error(`Amazon token endpoint returned ${tokenResponse.status}: ${errorBody}`);
         }
 
         const tokenData = await tokenResponse.json();
@@ -206,7 +206,11 @@ export const handleSpCallback = async (req: Request, res: Response) => {
         return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=success&accountId=${accountId}`);
 
     } catch (err) {
-        Logger.error('Amazon SP Token Exchange Failed', { error: err });
+        const message = err instanceof Error ? err.message : String(err);
+        Logger.error('Amazon SP Token Exchange Failed', {
+            message,
+            stack: err instanceof Error ? err.stack : undefined,
+        });
 
         await account.update({
             status: IntegrationStatus.ERROR
