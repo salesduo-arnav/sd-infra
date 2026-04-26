@@ -72,20 +72,26 @@ export const getSpAuthUrl = async (req: Request, res: Response) => {
             return res.status(400).json({ message: `Unsupported or unknown region: ${account.region}` });
         }
 
-        let authUrl: string;
-
+        let baseUrl: string;
         if (account.integration_type === 'sp_api_vc') {
             const vcRegionUrls = configService.getJson<Record<string, string>>('vc_region_urls', DEFAULT_VC_REGION_URLS);
-            const baseUrl = vcRegionUrls[regionCode];
-            authUrl = `${baseUrl}/apps/authorize/consent?application_id=${APP_ID}&state=${statePayload}&redirect_uri=${REDIRECT_URI}`;
+            baseUrl = vcRegionUrls[regionCode];
         } else {
-            // Seller Central
             const scRegionUrls = configService.getJson<Record<string, string>>('sc_region_urls', DEFAULT_SC_REGION_URLS);
-            const baseUrl = scRegionUrls[regionCode];
-            authUrl = `${baseUrl}/selling-partner-appstore/dp/${APP_ID}?state=${statePayload}&redirect_uri=${REDIRECT_URI}`;
+            baseUrl = scRegionUrls[regionCode];
         }
 
+        const consentParams = new URLSearchParams({
+            application_id: APP_ID,
+            state: statePayload,
+            redirect_uri: REDIRECT_URI,
+        });
 
+        if (process.env.AMZN_SP_APP_DRAFT === 'true') {
+            consentParams.set('version', 'beta');
+        }
+
+        const authUrl = `${baseUrl}/apps/authorize/consent?${consentParams.toString()}`;
 
         return res.json({ url: authUrl });
 
