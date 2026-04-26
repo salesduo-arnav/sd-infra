@@ -232,8 +232,8 @@ export default function Integrations() {
         accountId: account.id,
         url,
         title: "Connect Seller Central",
-        width: 600,
-        height: 700,
+        width: 1100,
+        height: 850,
         successType: "SP_AUTH_SUCCESS",
         errorType: "SP_AUTH_ERROR",
       });
