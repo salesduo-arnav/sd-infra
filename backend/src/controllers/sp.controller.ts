@@ -37,12 +37,89 @@ const DEFAULT_MARKETPLACE_REGION_MAP: Record<string, string> = {
 
 const DEFAULT_TOKEN_URL = 'https://api.amazon.com/auth/o2/token';
 
+const escapeHtml = (unsafe: string) =>
+    unsafe
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+const sendOAuthPopupResponse = (
+    res: Response,
+    status: 'success' | 'error',
+    message?: string
+) => {
+    const payload = {
+        type: status === 'success' ? 'SP_AUTH_SUCCESS' : 'SP_AUTH_ERROR',
+        message: message || null,
+    };
+
+    const nonce = crypto.randomBytes(16).toString('base64');
+    res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self' 'nonce-${nonce}';`);
+    res.setHeader('Content-Type', 'text/html');
+
+    return res.send(`<!DOCTYPE html>
+<html>
+<head>
+    <title>Seller Central Authentication</title>
+    <style>
+        body { margin: 0; font-family: Arial, Helvetica, sans-serif; background-color: #ffffff; color: #111111; display: flex; align-items: center; justify-content: center; height: 100vh; }
+        .container { width: 360px; padding: 24px; border: 1px solid #dddddd; border-radius: 6px; text-align: center; }
+        .logo { font-size: 20px; font-weight: bold; margin-bottom: 20px; }
+        .logo span { color: #FF9900; }
+        h3 { margin: 0 0 12px 0; font-size: 18px; font-weight: 600; color: ${status === 'success' ? '#067D62' : '#B12704'}; }
+        p { font-size: 14px; color: #555555; margin-bottom: 16px; }
+        .error { font-size: 13px; color: #B12704; margin-bottom: 16px; }
+        .btn { width: 100%; padding: 10px; background-color: #FF9900; border: 1px solid #E47911; color: #111111; font-weight: 600; border-radius: 4px; cursor: pointer; }
+        .btn:hover { background-color: #F08804; }
+        .footer-note { font-size: 12px; color: #777777; margin-top: 16px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">seller<span>central</span></div>
+        ${status === 'success'
+            ? `<h3>Authentication Successful</h3>
+               <p>Your Seller Central account has been connected successfully.</p>
+               <p>This window will close automatically.</p>`
+            : `<h3>Authentication Failed</h3>
+               <div class="error">${escapeHtml(message || 'An unknown error occurred.')}</div>
+               <p>Please close this window and try again.</p>`
+        }
+        <button class="btn" onclick="window.close()">Close Window</button>
+    </div>
+    <script nonce="${nonce}">
+        (function() {
+            const payload = ${JSON.stringify(payload)};
+            function closeWindow() {
+                window.close();
+                setTimeout(() => {
+                    document.body.insertAdjacentHTML('beforeend', '<p class="footer-note">(If the window does not close, please click the button above)</p>');
+                }, 2000);
+            }
+            if (window.opener) {
+                try {
+                    window.opener.postMessage(payload, '${FRONTEND_URL}');
+                } catch (err) {
+                    console.error('[SP OAuth] postMessage failed:', err);
+                }
+            }
+            if ('${status}' === 'success') {
+                setTimeout(closeWindow, 500);
+            }
+        })();
+    </script>
+</body>
+</html>`);
+};
+
 // ========================================
 // Generate Auth URL
 // ========================================
 export const getSpAuthUrl = async (req: Request, res: Response) => {
     try {
-        const { accountId, returnPath } = req.query;
+        const { accountId } = req.query;
 
         if (!accountId) {
             return res.status(400).json({ message: 'accountId is required' });
@@ -59,11 +136,7 @@ export const getSpAuthUrl = async (req: Request, res: Response) => {
             oauth_state: state
         });
 
-        // Format: accountId##state##returnPath
-        const encodedPath = returnPath ? encodeURIComponent(returnPath as string) : '';
-        const statePayload = encodedPath
-            ? `${accountId}${STATE_PAYLOAD_DELIMITER}${state}${STATE_PAYLOAD_DELIMITER}${encodedPath}`
-            : `${accountId}${STATE_PAYLOAD_DELIMITER}${state}`;
+        const statePayload = `${accountId}${STATE_PAYLOAD_DELIMITER}${state}`;
 
         // Determine Base URL based on region (admin-configurable)
         const marketplaceRegionMap = configService.getJson<Record<string, string>>('marketplace_region_map', DEFAULT_MARKETPLACE_REGION_MAP);
@@ -107,12 +180,9 @@ export const handleSpCallback = async (req: Request, res: Response) => {
     Logger.info('Amazon SP Callback', { query: req.query });
 
     const { spapi_oauth_code, state, selling_partner_id, error, error_description } = req.query;
-    // Determine redirect path from state (format: accountId##state##returnPath)
-    // Falls back to /integrations if no return path encoded
-    let redirectPath = '/integrations';
 
     if (!state) {
-        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=error&message=${encodeURIComponent('Missing state parameter')}`);
+        return sendOAuthPopupResponse(res, 'error', 'Missing state parameter');
     }
 
     let accountId: string;
@@ -123,14 +193,13 @@ export const handleSpCallback = async (req: Request, res: Response) => {
         if (parsed.length < 2) throw new Error('Invalid format');
         accountId = parsed[0];
         returnedState = parsed[1];
-        if (parsed[2]) redirectPath = decodeURIComponent(parsed[2]);
     } catch {
-        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=error&message=${encodeURIComponent('Invalid state format')}`);
+        return sendOAuthPopupResponse(res, 'error', 'Invalid state format');
     }
 
     const account = await IntegrationAccount.findByPk(accountId);
     if (!account) {
-        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=error&message=${encodeURIComponent('Integration account not found')}`);
+        return sendOAuthPopupResponse(res, 'error', 'Integration account not found');
     }
 
     const storedStateBuffer = Buffer.from(account.oauth_state || '');
@@ -140,15 +209,15 @@ export const handleSpCallback = async (req: Request, res: Response) => {
         storedStateBuffer.length !== returnedStateBuffer.length ||
         !crypto.timingSafeEqual(storedStateBuffer, returnedStateBuffer)
     ) {
-        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=error&message=${encodeURIComponent('Invalid OAuth state')}`);
+        return sendOAuthPopupResponse(res, 'error', 'Invalid OAuth state');
     }
 
     if (error) {
-        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=error&message=${encodeURIComponent(error_description as string || 'Authorization denied')}`);
+        return sendOAuthPopupResponse(res, 'error', (error_description as string) || 'Authorization denied');
     }
 
     if (!spapi_oauth_code) {
-        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=error&message=${encodeURIComponent('Missing authorization code')}`);
+        return sendOAuthPopupResponse(res, 'error', 'Missing authorization code');
     }
 
     try {
@@ -203,7 +272,7 @@ export const handleSpCallback = async (req: Request, res: Response) => {
             req
         });
 
-        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=success&accountId=${accountId}`);
+        return sendOAuthPopupResponse(res, 'success');
 
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -216,7 +285,7 @@ export const handleSpCallback = async (req: Request, res: Response) => {
             status: IntegrationStatus.ERROR
         });
 
-        return res.redirect(`${FRONTEND_URL}${redirectPath}?sp_auth=error&message=${encodeURIComponent('Token exchange failed')}`);
+        return sendOAuthPopupResponse(res, 'error', 'Token exchange failed');
     }
 };
 

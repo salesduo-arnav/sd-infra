@@ -69,10 +69,8 @@ export const getAdsAuthUrl = async (orgId: string, accountId: string): Promise<s
     return data.url;
 };
 
-export const getSpAuthUrl = async (orgId: string, accountId: string, returnPath?: string): Promise<string> => {
-    const params = new URLSearchParams({ accountId });
-    if (returnPath) params.set('returnPath', returnPath);
-    const { data } = await api.get(`/integrations/sp-api/auth-url?${params.toString()}`, orgHeaders(orgId));
+export const getSpAuthUrl = async (orgId: string, accountId: string): Promise<string> => {
+    const { data } = await api.get(`/integrations/sp-api/auth-url?accountId=${accountId}`, orgHeaders(orgId));
     return data.url;
 };
 
