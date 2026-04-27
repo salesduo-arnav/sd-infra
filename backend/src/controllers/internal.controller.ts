@@ -527,7 +527,7 @@ export const getIntegrationAccounts = async (req: Request, res: Response) => {
 
         const accounts = await IntegrationAccount.findAll({
             where,
-            attributes: ['id', 'organization_id', 'group_id', 'account_name', 'marketplace', 'region', 'integration_type', 'status', 'credentials', 'vendor_codes', 'seller_id', 'marketplace_id', 'connected_at'],
+            attributes: ['id', 'organization_id', 'group_id', 'account_name', 'marketplace', 'region', 'integration_type', 'status', 'vendor_codes', 'seller_id', 'marketplace_id', 'connected_at'],
         });
 
         Logger.info(`Internal: Found ${accounts.length} total accounts`, {

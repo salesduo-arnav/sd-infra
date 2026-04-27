@@ -141,32 +141,6 @@ export default function IntegrationOnboarding() {
     const [resumeAccount, setResumeAccount] = useState<IntegrationAccount | null>(null);
     const [accounts, setAccounts] = useState<IntegrationAccount[]>([]);
 
-    useEffect(() => {
-        if (connecting !== 'ads' || isAdsSelectorOpen || isFetchingAdsProfiles) return;
-
-        const interval = setInterval(async () => {
-            console.log("[Frontend] Polling for Ads account status...");
-            if (!orgId) return;
-            try {
-                const fetched = await getIntegrationAccounts(orgId);
-                const adsAccount = createdAccountIds['ads_api'] 
-                    ? fetched.find(a => a.id === createdAccountIds['ads_api'])
-                    : fetched.find(a => a.integration_type === 'ads_api'); // Look for any ads account
-
-                // Check if it has credentials (even if status is still disconnected)
-                if (adsAccount && adsAccount.credentials) {
-                    console.log("[Frontend] Polling detected Ads account has credentials. Triggering profiles fetch for ID:", adsAccount.id);
-                    clearInterval(interval);
-                    handleAdsAuthSuccess(adsAccount.id);
-                }
-            } catch (e) {
-                console.error("[Frontend] Polling error:", e);
-            }
-        }, 3000);
-
-        return () => clearInterval(interval);
-    }, [connecting, isAdsSelectorOpen, orgId, createdAccountIds, isFetchingAdsProfiles, handleAdsAuthSuccess]);
-
     // Fetch required integrations from backend based on app slug
     const fetchRequirements = useCallback(async () => {
         if (!appId) {
@@ -327,10 +301,28 @@ export default function IntegrationOnboarding() {
         return () => window.removeEventListener("message", handler);
     }, [refreshIntegrations, t, connecting]);
 
+    const handleSelectAdsAccount = useCallback(async (profileId: string, forcedIntId?: string) => {
+        const targetIntId = forcedIntId || pendingAdsIntId;
+        if (!orgId || !targetIntId) return;
+        setIsUpdatingAds(true);
+        try {
+            await updateAdsAccount(orgId, targetIntId, String(profileId));
+            toast.success("Ads account selected successfully");
+            setIsAdsSelectorOpen(false);
+            refreshIntegrations();
+        } catch (error) {
+            toast.error("Failed to update Ads account");
+        } finally {
+            setIsUpdatingAds(false);
+        }
+    }, [pendingAdsIntId, orgId, refreshIntegrations]);
+
     const handleAdsAuthSuccess = useCallback(async (forcedId?: string) => {
+        if (isProcessingAdsSuccess.current) return;
+        isProcessingAdsSuccess.current = true;
         console.log("[Frontend] handleAdsAuthSuccess starting...", { forcedId, orgId });
         setIsFetchingAdsProfiles(true);
-        
+
         // Find the ads account we just connected
         const id = forcedId || createdAccountIds['ads_api'];
         console.log("[Frontend] Target Ads Account ID identified:", id);
@@ -340,7 +332,7 @@ export default function IntegrationOnboarding() {
                 console.log("[Frontend] Calling listAdsAccounts for account:", id);
                 const accountsList = await listAdsAccounts(orgId, id);
                 console.log("[Frontend] listAdsAccounts response:", accountsList);
-                
+
                 if (accountsList && accountsList.length > 0) {
                     if (accountsList.length === 1) {
                         // Auto-select if only one profile
@@ -362,29 +354,41 @@ export default function IntegrationOnboarding() {
                 // The interceptor already showed a toast
             } finally {
                 setIsFetchingAdsProfiles(false);
+                isProcessingAdsSuccess.current = false;
             }
         } else {
             console.error("[Frontend] ABORTING: Could not find account ID.", { id, forcedId, createdAccountIds });
             setIsFetchingAdsProfiles(false);
+            isProcessingAdsSuccess.current = false;
         }
         setConnecting(null);
     }, [createdAccountIds, orgId, refreshIntegrations, handleSelectAdsAccount]);
 
-    const handleSelectAdsAccount = useCallback(async (profileId: string, forcedIntId?: string) => {
-        const targetIntId = forcedIntId || pendingAdsIntId;
-        if (!orgId || !targetIntId) return;
-        setIsUpdatingAds(true);
-        try {
-            await updateAdsAccount(orgId, targetIntId, String(profileId));
-            toast.success("Ads account selected successfully");
-            setIsAdsSelectorOpen(false);
-            refreshIntegrations();
-        } catch (error) {
-            toast.error("Failed to update Ads account");
-        } finally {
-            setIsUpdatingAds(false);
-        }
-    }, [pendingAdsIntId, orgId, refreshIntegrations]);
+    // Polling fallback: detect when OAuth callback stored credentials but postMessage was not received
+    useEffect(() => {
+        if (connecting !== 'ads' || isAdsSelectorOpen || isFetchingAdsProfiles) return;
+
+        const interval = setInterval(async () => {
+            console.log("[Frontend] Polling for Ads account status...");
+            if (!orgId) return;
+            try {
+                const fetched = await getIntegrationAccounts(orgId);
+                const adsAccount = createdAccountIds['ads_api']
+                    ? fetched.find(a => a.id === createdAccountIds['ads_api'])
+                    : fetched.find(a => a.integration_type === 'ads_api');
+
+                if (adsAccount && adsAccount.credentials) {
+                    console.log("[Frontend] Polling detected Ads account has credentials. Triggering profiles fetch for ID:", adsAccount.id);
+                    clearInterval(interval);
+                    handleAdsAuthSuccess(adsAccount.id);
+                }
+            } catch (e) {
+                console.error("[Frontend] Polling error:", e);
+            }
+        }, 3000);
+
+        return () => clearInterval(interval);
+    }, [connecting, isAdsSelectorOpen, orgId, createdAccountIds, isFetchingAdsProfiles, handleAdsAuthSuccess]);
 
     // Derive UI visibility flags from requirements
     const isSpApiRequired = requiredIntegrations.some(r => ["sp_api", "sp_api_sc", "sp_api_vc"].includes(r));

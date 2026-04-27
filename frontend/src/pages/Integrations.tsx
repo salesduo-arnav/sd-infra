@@ -465,9 +465,7 @@ export default function Integrations() {
     } catch {
       toast.error(t('pages.integrations.failedToReconnect'));
     } finally {
-      if (account.integration_type !== 'ads_api') {
-        setActionLoading(null);
-      }
+      setActionLoading(null);
     }
   };
 

@@ -609,8 +609,8 @@ const sendOAuthPopupResponse = (
             if (window.opener) {
                 try {
                     console.log("[Backend] Sending message to opener...");
-                    // Using '*' for targetOrigin to avoid mismatch issues in local docker/ngrok setups
-                    window.opener.postMessage(payload, "*");
+                    const targetOrigin = '${process.env.FRONTEND_URL || "http://localhost:5173"}';
+                    window.opener.postMessage(payload, targetOrigin);
                     console.log("[Backend] Message sent with payload:", payload);
                 } catch (err) {
                     console.error("[Backend] Error sending message:", err);
