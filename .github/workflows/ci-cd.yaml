@@ -245,25 +245,47 @@ jobs:
         env:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "## Backend Test Results" > report.md
-          echo "\`\`\`" >> report.md
-          cat test-reports/backend_report.md >> report.md || echo "Tests skipped or not found." >> report.md
-          echo "\`\`\`" >> report.md
+          summarize_jest() {
+            local file="$1"
+            if [ -s "$file" ]; then
+              grep -E "^(Test Suites:|Tests:|Snapshots:|Time:)" "$file" || tail -5 "$file"
+            else
+              echo "Not run."
+            fi
+          }
+          summarize_lint() {
+            local file="$1"
+            if [ -s "$file" ]; then
+              if grep -qE "problem" "$file"; then
+                grep -E "problem" "$file" | tail -1
+              else
+                echo "Clean — no lint issues."
+              fi
+            else
+              echo "Not run."
+            fi
+          }
 
-          echo "## Backend Lint Results" >> report.md
-          echo "\`\`\`" >> report.md
-          cat backend-lint-report/backend_lint_report.md >> report.md || echo "Lint skipped or not found." >> report.md
-          echo "\`\`\`" >> report.md
-
-          echo "## Frontend Test Results" >> report.md
-          echo "\`\`\`" >> report.md
-          cat test-reports/frontend_report.md >> report.md || echo "Tests skipped or not found." >> report.md
-          echo "\`\`\`" >> report.md
-
-          echo "## Frontend Lint Results" >> report.md
-          echo "\`\`\`" >> report.md
-          cat frontend-lint-report/frontend_lint_report.md >> report.md || echo "Lint skipped or not found." >> report.md
-          echo "\`\`\`" >> report.md
+          {
+            echo "## CI Summary"
+            echo ""
+            echo "### Backend Tests"
+            echo '```'
+            summarize_jest test-reports/backend_report.md
+            echo '```'
+            echo ""
+            echo "### Backend Lint"
+            echo '```'
+            summarize_lint backend-lint-report/backend_lint_report.md
+            echo '```'
+            echo ""
+            echo "### Frontend Lint"
+            echo '```'
+            summarize_lint frontend-lint-report/frontend_lint_report.md
+            echo '```'
+            echo ""
+            echo "_Full logs available in this run's workflow artifacts._"
+          } > report.md
 
           cml comment create report.md
 
