@@ -63,6 +63,9 @@ i18n
             caches: ['localStorage'],
             lookupLocalStorage: 'i18nextLng',
         },
+        react: {
+            useSuspense: false,
+        },
     });
 
 // Keep the HTML lang attribute in sync with the current language

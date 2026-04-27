@@ -6,6 +6,7 @@ import User from '../models/user';
 import { Organization, OrganizationMember } from '../models/organization';
 import { Role, Permission, RolePermission } from '../models/role';
 import { Invitation } from '../models/invitation';
+import { mailService } from '../services/mail.service';
 import { RoleType, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } from '../constants/rbac.constants';
 
 describe('RBAC Integration Tests', () => {
@@ -137,11 +138,13 @@ describe('RBAC Integration Tests', () => {
 
         it('should NOT allow Member to revoke invitations', async () => {
              const role = await Role.findOne({ where: { name: RoleType.MEMBER } });
+             const sendMailSpy = jest.spyOn(mailService, 'sendMail').mockResolvedValue();
              const inviteRes = await request(app)
                 .post('/invitations')
                 .set('Cookie', ownerCookie)
                 .set('x-organization-id', orgId)
                 .send({ email: 'to_be_revoked@example.com', role_id: role?.id });
+             sendMailSpy.mockRestore();
 
              const inviteId = inviteRes.body.invitation.id;
 

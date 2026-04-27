@@ -125,6 +125,8 @@ describe('Invitation API Integration Tests', () => {
             await SystemConfig.upsert({ key: 'invitation_expiry_days', value: '10', category: 'general' });
             await configService.refresh();
 
+            const sendMailSpy = jest.spyOn(mailService, 'sendMail').mockResolvedValue();
+
             const res = await request(app)
                 .post('/invitations')
                 .set('Cookie', authCookie)
@@ -138,6 +140,8 @@ describe('Invitation API Integration Tests', () => {
 
             const diffDays = Math.round((invite!.expires_at.getTime() - new Date().getTime()) / (1000 * 3600 * 24));
             expect(diffDays).toEqual(10);
+
+            sendMailSpy.mockRestore();
 
             // Clean up the config entry
             await SystemConfig.destroy({ where: { key: 'invitation_expiry_days' } });
@@ -166,6 +170,8 @@ describe('Invitation API Integration Tests', () => {
 
     describe('DELETE /invitations/:id', () => {
         it('should revoke an invitation', async () => {
+            const sendMailSpy = jest.spyOn(mailService, 'sendMail').mockResolvedValue();
+
             const inviteRes = await request(app)
                 .post('/invitations')
                 .set('Cookie', authCookie)
@@ -181,6 +187,8 @@ describe('Invitation API Integration Tests', () => {
 
             expect(res.statusCode).toEqual(200);
             expect(res.body.message).toEqual('Invitation revoked');
+
+            sendMailSpy.mockRestore();
 
             // Verify it's gone
             const listRes = await request(app).get('/invitations').set('Cookie', authCookie).set('x-organization-id', orgId);
