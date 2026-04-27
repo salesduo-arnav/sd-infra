@@ -2,17 +2,63 @@ import { Request, Response } from 'express';
 import { URLSearchParams } from 'url';
 import crypto from 'crypto';
 import { IntegrationAccount, IntegrationStatus } from '../models/integration_account';
-import { encrypt } from '../utils/encryption';
+import { encrypt, decrypt } from '../utils/encryption';
 import { AuditService } from '../services/audit.service';
 import { handleError } from '../utils/error';
 import Logger from '../utils/logger';
 import { configService } from '../services/config.service';
 import { STATE_PAYLOAD_DELIMITER } from '../constants/app.constants';
 
+interface AdsCredentials {
+    encrypted: string;
+}
+
+interface AmazonProfile {
+    profileId: string | number;
+    countryCode?: string;
+    accountInfo?: {
+        name?: string;
+        type?: string;
+        id?: string;
+    };
+}
+
+interface AmazonAdsAccount {
+    adsAccountId: string;
+    countryCodes?: string[];
+    alternateIds?: {
+        profileId?: string | number;
+        entityId?: string;
+        countryCode?: string;
+    }[];
+    entityId?: string;
+}
+
+interface AmazonAdsAccountListResponse {
+    adsAccounts?: AmazonAdsAccount[];
+    nextToken?: string;
+}
+
 // --- ENV ---
 const CLIENT_ID = process.env.AMAZON_ADS_CLIENT_ID!;
 const CLIENT_SECRET = process.env.AMAZON_ADS_CLIENT_SECRET!;
 const REDIRECT_URI = process.env.AMAZON_ADS_REDIRECT_URI!;
+
+// ========================================
+// Metadata Helpers
+// ========================================
+
+const ADS_REGIONS: Record<string, string> = {
+    NA: 'https://advertising-api.amazon.com',
+    EU: 'https://advertising-api-eu.amazon.com',
+    FE: 'https://advertising-api-fe.amazon.com',
+};
+
+const COUNTRY_TO_REGION: Record<string, string> = {
+    US: 'NA', CA: 'NA', MX: 'NA', BR: 'NA',
+    UK: 'EU', GB: 'EU', DE: 'EU', FR: 'EU', ES: 'EU', IT: 'EU', NL: 'EU', SE: 'EU', PL: 'EU', TR: 'EU', IN: 'EU',
+    JP: 'FE', AU: 'FE', SG: 'FE',
+};
 
 // ========================================
 // Generate Auth URL
@@ -61,7 +107,10 @@ export const getAdsAuthUrl = async (req: Request, res: Response) => {
 // Handle OAuth Callback
 // ========================================
 export const handleAdsCallback = async (req: Request, res: Response) => {
-    Logger.info('Amazon Ads Callback', { query: req.query });
+    Logger.info('Amazon Ads Callback Received', { 
+        state: req.query.state, 
+        hasCode: !!req.query.code 
+    });
 
     const { code, state, error, error_description } = req.query;
 
@@ -130,6 +179,14 @@ export const handleAdsCallback = async (req: Request, res: Response) => {
         const tokenData = await tokenResponse.json();
         const { access_token, refresh_token, expires_in } = tokenData;
 
+        // Fetch Ads Metadata (Profile, Account, Entity IDs)
+        let adsMetadata = {};
+        try {
+            adsMetadata = await fetchAdsMetadata(access_token, account.region || 'NA');
+        } catch (metaErr) {
+            Logger.warn('Failed to fetch ads metadata during callback', { error: metaErr });
+        }
+
         const secureCredentials = {
             encrypted: encrypt(JSON.stringify({
                 access_token,
@@ -137,13 +194,13 @@ export const handleAdsCallback = async (req: Request, res: Response) => {
                 expires_in,
                 token_type: 'bearer',
                 obtained_at: new Date().toISOString()
-            }))
+            })),
+            ads_metadata: adsMetadata
         };
 
         await account.update({
-            status: IntegrationStatus.CONNECTED,
+            status: IntegrationStatus.DISCONNECTED, // Keep disconnected until account/profile selected
             credentials: secureCredentials,
-            connected_at: new Date(),
             oauth_state: null
         });
 
@@ -166,6 +223,244 @@ export const handleAdsCallback = async (req: Request, res: Response) => {
 
         return sendOAuthPopupResponse(res, 'error', 'Token exchange failed');
     }
+};
+
+// ========================================
+// Ads Account Selection
+// ========================================
+
+/**
+ * Lists Amazon Ads accounts (using v2/profiles)
+ * Handles filtering by the integration's region and sorts by name.
+ */
+export const listAdsAccounts = async (req: Request, res: Response) => {
+    const { accountId } = req.query;
+    Logger.info('>>> listAdsAccounts CALLED <<<', { accountId });
+    try {
+        if (!accountId) {
+            Logger.warn('listAdsAccounts: accountId is missing');
+            return res.status(400).json({ message: 'accountId is required' });
+        }
+
+        const account = await IntegrationAccount.findByPk(accountId as string);
+        if (!account || !account.credentials) {
+            Logger.warn('listAdsAccounts: Account or credentials not found', { accountId });
+            return res.status(404).json({ message: 'Account or credentials not found' });
+        }
+
+        const creds = account.credentials as unknown as AdsCredentials;
+        if (!creds.encrypted) {
+            Logger.warn('listAdsAccounts: Account not encrypted/authenticated', { accountId });
+            return res.status(400).json({ message: 'Account not authenticated' });
+        }
+
+        const decrypted = decrypt(creds.encrypted);
+        const { access_token } = JSON.parse(decrypted);
+        const country = account.region?.toUpperCase() || 'US';
+        const amsRegion = COUNTRY_TO_REGION[country] || 'NA';
+        const baseUrl = ADS_REGIONS[amsRegion];
+
+        Logger.info('listAdsAccounts: Fetching profiles from Amazon', { amsRegion, baseUrl, country });
+
+        // 1. Fetch profiles
+        const response = await fetch(`${baseUrl}/v2/profiles`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${access_token}`,
+                'Amazon-Advertising-API-ClientId': CLIENT_ID,
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            Logger.error('listAdsAccounts: Amazon profiles API error', { status: response.status, error: errorText });
+            throw new Error(`Failed to fetch ads profiles: ${errorText}`);
+        }
+
+        const profiles = await response.json() as AmazonProfile[];
+        Logger.info('listAdsAccounts: Profiles received from Amazon', { count: profiles.length });
+        
+        // 2. Filter by Country and format
+        const targetCountry = country.toUpperCase();
+        const filtered = profiles
+            .filter(p => p.countryCode?.toUpperCase() === targetCountry)
+            .map(p => ({
+                profileId: String(p.profileId),
+                name: `${p.accountInfo?.name || 'Unknown'} - (${p.accountInfo?.type || 'unknown'})`,
+                entityId: p.accountInfo?.id
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+        Logger.info('listAdsAccounts: Profiles filtered and formatted', { 
+            targetCountry,
+            filteredCount: filtered.length,
+            totalCount: profiles.length
+        });
+
+        // If filtered is empty but we have profiles, return everything as fallback
+        if (filtered.length === 0 && profiles.length > 0) {
+            Logger.warn('listAdsAccounts: No profiles matched country filter, returning all profiles as fallback', {
+                targetCountry,
+                availableCountries: [...new Set(profiles.map(p => p.countryCode))]
+            });
+            const allProfiles = profiles.map(p => ({
+                profileId: String(p.profileId),
+                name: `${p.accountInfo?.name || 'Unknown'} - (${p.accountInfo?.type || 'unknown'})`,
+                entityId: p.accountInfo?.id
+            })).sort((a, b) => a.name.localeCompare(b.name));
+            return res.json(allProfiles);
+        }
+
+        return res.json(filtered);
+
+    } catch (error) {
+        handleError(res, error, 'List Ads Profiles Error');
+    }
+};
+
+/**
+ * Updates the selected Ads Account for the integration.
+ * Now takes profileId and maps all required IDs.
+ */
+export const updateAdsAccount = async (req: Request, res: Response) => {
+  const { accountId, profileId: selectedProfileId } = req.body;
+  Logger.info('>>> updateAdsAccount CALLED <<<', { accountId, selectedProfileId });
+  
+  try {
+    if (!accountId || !selectedProfileId) {
+      Logger.warn('updateAdsAccount: Missing accountId or profileId');
+      return res.status(400).json({
+        message: 'accountId and profileId are required',
+      });
+    }
+
+    const profileIdStr = String(selectedProfileId);
+
+    const account = await IntegrationAccount.findByPk(accountId);
+    if (!account || !account.credentials) {
+      Logger.warn('updateAdsAccount: Account or credentials not found', { accountId });
+      return res.status(404).json({ message: 'Account or credentials not found' });
+    }
+
+    const creds = account.credentials as unknown as AdsCredentials;
+    const decrypted = decrypt(creds.encrypted);
+    const { access_token } = JSON.parse(decrypted);
+
+    const country = account.region?.toUpperCase() || 'US';
+    const amsRegion = COUNTRY_TO_REGION[country] || 'NA';
+    const baseUrl = ADS_REGIONS[amsRegion];
+
+    Logger.info('updateAdsAccount: Using credentials to fetch profile details', { amsRegion, country });
+
+    const headers = {
+      Authorization: `Bearer ${access_token}`,
+      'Amazon-Advertising-API-ClientId': CLIENT_ID,
+      'Content-Type': 'application/json',
+    };
+
+    // 1. Fetch the specific profile from v2/profiles to get profile-level entity ID
+    const profilesRes = await fetch(`${baseUrl}/v2/profiles`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!profilesRes.ok) {
+      const errText = await profilesRes.text();
+      Logger.error('updateAdsAccount: Amazon profiles API error', { status: profilesRes.status, error: errText });
+      throw new Error('Failed to fetch ads profiles list');
+    }
+
+    const profiles = (await profilesRes.json()) as AmazonProfile[];
+    const selectedProfile = profiles.find((p: AmazonProfile) => String(p.profileId) === profileIdStr);
+
+    if (!selectedProfile) {
+      Logger.warn('updateAdsAccount: Profile ID not found in Amazon list', { profileIdStr, availableCount: profiles.length });
+      return res.status(404).json({ message: 'Selected Ads Profile not found in Amazon' });
+    }
+
+    Logger.info('updateAdsAccount: Profile matched. Fetching adsAccounts/list to map IDs.', { 
+        profileId: profileIdStr,
+        profileEntityId: selectedProfile.accountInfo?.id
+    });
+
+    // 2. Fetch adsAccounts/list to get ad_account_id and ad_entity_id
+    let adsAccountId: string | null = null;
+    let adEntityId: string | null = null;
+    let nextToken: string | undefined = undefined;
+    let foundMatch = false;
+
+    do {
+      Logger.info('updateAdsAccount: Requesting adsAccounts/list page', { nextToken: !!nextToken });
+      const adsAccRes = await fetch(`${baseUrl}/adsAccounts/list`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          maxResults: 100,
+          nextToken: nextToken,
+        }),
+      });
+
+      if (!adsAccRes.ok) {
+        const errText = await adsAccRes.text();
+        Logger.error('updateAdsAccount: Amazon adsAccounts API error', { status: adsAccRes.status, error: errText });
+        throw new Error('Failed to fetch ads accounts list');
+      }
+
+      const adsAccData = (await adsAccRes.json()) as AmazonAdsAccountListResponse;
+      const adsAccounts = adsAccData?.adsAccounts || [];
+
+      // Find match for the profile ID
+      const matchedAccount = adsAccounts.find((acc: AmazonAdsAccount) => {
+        const alternateIds = acc.alternateIds || [];
+        return alternateIds.some((alt) => String(alt.profileId) === profileIdStr);
+      });
+
+      if (matchedAccount) {
+        Logger.info('updateAdsAccount: Found matching account in adsAccounts/list', { adsAccountId: matchedAccount.adsAccountId });
+        adsAccountId = matchedAccount.adsAccountId;
+        // Find the entityId for the specific profile/country match if possible, or take from matchedAccount
+        const altMatch = (matchedAccount.alternateIds || []).find(
+          (alt) => String(alt.profileId) === profileIdStr
+        );
+        adEntityId = altMatch?.entityId || matchedAccount.entityId || null;
+        foundMatch = true;
+        break;
+      }
+
+      nextToken = adsAccData.nextToken;
+    } while (nextToken);
+
+    if (!foundMatch) {
+        Logger.warn('updateAdsAccount: Profile ID not found in adsAccounts/list after full scan', { profileIdStr });
+    }
+
+    const adsMetadata = {
+      ad_profile_id: profileIdStr,
+      ad_profile_entity_id: selectedProfile.accountInfo?.id || null,
+      ad_account_id: adsAccountId,
+      ad_entity_id: adEntityId,
+    };
+
+    Logger.info('updateAdsAccount: Final Metadata Mapping', adsMetadata);
+
+    // 3. Update account
+    const updatedCredentials = {
+      ...creds,
+      ads_metadata: adsMetadata,
+    };
+
+    await account.update({
+      credentials: updatedCredentials,
+      status: IntegrationStatus.CONNECTED,
+    });
+
+    Logger.info('updateAdsAccount: Account successfully marked as CONNECTED', { accountId });
+
+    return res.json({ success: true, ads_metadata: adsMetadata });
+  } catch (error) {
+    handleError(res, error, 'Update Ads Account Error');
+  }
 };
 
 // ========================================
@@ -316,7 +611,7 @@ const sendOAuthPopupResponse = (
                     console.log("[Backend] Sending message to opener...");
                     const targetOrigin = '${process.env.FRONTEND_URL || "http://localhost:5173"}';
                     window.opener.postMessage(payload, targetOrigin);
-                    console.log("[Backend] Message sent.");
+                    console.log("[Backend] Message sent with payload:", payload);
                 } catch (err) {
                     console.error("[Backend] Error sending message:", err);
                 }
@@ -333,3 +628,64 @@ const sendOAuthPopupResponse = (
 </html>
     `);
 };
+
+/**
+ * Fetches required IDs from Amazon Ads API after successful OAuth.
+ * Uses only the adsAccounts/list endpoint as it contains profile and entity IDs.
+ */
+async function fetchAdsMetadata(accessToken: string, targetCountry: string) {
+    const country = targetCountry?.toUpperCase() || 'US';
+    const amsRegion = COUNTRY_TO_REGION[country] || 'NA';
+    const baseUrl = ADS_REGIONS[amsRegion];
+
+    const headers = {
+        'Authorization': `Bearer ${accessToken}`,
+        'Amazon-Advertising-API-ClientId': CLIENT_ID,
+        'Content-Type': 'application/json',
+    };
+
+    // 1. List Ads Accounts
+    // This returns the adsAccountId and alternateIds (which contain profileId and entityId per country)
+    const adsAccRes = await fetch(`${baseUrl}/adsAccounts/list`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ maxResults: 100 })
+    });
+
+    if (!adsAccRes.ok) {
+        const errorText = await adsAccRes.text();
+        throw new Error(`Failed to fetch ads accounts: ${errorText}`);
+    }
+
+    const data = await adsAccRes.json() as AmazonAdsAccountListResponse;
+    const accounts = data?.adsAccounts || [];
+
+    if (accounts.length === 0) {
+        return {};
+    }
+
+    // 2. Find the account that matches our selected country
+    for (const acc of accounts) {
+        const countryCodes = acc.countryCodes || [];
+        
+        // If this account supports our country (or if we only have one account, use it as fallback)
+        if (countryCodes.includes(country) || accounts.length === 1) {
+            const target = countryCodes.includes(country) ? country : countryCodes[0];
+            
+            const adsAccountId = acc.adsAccountId;
+            
+            // Extract profileId and entityId from alternateIds for this specific country
+            const alternateIds = acc.alternateIds || [];
+            const profileMatch = alternateIds.find((id) => id.countryCode === target && id.profileId);
+            const entityMatch = alternateIds.find((id) => id.countryCode === target && id.entityId);
+
+            return {
+                ad_profile_id: profileMatch ? String(profileMatch.profileId) : null,
+                ad_account_id: adsAccountId,
+                ad_entity_id: entityMatch ? entityMatch.entityId : null
+            };
+        }
+    }
+
+    return {};
+}

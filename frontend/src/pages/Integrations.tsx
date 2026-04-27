@@ -59,11 +59,14 @@ import {
   connectGlobalIntegration,
   disconnectGlobalIntegration,
   getAdsAuthUrl,
+  listAdsAccounts,
+  updateAdsAccount,
   getSpAuthUrl,
   getSlackAuthUrl,
   type IntegrationAccount,
   type IntegrationAccountGroup,
   type GlobalIntegration,
+  type AdsAccountProfile,
 } from "@/services/integration.service";
 import { ManageIntegrationDialog } from "@/components/integrations/ManageIntegrationDialog";
 import { useOAuthPopup } from "@/hooks/useOAuthPopup";
@@ -184,6 +187,13 @@ export default function Integrations() {
   // Action loading states
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Ads account selection
+  const [adsAccounts, setAdsAccounts] = useState<AdsAccountProfile[]>([]);
+  const [isAdsSelectorOpen, setIsAdsSelectorOpen] = useState(false);
+  const [pendingAdsIntId, setPendingAdsIntId] = useState<string | null>(null);
+  const [isUpdatingAds, setIsUpdatingAds] = useState(false);
+  const [isFetchingAdsProfiles, setIsFetchingAdsProfiles] = useState(false);
+
   /* ------------- Data fetching ------------- */
 
   const fetchAccounts = useCallback(async () => {
@@ -286,8 +296,22 @@ export default function Integrations() {
             width: 600,
             height: 700,
             successType: "ADS_AUTH_SUCCESS",
-            errorType: "ADS_AUTH_ERROR"
+            errorType: "ADS_AUTH_ERROR",
+            verifyFn: async () => {
+              try {
+                const accounts = await getIntegrationAccounts(orgId);
+                const updatedAccount = accounts.find((a) => a.id === account.id);
+                return !!(updatedAccount && updatedAccount.credentials);
+              } catch (e) {
+                return false;
+              }
+            }
           });
+          
+          if (success) {
+            handleAdsAuthSuccess(account.id);
+          }
+          
           resolve(success);
 
         } catch (error) {
@@ -297,6 +321,51 @@ export default function Integrations() {
         }
       })();
     });
+  };
+
+  const handleAdsAuthSuccess = async (accountId: string) => {
+    setIsFetchingAdsProfiles(true);
+    try {
+      const accountsList = await listAdsAccounts(orgId, accountId);
+      if (accountsList.length > 0) {
+        if (accountsList.length === 1) {
+          // Auto-select if only one profile
+          await handleSelectAdsAccount(accountsList[0].profileId, accountId);
+        } else {
+          setAdsAccounts(accountsList);
+          setPendingAdsIntId(accountId);
+          setIsAdsSelectorOpen(true);
+        }
+      } else {
+        await fetchAccounts();
+      }
+    } catch (error) {
+      console.error("Failed to fetch ads accounts", error);
+      await fetchAccounts();
+    } finally {
+      setIsFetchingAdsProfiles(false);
+    }
+  };
+
+  const handleSelectAdsAccount = async (profileId: string, forcedIntId?: string) => {
+    const targetIntId = forcedIntId || pendingAdsIntId;
+    if (!orgId || !targetIntId) return;
+    setIsUpdatingAds(true);
+    try {
+      await updateAdsAccount(orgId, targetIntId, String(profileId));
+      toast.success("Ads account selected successfully");
+      setIsAdsSelectorOpen(false);
+      await fetchAccounts();
+      
+      // Also refresh manage dialog if open
+      if (manageGroup) {
+        refreshManageGroupAccounts();
+      }
+    } catch (error) {
+      toast.error("Failed to update Ads account");
+    } finally {
+      setIsUpdatingAds(false);
+    }
   };
 
   /* ------------- Account-level handlers ------------- */
@@ -372,13 +441,8 @@ export default function Integrations() {
 
       if (account.integration_type === 'ads_api') {
         success = await connectAdsAccount(account);
-        // Backend updates status on callback, so we just need to refresh or fetch updated account
-        if (success) {
-          // We can re-fetch or assume success sends us back to list. 
-          // Ideally we should re-fetch single account status or just fetchAccounts()
-          await fetchAccounts();
-          // Use fetchAccounts to be sure we get the credentials tokens etc if needed
-        }
+        // If OAuth was successful, handleAdsAuthSuccess will take over fetching profiles
+        // We don't necessarily call fetchAccounts here yet as handleAdsAuthSuccess does it after selection
       } else if (account.integration_type === 'sp_api_sc' || account.integration_type === 'sp_api_vc') {
         success = await connectSpAccount(account);
         if (success) await fetchAccounts();
@@ -395,7 +459,7 @@ export default function Integrations() {
         }
       }
 
-      if (success) {
+      if (success && account.integration_type !== 'ads_api') {
         toast.success(t('pages.integrations.integrationReconnected'));
       }
     } catch {
@@ -528,7 +592,7 @@ export default function Integrations() {
         }
       }
 
-      if (success) {
+      if (success && account.integration_type !== 'ads_api') {
         toast.success(t('pages.integrations.connected').concat('!'));
         await fetchAccounts();
         await refreshManageGroupAccounts();
@@ -691,7 +755,12 @@ export default function Integrations() {
                       const groupAccounts = group.accounts || [];
                       const region = getRegion(group.region);
                       const hasError = groupAccounts.some((a) => a.status === "error");
-                      const allConnected = groupAccounts.length > 0 && groupAccounts.every((a) => a.status === "connected");
+                      const allConnected = groupAccounts.length > 0 && groupAccounts.every((a) => {
+                        if (a.integration_type === 'ads_api') {
+                          return a.status === 'connected' && !!a.credentials?.ads_metadata?.ad_profile_id;
+                        }
+                        return a.status === "connected";
+                      });
                       const noneConnected = groupAccounts.every((a) => a.status === "disconnected");
 
                       const typeMap = groupAccounts.reduce((acc, curr) => {
@@ -723,7 +792,10 @@ export default function Integrations() {
                                 { key: "ads_api", icon: BarChart3, label: "Ads" },
                               ].map(({ key, icon: Icon, label }) => {
                                 const account = typeMap[key];
-                                const isConnected = account?.status === "connected";
+                                let isConnected = account?.status === "connected";
+                                if (key === 'ads_api' && isConnected) {
+                                  isConnected = !!account?.credentials?.ads_metadata?.ad_profile_id;
+                                }
                                 const isError = account?.status === "error";
 
                                 return (
@@ -984,6 +1056,44 @@ export default function Integrations() {
             onDelete={handleDeleteIntegration}
           />
         )}
+
+        {/* Ads Account Selector Dialog */}
+        <Dialog open={isAdsSelectorOpen || isFetchingAdsProfiles} onOpenChange={(open) => {
+          if (!open && !isFetchingAdsProfiles) setIsAdsSelectorOpen(false);
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Amazon Ads Account</DialogTitle>
+              <DialogDescription>
+                {isFetchingAdsProfiles 
+                  ? "Fetching your Amazon Ads profiles. This may take a moment..." 
+                  : "We found multiple ads accounts. Please select the one you want to use for this integration."}
+              </DialogDescription>
+            </DialogHeader>
+            
+            {isFetchingAdsProfiles ? (
+              <div className="flex flex-col items-center justify-center py-8 space-y-4">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground animate-pulse">Loading profiles, please wait...</p>
+              </div>
+            ) : (
+              <div className="space-y-4 py-4">
+                <Select onValueChange={(val) => handleSelectAdsAccount(val)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose an account..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {adsAccounts.map((item) => (
+                      <SelectItem key={item.profileId} value={item.profileId}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </>
   );

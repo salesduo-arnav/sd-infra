@@ -219,7 +219,7 @@ describe('Ads Controller Integration Tests', () => {
 
             // Verify DB updates
             const updatedAccount = await IntegrationAccount.findByPk(integrationAccount.id);
-            expect(updatedAccount?.status).toEqual(IntegrationStatus.CONNECTED);
+            expect(updatedAccount?.status).toEqual(IntegrationStatus.DISCONNECTED);
             expect(updatedAccount?.oauth_state).toBeNull();
             expect(updatedAccount?.credentials).toEqual(expect.objectContaining({
                 encrypted: expect.any(String)

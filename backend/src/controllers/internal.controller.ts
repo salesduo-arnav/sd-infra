@@ -14,11 +14,18 @@ import { AuditService } from '../services/audit.service';
 import { mailService } from '../services/mail.service';
 import { slackService } from '../services/slack.service';
 import { GlobalIntegration, GlobalIntegrationStatus } from '../models/global_integration';
-import { IntegrationAccount, IntegrationStatus } from '../models/integration_account';
+import { IntegrationAccount } from '../models/integration_account';
 import { decrypt } from '../utils/encryption';
 import { handleError } from '../utils/error';
+import Logger from '../utils/logger';
 
 const MAX_SLACK_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB (Slack's limit)
+
+interface DecryptedCredentials {
+    encrypted?: string;
+    ads_metadata?: Record<string, unknown>;
+    [key: string]: unknown;
+}
 
 /**
  * Internal controller — thin wrappers over existing models/services.
@@ -509,9 +516,9 @@ export const lookupSlackUser = async (req: Request, res: Response) => {
 export const getIntegrationAccounts = async (req: Request, res: Response) => {
     try {
         const orgId = req.query.org_id as string;
+        Logger.info('Internal: getIntegrationAccounts called', { orgId });
 
         const where: WhereOptions<IntegrationAccount> = {
-            status: IntegrationStatus.CONNECTED,
             deleted_at: null,
         };
         if (orgId) {
@@ -520,10 +527,12 @@ export const getIntegrationAccounts = async (req: Request, res: Response) => {
 
         const accounts = await IntegrationAccount.findAll({
             where,
-
             attributes: ['id', 'organization_id', 'group_id', 'account_name', 'marketplace', 'region', 'integration_type', 'status', 'vendor_codes', 'seller_id', 'marketplace_id', 'connected_at'],
         });
 
+        Logger.info(`Internal: Found ${accounts.length} total accounts`, {
+            statuses: accounts.map(a => `${a.id.substring(0,8)}:${a.status}`)
+        });
         res.json(accounts);
     } catch (error) {
         handleError(res, error, 'Internal: Get Integration Accounts Error');
@@ -531,27 +540,49 @@ export const getIntegrationAccounts = async (req: Request, res: Response) => {
 };
 
 export const getIntegrationCredentials = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    Logger.info('Internal: getIntegrationCredentials called', { id });
     try {
         const account = await IntegrationAccount.findOne({
             where: {
-                id: req.params.id,
+                id,
                 deleted_at: null,
             },
             attributes: ['id', 'organization_id', 'account_name', 'marketplace', 'region', 'integration_type', 'status', 'credentials', 'vendor_codes', 'seller_id', 'marketplace_id', 'connected_at'],
         });
 
         if (!account) {
+            Logger.warn('Internal: Integration account not found', { id });
             return res.status(404).json({ message: 'Integration account not found' });
         }
+
+        Logger.info('Internal: Account found', { id, status: account.status, hasCredentials: !!account.credentials });
 
         let decryptedCredentials = account.credentials;
 
         if (account.credentials && typeof account.credentials === 'object') {
-            const encrypted = (account.credentials as Record<string, unknown>).encrypted;
+            const credsObj = account.credentials as Record<string, unknown>;
+            const encrypted = credsObj.encrypted;
             if (typeof encrypted === 'string') {
                 try {
-                    decryptedCredentials = JSON.parse(decrypt(encrypted));
-                } catch {
+                    const decrypted = JSON.parse(decrypt(encrypted));
+                    // Merge decrypted fields back into the credentials object, removing the 'encrypted' key
+                    const { encrypted: _, ...rest } = credsObj;
+                    decryptedCredentials = { ...rest, ...decrypted };
+                    
+                    // Flatten ads_metadata if it exists
+                    if (decryptedCredentials && typeof decryptedCredentials === 'object') {
+                        const dc = decryptedCredentials as DecryptedCredentials;
+                        if (dc.ads_metadata && typeof dc.ads_metadata === 'object') {
+                            decryptedCredentials = {
+                                ...dc,
+                                ...dc.ads_metadata
+                            };
+                        }
+                    }
+                } catch (e) {
+                    const error = e as Error;
+                    Logger.error('Internal: Decryption failed', { id, error: error.message });
                     decryptedCredentials = account.credentials;
                 }
             }
