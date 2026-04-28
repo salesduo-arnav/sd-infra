@@ -166,6 +166,16 @@ export const getSpAuthUrl = async (req: Request, res: Response) => {
 
         const authUrl = `${baseUrl}/apps/authorize/consent?${consentParams.toString()}`;
 
+        Logger.info('Amazon SP Auth URL Generated', {
+            accountId,
+            integrationType: account.integration_type,
+            region: account.region,
+            consentHost: new URL(baseUrl).host,
+            redirectUri: REDIRECT_URI,
+            appIdSuffix: APP_ID ? APP_ID.slice(-12) : 'MISSING',
+            draft: process.env.AMZN_SP_APP_DRAFT === 'true',
+        });
+
         return res.json({ url: authUrl });
 
     } catch (error) {
@@ -194,6 +204,10 @@ export const handleSpCallback = async (req: Request, res: Response) => {
         accountId = parsed[0];
         returnedState = parsed[1];
     } catch {
+        Logger.warn('SP Callback: invalid state format', {
+            stateLength: (state as string).length,
+            hasDelimiter: (state as string).includes(STATE_PAYLOAD_DELIMITER),
+        });
         return sendOAuthPopupResponse(res, 'error', 'Invalid state format');
     }
 
@@ -279,6 +293,10 @@ export const handleSpCallback = async (req: Request, res: Response) => {
         Logger.error('Amazon SP Token Exchange Failed', {
             message,
             stack: err instanceof Error ? err.stack : undefined,
+            clientIdSuffix: CLIENT_ID ? CLIENT_ID.slice(-6) : 'MISSING',
+            secretLoaded: Boolean(CLIENT_SECRET),
+            redirectUri: REDIRECT_URI,
+            integrationType: account.integration_type,
         });
 
         await account.update({
