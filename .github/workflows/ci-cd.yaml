@@ -222,11 +222,7 @@ jobs:
   report:
     name: Generate CML Report
     needs: [detect-changes, detect-merge, lint-backend, lint-frontend, tests]
-    if: >-
-      always() && (
-        github.event_name == 'pull_request' ||
-        (github.event_name == 'push' && needs.detect-merge.outputs.is_merge != 'true')
-      )
+    if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
