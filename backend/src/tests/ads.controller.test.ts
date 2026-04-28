@@ -6,6 +6,7 @@ import { Organization, OrganizationMember } from '../models/organization';
 import { OrgStatus } from '../models/enums';
 import { User } from '../models/user';
 import { Role } from '../models/role';
+import { STATE_PAYLOAD_DELIMITER } from '../constants/app.constants';
 import app from '../app';
 
 // Mock global fetch for token exchange
@@ -139,7 +140,7 @@ describe('Ads Controller Integration Tests', () => {
                 status: IntegrationStatus.CONNECTING,
                 oauth_state: validState
             });
-            statePayload = `${integrationAccount.id}##${validState}`;
+            statePayload = `${integrationAccount.id}${STATE_PAYLOAD_DELIMITER}${validState}`;
         });
 
         it('should return error HTML if state is missing', async () => {
@@ -161,7 +162,7 @@ describe('Ads Controller Integration Tests', () => {
         });
 
         it('should return error HTML if integration account not found', async () => {
-            const fakeState = `00000000-0000-0000-0000-000000000000##${validState}`;
+            const fakeState = `00000000-0000-0000-0000-000000000000${STATE_PAYLOAD_DELIMITER}${validState}`;
             const res = await request(app)
                 .get('/integrations/amazon-ads/callback')
                 .query({ code: 'some_code', state: fakeState });
@@ -171,7 +172,7 @@ describe('Ads Controller Integration Tests', () => {
         });
 
         it('should return error HTML if oauth_state mismatch', async () => {
-            const mismatchState = `${integrationAccount.id}##invalid_state`;
+            const mismatchState = `${integrationAccount.id}${STATE_PAYLOAD_DELIMITER}invalid_state`;
             const res = await request(app)
                 .get('/integrations/amazon-ads/callback')
                 .query({ code: 'some_code', state: mismatchState });
