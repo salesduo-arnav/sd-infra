@@ -82,10 +82,17 @@ export default function IntegrationOnboarding() {
     captureRedirectContext(searchParams);
     const navigate = useNavigate();
 
-    // Read redirect context from sessionStorage (sole source of truth)
+    // Embed mode: rendered inside a popup window opened by another micro-tool.
+    // We hide page chrome (split layout, sign-out, switch-org) and replace the
+    // continue action with a "Done" button that just closes the window.
+    const isEmbed = searchParams.get("embed") === "1";
+
+    // Read redirect context from sessionStorage (sole source of truth).
+    // In embed mode there's no `redirect` param, so we also accept `app` from
+    // the URL directly so required-integration lookups still work.
     const ctx = getRedirectContext();
     const redirectUrl = ctx?.redirect || null;
-    const appId = ctx?.app || null;
+    const appId = ctx?.app || (isEmbed ? searchParams.get("app") : null);
     const { activeOrganization, switchOrganization, logout } = useAuth();
     const { openOAuthPopup } = useOAuthPopup();
 
@@ -185,8 +192,9 @@ export default function IntegrationOnboarding() {
     // - OR all required integrations are already connected
     const [autoRedirected, setAutoRedirected] = useState(false);
     useEffect(() => {
-        // DON'T redirect if we are currently showing the Ads account selector or fetching profiles
-        if (isLoadingRequirements || autoRedirected || accounts.length === 0 || isAdsSelectorOpen || isFetchingAdsProfiles) return;
+        // DON'T redirect if we are currently showing the Ads account selector or fetching profiles.
+        // Also skip in embed mode — popup users close the window when done.
+        if (isEmbed || isLoadingRequirements || autoRedirected || accounts.length === 0 || isAdsSelectorOpen || isFetchingAdsProfiles) return;
 
         const hasAny = requiredIntegrations.length > 0;
         if (!hasAny) {
@@ -220,7 +228,7 @@ export default function IntegrationOnboarding() {
                 window.location.replace("/apps");
             }
         }
-    }, [isLoadingRequirements, requiredIntegrations, autoRedirected, accounts, isAdsSelectorOpen, isFetchingAdsProfiles]);
+    }, [isEmbed, isLoadingRequirements, requiredIntegrations, autoRedirected, accounts, isAdsSelectorOpen, isFetchingAdsProfiles]);
 
     // Check for existing account when user types Name + Region
     useEffect(() => {
@@ -409,8 +417,10 @@ export default function IntegrationOnboarding() {
         let account: IntegrationAccount | undefined;
         if (id) {
             account = accounts.find(a => a.id === id);
-        } else {
-            // Also check any existing connected account of this type
+        } else if (!isEmbed) {
+            // Non-embed flows reflect any org-wide connection of this type so the
+            // user sees prior progress. Embed mode is a "create a new group" flow
+            // — ignore other groups so existing connections don't leak in.
             account = accounts.find(a => a.integration_type === type && a.status === 'connected');
         }
 
@@ -552,6 +562,10 @@ export default function IntegrationOnboarding() {
     };
 
     const handleContinue = async () => {
+        if (isEmbed) {
+            window.close();
+            return;
+        }
         setIsSaving(true);
         try {
             if (!finalizeRedirect()) {
@@ -630,43 +644,42 @@ export default function IntegrationOnboarding() {
         </div>
     );
 
-    return (
-        <SplitScreenLayout
-            leftContent={leftContent}
-            showBrandOnMobile={false}
-            contentMaxWidth="max-w-2xl"
-        >
+    const body = (
             <div className="pb-6 w-full relative">
-                {/* Sign out */}
-                <button
-                    onClick={() => {
-                        logout();
-                        navigate('/login');
-                    }}
-                    className="group absolute top-0 right-0 flex items-center gap-2 text-sm text-muted-foreground/70 transition-colors hover:text-foreground"
-                >
-                    <span className="font-medium tracking-tight">{t('auth.signOut')}</span>
-                    <LogOut className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
-                </button>
+                {!isEmbed && (
+                    <button
+                        onClick={() => {
+                            logout();
+                            navigate('/login');
+                        }}
+                        className="group absolute top-0 right-0 flex items-center gap-2 text-sm text-muted-foreground/70 transition-colors hover:text-foreground"
+                    >
+                        <span className="font-medium tracking-tight">{t('auth.signOut')}</span>
+                        <LogOut className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
+                    </button>
+                )}
 
-                {/* Mobile Logo */}
-                <div className="lg:hidden mb-8 shrink-0">
-                    <Link to="/" className="flex items-center gap-2">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-[#ff9900] to-[#e88800]">
-                            <Package className="h-5 w-5 text-white" />
-                        </div>
-                        <span className="text-xl font-semibold">SalesDuo</span>
-                    </Link>
-                </div>
+                {!isEmbed && (
+                    <div className="lg:hidden mb-8 shrink-0">
+                        <Link to="/" className="flex items-center gap-2">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-[#ff9900] to-[#e88800]">
+                                <Package className="h-5 w-5 text-white" />
+                            </div>
+                            <span className="text-xl font-semibold">SalesDuo</span>
+                        </Link>
+                    </div>
+                )}
 
                 <div className="mb-8">
-                    <button
-                        onClick={() => navigate(switchOrgUrl)}
-                        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 group"
-                    >
-                        <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
-                        {t('pages.integrationOnboarding.switchOrganisation')}
-                    </button>
+                    {!isEmbed && (
+                        <button
+                            onClick={() => navigate(switchOrgUrl)}
+                            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 group"
+                        >
+                            <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
+                            {t('pages.integrationOnboarding.switchOrganisation')}
+                        </button>
+                    )}
                     <h2 className="text-2xl font-semibold tracking-tight">{t('pages.integrationOnboarding.integrationSetup')}</h2>
                     <p className="text-muted-foreground mt-1">{t('pages.integrationOnboarding.configureSettings')}</p>
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -856,7 +869,7 @@ export default function IntegrationOnboarding() {
                             </div>
                         </div>
 
-                        {/* Continue Button */}
+                        {/* Continue / Done Button */}
                         <div className="pt-4">
                             <Button
                                 className="w-full h-11"
@@ -869,6 +882,8 @@ export default function IntegrationOnboarding() {
                                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                                         Saving...
                                     </>
+                                ) : isEmbed ? (
+                                    "Done"
                                 ) : (
                                     t('pages.integrationOnboarding.continueToDashboard')
                                 )}
@@ -891,12 +906,12 @@ export default function IntegrationOnboarding() {
                         <DialogHeader>
                             <DialogTitle>Amazon Ads Account</DialogTitle>
                             <DialogDescription>
-                                {isFetchingAdsProfiles 
-                                    ? "Fetching your Amazon Ads profiles. This may take a moment..." 
+                                {isFetchingAdsProfiles
+                                    ? "Fetching your Amazon Ads profiles. This may take a moment..."
                                     : "We found multiple ads accounts. Please select the one you want to use for this integration."}
                             </DialogDescription>
                         </DialogHeader>
-                        
+
                         {isFetchingAdsProfiles ? (
                             <div className="flex flex-col items-center justify-center py-8 space-y-4">
                                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -921,6 +936,23 @@ export default function IntegrationOnboarding() {
                     </DialogContent>
                 </Dialog>
             </div>
+    );
+
+    if (isEmbed) {
+        return (
+            <div className="min-h-screen w-full bg-background overflow-y-auto">
+                <div className="mx-auto w-full max-w-2xl px-6 py-8">{body}</div>
+            </div>
+        );
+    }
+
+    return (
+        <SplitScreenLayout
+            leftContent={leftContent}
+            showBrandOnMobile={false}
+            contentMaxWidth="max-w-2xl"
+        >
+            {body}
         </SplitScreenLayout>
     );
 }
