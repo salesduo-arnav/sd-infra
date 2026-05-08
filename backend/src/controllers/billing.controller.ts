@@ -187,7 +187,7 @@ class BillingController {
                     { model: Plan, as: 'upcoming_plan', include: [{ model: Tool, as: 'tool' }] },
                     { model: Bundle, as: 'upcoming_bundle', include: [{ model: BundleGroup, as: 'group' }] }
                 ],
-                order: [['created_at', 'DESC']]
+                order: [['created_at', 'DESC'], ['id', 'ASC']]
             });
 
             // Fetch One-Time Purchases
@@ -198,7 +198,7 @@ class BillingController {
                     { model: Plan, as: 'plan', include: [{ model: Tool, as: 'tool' }] },
                     { model: Bundle, as: 'bundle', include: [{ model: BundleGroup, as: 'group' }] }
                 ],
-                order: [['created_at', 'DESC']]
+                order: [['created_at', 'DESC'], ['id', 'ASC']]
             });
 
             // 2. Fetch Stripe Data for Payment Methods (if connected)

@@ -61,7 +61,7 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
                 { model: User, as: 'user', attributes: ['id', 'email', 'full_name'] },
                 { model: Role, as: 'role', attributes: ['id', 'name'] },
             ],
-            order: [['joined_at', 'ASC']],
+            order: [['joined_at', 'ASC'], ['id', 'ASC']],
         });
 
         const result = members.map((m) => ({
@@ -88,7 +88,7 @@ export const getSubscription = async (req: Request, res: Response) => {
                 { model: Plan, as: 'plan', attributes: ['id', 'name', 'tier'] },
                 { model: Bundle, as: 'bundle', attributes: ['id', 'name', 'slug'] },
             ],
-            order: [['created_at', 'DESC']],
+            order: [['created_at', 'DESC'], ['id', 'ASC']],
         });
 
         if (!subscription) {
@@ -155,7 +155,7 @@ export const getSubscriptions = async (req: Request, res: Response) => {
                     include: [{ model: BundleGroup, as: 'group', attributes: ['id', 'name'] }],
                 },
             ],
-            order: [['created_at', 'DESC']],
+            order: [['created_at', 'DESC'], ['id', 'ASC']],
         });
 
         // Fetch bundle-based subscriptions
@@ -195,7 +195,7 @@ export const getSubscriptions = async (req: Request, res: Response) => {
                     include: [{ model: BundleGroup, as: 'group', attributes: ['id', 'name'] }],
                 },
             ],
-            order: [['created_at', 'DESC']],
+            order: [['created_at', 'DESC'], ['id', 'ASC']],
         });
 
         // Filter bundle subs: keep only those whose bundle contains a plan for a matching tool

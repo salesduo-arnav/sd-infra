@@ -172,7 +172,7 @@ export const deleteUser = async (req: Request, res: Response) => {
                             organization_id: org.id,
                             user_id: { [Op.ne]: id }
                         },
-                        order: [['created_at', 'ASC']],
+                        order: [['created_at', 'ASC'], ['id', 'ASC']],
                         transaction: t
                     });
 

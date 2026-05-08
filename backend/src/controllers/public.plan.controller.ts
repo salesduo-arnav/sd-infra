@@ -43,6 +43,7 @@ export const getPublicBundles = async (req: Request, res: Response) => {
             }],
             order: [
                 ['created_at', 'ASC'],
+                ['id', 'ASC'],
                 [{ model: Bundle, as: 'bundles' }, 'price', 'ASC']
             ]
         });
@@ -75,7 +76,8 @@ export const getPublicPlans = async (req: Request, res: Response) => {
             ],
             order: [
                 ['tool_id', 'ASC'],
-                ['price', 'ASC']
+                ['price', 'ASC'],
+                ['id', 'ASC']
             ]
         });
 

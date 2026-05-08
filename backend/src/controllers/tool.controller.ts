@@ -7,7 +7,7 @@ export const getTools = async (req: Request, res: Response) => {
     try {
         const tools = await Tool.findAll({
             where: { is_active: true },
-            order: [['name', 'ASC']]
+            order: [['name', 'ASC'], ['id', 'ASC']]
         });
         res.status(200).json(tools);
     } catch (error) {

@@ -172,7 +172,7 @@ export const getOrganizationDetails = async (req: Request, res: Response) => {
                     attributes: ['id', 'name']
                 }
             ],
-            order: [['joined_at', 'DESC']],
+            order: [['joined_at', 'DESC'], ['id', 'ASC']],
             limit: membersLimit,
             offset: membersOffset
         });

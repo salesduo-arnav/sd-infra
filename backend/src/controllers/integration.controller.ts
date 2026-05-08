@@ -59,7 +59,7 @@ export const getIntegrationAccountGroups = async (req: Request, res: Response) =
                 where: { deleted_at: null },
                 required: false,
             }],
-            order: [['created_at', 'DESC']],
+            order: [['created_at', 'DESC'], ['id', 'ASC']],
         });
 
         res.status(200).json({ groups });
@@ -80,7 +80,7 @@ export const getIntegrationAccounts = async (req: Request, res: Response) => {
                 model: IntegrationAccountGroup,
                 as: 'group',
             }],
-            order: [['created_at', 'DESC']],
+            order: [['created_at', 'DESC'], ['id', 'ASC']],
         });
 
         res.status(200).json({ accounts });
@@ -320,7 +320,7 @@ export const getGlobalIntegrations = async (req: Request, res: Response) => {
 
         const integrations = await GlobalIntegration.findAll({
             where: { organization_id: orgId },
-            order: [['created_at', 'DESC']],
+            order: [['created_at', 'DESC'], ['id', 'ASC']],
         });
 
         res.status(200).json({ integrations });
