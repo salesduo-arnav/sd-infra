@@ -30,7 +30,7 @@ export const getOrganizations = async (req: Request, res: Response) => {
             where: whereClause,
             limit,
             offset,
-            order: [[sortBy, sortOrder]],
+            order: [[sortBy, sortOrder], ['id', 'ASC']],
         });
 
         // Get member counts for all organizations in this page

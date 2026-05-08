@@ -28,7 +28,7 @@ export const getUsers = async (req: Request, res: Response) => {
             where: whereClause,
             limit,
             offset,
-            order: [[sortBy, sortOrder]],
+            order: [[sortBy, sortOrder], ['id', 'ASC']],
             include: [
                 {
                     model: Organization,
