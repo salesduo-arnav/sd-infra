@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Order } from 'sequelize';
 import { Organization, OrganizationMember } from '../models/organization';
 import { OrgStatus } from '../models/enums';
 import { Role, RolePermission } from '../models/role';
@@ -223,12 +224,14 @@ export const getOrganizationMembers = async (req: Request, res: Response) => {
             ] : undefined
         });
 
-        // Determine order based on sortBy
-        let order: [string, string][] | [[{ model: typeof User; as: string }, string, string]] = [['joined_at', sortOrder]];
+        // Determine order based on sortBy. Always append ['id', 'ASC'] as a
+        // tie-breaker so paginated results are stable when the primary sort
+        // column has duplicate values.
+        let order: Order = [['joined_at', sortOrder], ['id', 'ASC']];
         if (sortBy === 'full_name' || sortBy === 'email') {
-            order = [[{ model: User, as: 'user' }, sortBy, sortOrder]] as [[{ model: typeof User; as: string }, string, string]];
+            order = [[{ model: User, as: 'user' }, sortBy, sortOrder], ['id', 'ASC']];
         } else if (sortBy === 'role') {
-            order = [[{ model: Role, as: 'role' }, 'name', sortOrder]] as unknown as [[{ model: typeof User; as: string }, string, string]];
+            order = [[{ model: Role, as: 'role' }, 'name', sortOrder], ['id', 'ASC']];
         }
 
         const members = await OrganizationMember.findAll({

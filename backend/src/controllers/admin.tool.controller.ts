@@ -41,7 +41,7 @@ export const getTools = async (req: Request, res: Response) => {
             where: whereClause,
             limit,
             offset,
-            order: [[sortBy, sortOrder]],
+            order: [[sortBy, sortOrder], ['id', 'ASC']],
             distinct: true
         });
 

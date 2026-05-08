@@ -68,7 +68,7 @@ export const getEntitlements = async (req: Request, res: Response) => {
             include: includeClause,
             limit,
             offset,
-            order: [[sortBy, sortOrder]],
+            order: [[sortBy, sortOrder], ['id', 'ASC']],
             distinct: true,
             subQuery: false,
         });

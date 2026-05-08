@@ -40,7 +40,7 @@ export const getBundleGroups = async (req: Request, res: Response) => {
                     }]
                 }]
             }],
-            order: [['created_at', 'DESC']]
+            order: [['created_at', 'DESC'], ['id', 'ASC']]
         });
 
         res.status(200).json(groups);
@@ -197,7 +197,7 @@ export const getBundles = async (req: Request, res: Response) => {
             where: whereClause,
             limit,
             offset,
-            order: [[sortBy, sortOrder]],
+            order: [[sortBy, sortOrder], ['id', 'ASC']],
             include: [{
                 model: Plan,
                 as: 'plans',
