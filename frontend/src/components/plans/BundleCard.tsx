@@ -15,7 +15,7 @@ interface BundleCardProps {
   isExpanded: boolean;
   onToggle: () => void;
   onToggleCartItem: (item: CartItem) => void;
-  isInCart: (id: string, tierName: string) => boolean;
+  isInCart: (id: string, planId: string) => boolean;
   hasAnyTierInCart: (id: string) => boolean;
   compact?: boolean;
   currentSubscription?: Subscription | null;
@@ -107,7 +107,7 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
                     Select a Tier {hasTierSelected && <span className="text-primary">(1 selected)</span>}
                     </p>
                     {bundle.tiers.map((tier) => {
-                    const inCart = isInCart(bundle.id, tier.name);
+                    const inCart = isInCart(bundle.id, tier.id);
                     const isOneTime = tier.period === '/one_time';
                     const isCurrent = currentSubscription?.bundle?.id === tier.id;
                     const isUpcoming = currentSubscription?.upcoming_bundle?.id === tier.id;
@@ -116,7 +116,7 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
 
                     return (
                         <TierItem
-                            key={tier.name}
+                            key={tier.id}
                             tier={tier}
                             isInCart={inCart}
                             isCurrent={isCurrent}

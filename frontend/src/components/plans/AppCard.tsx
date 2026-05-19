@@ -15,7 +15,7 @@ interface AppCardProps {
   isExpanded: boolean;
   onToggle: () => void;
   onToggleCartItem: (item: CartItem) => void;
-  isInCart: (id: string, tierName: string) => boolean;
+  isInCart: (id: string, planId: string) => boolean;
   hasAnyTierInCart: (id: string) => boolean;
   currentSubscription?: Subscription | null;
   onStartTrial?: (toolId: string) => void;
@@ -116,7 +116,7 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
                         </p>
             {app.tiers.length > 0 ? (
               app.tiers.map((tier) => {
-                const inCart = isInCart(app.id, tier.name);
+                const inCart = isInCart(app.id, tier.id);
                 const isOneTime = tier.period === '/one_time';
                 const isCurrent = currentSubscription?.plan?.id === tier.id;
                 const isUpcoming = currentSubscription?.upcoming_plan?.id === tier.id;
@@ -125,7 +125,7 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
 
                 return (
                   <TierItem
-                    key={tier.name}
+                    key={tier.id}
                     tier={tier}
                     isInCart={inCart}
                     isCurrent={isCurrent}

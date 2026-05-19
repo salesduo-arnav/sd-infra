@@ -92,7 +92,7 @@ export const transformPlansToApps = (publicPlans: PublicPlan[]): App[] => {
                 const app = appsMap.get(tool.id)!;
                 app.tiers.push({
                     id: plan.id,
-                    name: plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1), // Capitalize
+                    name: plan.name,
                     price: plan.price,
                     currency: plan.currency,
                     period: "/" + plan.interval,
@@ -112,7 +112,7 @@ export const transformPlansToApps = (publicPlans: PublicPlan[]): App[] => {
             const app = appsMap.get(tool.id)!;
             app.tiers.push({
                 id: plan.id,
-                name: plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1), // Capitalize
+                name: plan.name,
                 price: plan.price,
                 currency: plan.currency,
                 period: "/" + plan.interval,

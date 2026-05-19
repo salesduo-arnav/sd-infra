@@ -111,7 +111,7 @@ export default function Plans() {
 
     // Card required: add to cart
     if (app.trialCardRequired && app.trialPlanId) {
-      if (isInCart(app.id, 'Trial')) {
+      if (isInCart(app.id, app.trialPlanId)) {
         // Open cart
         setIsCartOpen(true);
         return;
@@ -162,14 +162,14 @@ export default function Plans() {
 
   // Toggle cart item
   const toggleCartItem = (item: CartItem) => {
-    // Exact match check
+    // Exact match check (by planId — unique per plan)
     const exactMatch = cart.find(
-      (cartItem) => cartItem.id === item.id && cartItem.tierName === item.tierName
+      (cartItem) => cartItem.id === item.id && cartItem.planId === item.planId
     );
 
     if (exactMatch) {
       // Toggle off
-      setCart((prev) => prev.filter((cartItem) => !(cartItem.id === item.id && cartItem.tierName === item.tierName)));
+      setCart((prev) => prev.filter((cartItem) => !(cartItem.id === item.id && cartItem.planId === item.planId)));
     } else {
       // Replace existing tier
       setCart((prev) => {
@@ -180,12 +180,12 @@ export default function Plans() {
     }
   };
 
-  const removeFromCart = (id: string, tierName: string) => {
-    setCart((prev) => prev.filter((item) => !(item.id === id && item.tierName === tierName)));
+  const removeFromCart = (id: string, planId: string) => {
+    setCart((prev) => prev.filter((item) => !(item.id === id && item.planId === planId)));
   };
 
-  const isInCart = (id: string, tierName: string) => {
-    return cart.some((item) => item.id === id && item.tierName === tierName);
+  const isInCart = (id: string, planId: string) => {
+    return cart.some((item) => item.id === id && item.planId === planId);
   };
 
   const hasAnyTierInCart = (id: string) => {
@@ -494,7 +494,7 @@ export default function Plans() {
               <div className="space-y-2">
                 {cart.map((item) => (
                   <CartSidebarItem
-                    key={`${item.id}-${item.tierName}`}
+                    key={`${item.id}-${item.planId}`}
                     item={item}
                     onRemove={removeFromCart}
                   />

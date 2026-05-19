@@ -5,7 +5,7 @@ import { CartItem } from "./types";
 
 interface CartSidebarItemProps {
   item: CartItem;
-  onRemove: (id: string, tierName: string) => void;
+  onRemove: (id: string, planId: string) => void;
 }
 
 export function CartSidebarItem({ item, onRemove }: CartSidebarItemProps) {
@@ -55,7 +55,7 @@ export function CartSidebarItem({ item, onRemove }: CartSidebarItemProps) {
             variant="ghost"
             size="icon"
             className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-            onClick={() => onRemove(item.id, item.tierName)}
+            onClick={() => onRemove(item.id, item.planId)}
           >
             <X className="h-3.5 w-3.5" />
           </Button>
