@@ -27,6 +27,7 @@ export interface Tool {
   slug: string;
   description: string;
   tool_link?: string;
+  internal_url?: string;
   is_active: boolean;
   trial_card_required: boolean;
   trial_days: number;
@@ -151,6 +152,21 @@ export const updateFeature = async (id: string, data: Partial<Feature>) => {
 
 export const deleteFeature = async (id: string) => {
   const response = await api.delete(`/admin/features/${id}`);
+  return response.data;
+};
+
+export interface DiscoveredFeature {
+  slug: string;
+  name: string;
+}
+
+export interface DiscoveredFeaturesResponse {
+  available: DiscoveredFeature[];
+  source: 'remote' | 'unavailable';
+}
+
+export const getDiscoveredFeatures = async (toolId: string): Promise<DiscoveredFeaturesResponse> => {
+  const response = await api.get(`/admin/tools/${toolId}/discovered-features`);
   return response.data;
 };
 

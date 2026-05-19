@@ -71,7 +71,7 @@ export const getToolById = async (req: Request, res: Response) => {
 export const createTool = async (req: Request, res: Response) => {
     Logger.info('Creating tool', { ...req.body, userId: req.user?.id });
     try {
-        const { name, slug, description, tool_link, is_active, trial_card_required, trial_days, required_integrations } = req.body;
+        const { name, slug, description, tool_link, internal_url, is_active, trial_card_required, trial_days, required_integrations } = req.body;
 
         if (!name || !slug) {
             return res.status(400).json({ message: 'Name and slug are required' });
@@ -113,6 +113,7 @@ export const createTool = async (req: Request, res: Response) => {
                 slug,
                 description,
                 tool_link,
+                internal_url,
                 is_active: is_active !== undefined ? is_active : true,
                 trial_card_required: trial_card_required !== undefined ? trial_card_required : false,
                 trial_days: trial_days !== undefined ? trial_days : 0,
@@ -138,7 +139,7 @@ export const createTool = async (req: Request, res: Response) => {
 export const updateTool = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { name, slug, description, tool_link, is_active, trial_card_required, trial_days, required_integrations } = req.body;
+        const { name, slug, description, tool_link, internal_url, is_active, trial_card_required, trial_days, required_integrations } = req.body;
         Logger.info('Updating tool', { id, userId: req.user?.id });
 
         if (required_integrations && !Array.isArray(required_integrations)) {
@@ -183,6 +184,7 @@ export const updateTool = async (req: Request, res: Response) => {
                 slug: slug ?? tool.slug,
                 description: description ?? tool.description,
                 tool_link: tool_link ?? tool.tool_link,
+                internal_url: internal_url ?? tool.internal_url,
                 is_active: is_active ?? tool.is_active,
                 trial_card_required: trial_card_required ?? tool.trial_card_required,
                 trial_days: trial_days ?? tool.trial_days,
@@ -195,7 +197,7 @@ export const updateTool = async (req: Request, res: Response) => {
             action: 'UPDATE_TOOL',
             entityType: 'Tool',
             entityId: id,
-            details: { updates: { name, slug, description, tool_link, is_active } },
+            details: { updates: { name, slug, description, tool_link, internal_url, is_active } },
             req
         });
 

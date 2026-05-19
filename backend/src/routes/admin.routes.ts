@@ -39,6 +39,7 @@ router.get('/features/:id', FeatureController.getFeatureById);
 router.post('/features', FeatureController.createFeature);
 router.put('/features/:id', FeatureController.updateFeature);
 router.delete('/features/:id', FeatureController.deleteFeature);
+router.get('/tools/:toolId/discovered-features', FeatureController.listDiscoveredFeatures);
 
 // Bundle Groups
 router.get('/bundle-groups', BundleController.getBundleGroups);

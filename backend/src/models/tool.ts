@@ -11,6 +11,7 @@ export interface ToolAttributes {
   slug: string;
   description?: string;
   tool_link?: string;
+  internal_url?: string;
   is_active: boolean;
   trial_card_required: boolean;
   trial_days: number;
@@ -20,7 +21,7 @@ export interface ToolAttributes {
   updated_at?: Date;
 }
 
-export type ToolCreationAttributes = Optional<ToolAttributes, 'id' | 'description' | 'tool_link' | 'is_active' | 'trial_card_required' | 'required_integrations' | 'created_at' | 'updated_at' | 'deleted_at'>;
+export type ToolCreationAttributes = Optional<ToolAttributes, 'id' | 'description' | 'tool_link' | 'internal_url' | 'is_active' | 'trial_card_required' | 'required_integrations' | 'created_at' | 'updated_at' | 'deleted_at'>;
 
 export class Tool extends Model<ToolAttributes, ToolCreationAttributes> implements ToolAttributes {
   public id!: string;
@@ -28,6 +29,7 @@ export class Tool extends Model<ToolAttributes, ToolCreationAttributes> implemen
   public slug!: string;
   public description!: string;
   public tool_link!: string;
+  public internal_url!: string;
   public is_active!: boolean;
   public trial_card_required!: boolean;
   public trial_days!: number;
@@ -62,6 +64,11 @@ Tool.init(
     tool_link: {
       type: DataTypes.STRING,
       allowNull: true,
+    },
+    internal_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Backend-to-backend base URL (e.g. http://creatives-prod-backend:8000). Used for feature discovery and other S2S calls. Falls back to tool_link if unset.',
     },
     is_active: {
       type: DataTypes.BOOLEAN,

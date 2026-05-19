@@ -6,6 +6,7 @@ import sequelize from '../config/db';
 import { getPaginationOptions, formatPaginationResponse } from '../utils/pagination';
 import { handleError } from '../utils/error';
 import { AuditService } from '../services/audit.service';
+import { fetchDiscoveredFeatures } from '../services/micro_tool_discovery.service';
 import Logger from '../utils/logger';
 
 // ==========================
@@ -145,6 +146,21 @@ export const updateFeature = async (req: Request, res: Response) => {
         res.status(200).json(updatedFeature);
     } catch (error) {
         handleError(res, error, 'Update Feature Error');
+    }
+};
+
+export const listDiscoveredFeatures = async (req: Request, res: Response) => {
+    try {
+        const { toolId } = req.params;
+        const tool = await Tool.findByPk(toolId);
+        if (!tool) {
+            return res.status(404).json({ message: 'Tool not found' });
+        }
+
+        const result = await fetchDiscoveredFeatures(tool);
+        res.status(200).json(result);
+    } catch (error) {
+        handleError(res, error, 'List Discovered Features Error');
     }
 };
 

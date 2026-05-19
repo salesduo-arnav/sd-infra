@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/sheet";
 import { Plus, Pencil, Trash2, Package, Bolt, Eye, Check, Store, Building2, BarChart3 } from "lucide-react";
 import * as AdminService from "@/services/admin.service";
-import { Tool, Feature } from "@/services/admin.service";
+import { Tool, Feature, DiscoveredFeature } from "@/services/admin.service";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -81,6 +81,7 @@ export default function AdminApps() {
         slug: "",
         description: "",
         tool_link: "",
+        internal_url: "",
         is_active: true,
         required_integrations: [] as string[],
         trial_card_required: true,
@@ -102,6 +103,11 @@ export default function AdminApps() {
 
         description: "",
     });
+
+    // Discovered features (advertised by the micro-tool but not yet registered)
+    const [discoveredFeatures, setDiscoveredFeatures] = useState<DiscoveredFeature[]>([]);
+    const [discoverySource, setDiscoverySource] = useState<'remote' | 'unavailable'>('unavailable');
+    const [manualFeatureEntry, setManualFeatureEntry] = useState(false);
 
     // View Details State
     const [viewingTool, setViewingTool] = useState<Tool | null>(null);
@@ -145,6 +151,7 @@ export default function AdminApps() {
                 slug: app.slug,
                 description: app.description || "",
                 tool_link: app.tool_link || "",
+                internal_url: app.internal_url || "",
                 is_active: app.is_active,
                 required_integrations: app.required_integrations || [],
                 trial_card_required: app.trial_card_required || true,
@@ -152,7 +159,7 @@ export default function AdminApps() {
             });
         } else {
             setEditingApp(null);
-            setFormData({ name: "", slug: "", description: "", tool_link: "", is_active: true, required_integrations: [], trial_card_required: true, trial_days: 0 });
+            setFormData({ name: "", slug: "", description: "", tool_link: "", internal_url: "", is_active: true, required_integrations: [], trial_card_required: true, trial_days: 0 });
         }
         setIsDialogOpen(true);
     }, []);
@@ -232,11 +239,25 @@ export default function AdminApps() {
         }
     }, [featurePagination.pageIndex, featurePagination.pageSize, featureSorting, featureSearch]);
 
+    const refreshDiscoveredFeatures = useCallback(async (toolId: string) => {
+        try {
+            const data = await AdminService.getDiscoveredFeatures(toolId);
+            setDiscoveredFeatures(data.available || []);
+            setDiscoverySource(data.source || 'unavailable');
+        } catch (error) {
+            console.error("Failed to fetch discovered features", error);
+            setDiscoveredFeatures([]);
+            setDiscoverySource('unavailable');
+        }
+    }, []);
+
     useEffect(() => {
         if (selectedToolForFeatures && isFeatureDialogOpen) {
             refreshFeatures(selectedToolForFeatures.id);
+            refreshDiscoveredFeatures(selectedToolForFeatures.id);
+            setManualFeatureEntry(false);
         }
-    }, [selectedToolForFeatures, isFeatureDialogOpen, refreshFeatures]);
+    }, [selectedToolForFeatures, isFeatureDialogOpen, refreshFeatures, refreshDiscoveredFeatures]);
 
     const handleFeatureSave = async () => {
         if (!selectedToolForFeatures) return;
@@ -252,6 +273,7 @@ export default function AdminApps() {
             setEditingFeature(null);
             setFeatureFormData({ name: "", slug: "", description: "" });
             refreshFeatures(selectedToolForFeatures.id);
+            refreshDiscoveredFeatures(selectedToolForFeatures.id);
             toast.success(editingFeature ? "Feature updated" : "Feature added");
         } catch (error) {
             console.error("Failed to save feature", error);
@@ -504,6 +526,17 @@ export default function AdminApps() {
                                     onChange={(e) => setFormData({ ...formData, tool_link: e.target.value })}
                                     placeholder="https://example.com"
                                 />
+                                <p className="text-xs text-muted-foreground">Public URL the user is redirected to when launching this tool.</p>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="internal_url">Internal URL</Label>
+                                <Input
+                                    id="internal_url"
+                                    value={formData.internal_url}
+                                    onChange={(e) => setFormData({ ...formData, internal_url: e.target.value })}
+                                    placeholder="http://creatives-prod-backend:8000"
+                                />
+                                <p className="text-xs text-muted-foreground">Backend-to-backend URL used by sd-infra to call this tool (e.g. for feature discovery). Leave blank to reuse Tool Link.</p>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="description">Description</Label>
@@ -618,27 +651,75 @@ export default function AdminApps() {
 
                             {/* Add/Edit Feature Form */}
                             <div className="bg-muted/30 p-4 rounded-md border space-y-4">
-                                <h3 className="font-semibold text-sm">{editingFeature ? "Edit Feature" : "Add New Feature"}</h3>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-semibold text-sm">{editingFeature ? "Edit Feature" : "Add New Feature"}</h3>
+                                    {!editingFeature && discoverySource === 'remote' && discoveredFeatures.length > 0 && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                                setManualFeatureEntry(prev => !prev);
+                                                setFeatureFormData({ name: "", slug: "", description: "" });
+                                            }}
+                                        >
+                                            {manualFeatureEntry ? "Pick from list" : "Enter manually"}
+                                        </Button>
+                                    )}
+                                </div>
+
+                                {!editingFeature && discoverySource === 'remote' && discoveredFeatures.length > 0 && !manualFeatureEntry && (
                                     <div className="space-y-2">
-                                        <Label>Name</Label>
-                                        <Input
-                                            value={featureFormData.name}
-                                            onChange={e => {
-                                                const name = e.target.value;
-                                                if (!editingFeature) {
-                                                    setFeatureFormData(prev => ({ ...prev, name, slug: generateSlug(name) }));
-                                                } else {
-                                                    setFeatureFormData(prev => ({ ...prev, name }));
+                                        <Label>Available features from {selectedToolForFeatures?.name}</Label>
+                                        <Select
+                                            value={featureFormData.slug || undefined}
+                                            onValueChange={(slug) => {
+                                                const picked = discoveredFeatures.find(f => f.slug === slug);
+                                                if (picked) {
+                                                    setFeatureFormData(prev => ({ ...prev, name: picked.name, slug: picked.slug }));
                                                 }
                                             }}
-                                            placeholder="Feature Name"
-                                        />
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select a feature advertised by the tool" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {discoveredFeatures.map(f => (
+                                                    <SelectItem key={f.slug} value={f.slug}>
+                                                        {f.name} <span className="text-muted-foreground">({f.slug})</span>
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-muted-foreground">
+                                            Pulled from the micro-tool's feature registry. Pick one and add an optional description below.
+                                        </p>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>Slug</Label>
-                                        <Input value={featureFormData.slug} onChange={e => setFeatureFormData({ ...featureFormData, slug: e.target.value })} placeholder="feature_slug" />
-                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    {(editingFeature || manualFeatureEntry || discoverySource !== 'remote' || discoveredFeatures.length === 0) && (
+                                        <>
+                                            <div className="space-y-2">
+                                                <Label>Name</Label>
+                                                <Input
+                                                    value={featureFormData.name}
+                                                    onChange={e => {
+                                                        const name = e.target.value;
+                                                        if (!editingFeature) {
+                                                            setFeatureFormData(prev => ({ ...prev, name, slug: generateSlug(name) }));
+                                                        } else {
+                                                            setFeatureFormData(prev => ({ ...prev, name }));
+                                                        }
+                                                    }}
+                                                    placeholder="Feature Name"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Slug</Label>
+                                                <Input value={featureFormData.slug} onChange={e => setFeatureFormData({ ...featureFormData, slug: e.target.value })} placeholder="feature_slug" />
+                                            </div>
+                                        </>
+                                    )}
 
                                     <div className="space-y-2">
                                         <Label>Description</Label>
@@ -650,7 +731,7 @@ export default function AdminApps() {
                                         setEditingFeature(null);
                                         setFeatureFormData({ name: "", slug: "", description: "" });
                                     }}>Cancel Edit</Button>}
-                                    <Button size="sm" onClick={handleFeatureSave}>{editingFeature ? "Update Feature" : "Add Feature"}</Button>
+                                    <Button size="sm" onClick={handleFeatureSave} disabled={!featureFormData.name || !featureFormData.slug}>{editingFeature ? "Update Feature" : "Add Feature"}</Button>
                                 </div>
                             </div>
                         </div>
