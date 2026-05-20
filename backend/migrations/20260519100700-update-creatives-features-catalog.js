@@ -10,7 +10,8 @@ const { v4: uuidv4 } = require('uuid');
  *     rows). We don't know the full historical list of slugs across
  *     environments, so we sweep the entire active set rather than maintaining
  *     a hand-curated obsolete list.
- *  2. Inserts the 12 new credit-metered feature slugs. `use_credit_system`
+ *  2. Inserts the 14 new feature slugs (12 credit-metered + 2 boolean-only
+ *     entitlement gates: seo_intent_directives, rufus_cosmo). `use_credit_system`
  *     and `requires_subscription` are left at the column defaults
  *     (false / true respectively). Admins flip `use_credit_system` on
  *     per-feature from the AdminCredits page when they're ready to enable
@@ -21,9 +22,15 @@ const { v4: uuidv4 } = require('uuid');
  * slugs, and step 2 upserts on (tool_id, slug).
  */
 
+// credit_cost: 0 for boolean entitlements — these are gated via the
+// org's entitlement row (admin enable/disable on the plan) and do not
+// debit the credit wallet. Their parent flow (seo_generation /
+// seo_regeneration) owns the billable cost for the whole run.
 const NEW_FEATURES = [
   { slug: 'seo_generation',                  name: 'SEO Generation (single + bulk)',                          credit_cost: 2 },
   { slug: 'seo_regeneration',                name: 'SEO Regeneration',                                          credit_cost: 2 },
+  { slug: 'seo_intent_directives',           name: 'SEO Intent Directives (bucket-weakness prompt injection)',  credit_cost: 0 },
+  { slug: 'rufus_cosmo',                     name: 'Rufus / Cosmo Intent Layer',                                credit_cost: 0 },
   { slug: 'dp_image_generation',             name: 'Detail Page Image Generation',                              credit_cost: 2 },
   { slug: 'basic_a_plus_generation',         name: 'Basic A+ Generation',                                       credit_cost: 4 },
   { slug: 'premium_a_plus_generation',       name: 'Premium A+ Generation',                                     credit_cost: 6 },
