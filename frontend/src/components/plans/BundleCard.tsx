@@ -15,7 +15,7 @@ interface BundleCardProps {
   isExpanded: boolean;
   onToggle: () => void;
   onToggleCartItem: (item: CartItem) => void;
-  isInCart: (id: string, planId: string) => boolean;
+  isInCart: (id: string, tierName: string) => boolean;
   hasAnyTierInCart: (id: string) => boolean;
   compact?: boolean;
   currentSubscription?: Subscription | null;
@@ -66,7 +66,6 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
             {bundle.icon}
           </span>
           <span className={compact ? "text-base" : ""}>{bundle.name}</span>
-          {/* Current Plan Badge */}
            {!isExpanded && currentSubscription && (
               <Badge variant="outline" className="ml-auto border-purple-500 text-purple-500">Active</Badge>
            )}
@@ -74,7 +73,6 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
         <CardDescription className={compact ? "text-xs" : ""}>{bundle.description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Included Apps */}
         <div>
           <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">Included Apps</p>
           <ul className={cn("space-y-1", compact && "text-sm")}>
@@ -84,7 +82,6 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
                     <Check className="h-3 w-3 text-primary shrink-0" />
                     <span className="truncate font-medium">{app.name}</span>
                 </div>
-                {/* Display key features if any */}
                 {app.features.length > 0 && (
                     <div className="pl-5 text-xs text-muted-foreground truncate">
                         {app.features.slice(0, 2).join(", ")}
@@ -99,15 +96,14 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
           </ul>
         </div>
 
-        {/* Pricing Tiers with Smooth Collapsible Animation */}
         <Collapsible open={isExpanded}>
             <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                 <div className="pt-4 space-y-2" onClick={(e) => e.stopPropagation()}>
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Select a Tier {hasTierSelected && <span className="text-primary">(1 selected)</span>}
+                    Select a Subscription Tier {hasTierSelected && <span className="text-primary">(1 selected)</span>}
                     </p>
                     {bundle.tiers.map((tier) => {
-                    const inCart = isInCart(bundle.id, tier.id);
+                    const inCart = isInCart(bundle.id, tier.name);
                     const isOneTime = tier.period === '/one_time';
                     const isCurrent = currentSubscription?.bundle?.id === tier.id;
                     const isUpcoming = currentSubscription?.upcoming_bundle?.id === tier.id;
@@ -116,7 +112,7 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
 
                     return (
                         <TierItem
-                            key={tier.id}
+                            key={tier.name}
                             tier={tier}
                             isInCart={inCart}
                             isCurrent={isCurrent}
@@ -155,7 +151,6 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
             </CollapsibleContent>
         </Collapsible>
 
-         {/* Price Range Preview (Fade out when expanded) */}
         <div className={cn("transition-opacity duration-300", isExpanded ? "opacity-0 h-0 overflow-hidden" : "opacity-100")}>
             {!isExpanded && bundle.tiers.length > 0 && (
             <div className="pt-2 border-t">
@@ -168,11 +163,10 @@ export function BundleCard({ bundle, isExpanded, onToggle, onToggleCartItem, isI
             )}
         </div>
 
-        {/* View Details Link */}
         <div className="flex justify-center">
-            <Button 
-                variant="link" 
-                size="sm" 
+            <Button
+                variant="link"
+                size="sm"
                 className="text-muted-foreground h-auto p-0 text-xs hover:text-primary"
                 onClick={(e) => {
                     e.stopPropagation();

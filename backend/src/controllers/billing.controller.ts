@@ -36,10 +36,26 @@ class BillingController {
             if (!organization) { res.status(404).json({ message: 'Organization not found' }); return; }
             if (!items?.length) { res.status(400).json({ message: 'No items provided' }); return; }
 
-            // Validate intervals
-            const firstInterval = items[0].interval;
-            if (items.some((item: { interval: string }) => item.interval !== firstInterval)) {
+            // Normalize interval: credit_pack and custom_credits items are one-time
+            // by definition; missing interval is treated as 'one_time' for them.
+            const normalized = items.map((i: { type?: string; interval?: string }) => {
+                if (!i.interval && (i.type === 'credit_pack' || i.type === 'custom_credits')) {
+                    return { ...i, interval: 'one_time' };
+                }
+                return i;
+            });
+
+            const firstInterval = normalized[0].interval;
+            if (normalized.some((item: { interval: string }) => item.interval !== firstInterval)) {
                 res.status(400).json({ message: 'All items must have the same billing interval' });
+                return;
+            }
+
+            // Reject mixed subscription + credit items in the same Stripe session.
+            const hasSubscriptionItems = normalized.some((i: { type?: string }) => i.type === 'plan' || i.type === 'bundle');
+            const hasCreditItems = normalized.some((i: { type?: string }) => i.type === 'credit_pack' || i.type === 'custom_credits');
+            if (hasSubscriptionItems && hasCreditItems) {
+                res.status(400).json({ message: 'Cannot mix subscriptions and one-time credit purchases in one checkout' });
                 return;
             }
 
@@ -52,13 +68,59 @@ class BillingController {
             }
 
             // 2. Resolve Price IDs
-            const lineItems = [];
+            const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
             const metadataItems: { id: string; type: string }[] = [];
             let trialPeriodDays = 0;
             let hasPaidComponent = false;
 
-            for (const item of items) {
+            // Credit-purpose tagging — applied to the Stripe session metadata so the
+            // webhook can route the grant. We only allow one credit item per session
+            // (Stripe Checkout sessions are atomic), so this remains scalar.
+            let creditPurpose: 'credit_pack' | 'alacarte_credits' | null = null;
+            let creditMeta: { tool_id?: string; credits?: number; credit_pack_id?: string } = {};
+
+            for (const item of normalized) {
                 let priceId: string | undefined;
+
+                if (item.type === 'credit_pack') {
+                    const { CreditPack } = await import('../models/credit_pack');
+                    const pack = await CreditPack.findByPk(item.id);
+                    if (!pack || !pack.active || !pack.stripe_price_id) continue;
+                    lineItems.push({ price: pack.stripe_price_id, quantity: 1 });
+                    metadataItems.push({ id: pack.id, type: 'credit_pack' });
+                    creditPurpose = 'credit_pack';
+                    creditMeta = { tool_id: pack.tool_id, credits: pack.credits, credit_pack_id: pack.id };
+                    hasPaidComponent = true;
+                    continue;
+                }
+
+                if (item.type === 'custom_credits') {
+                    const { ToolCreditConfig } = await import('../models/tool_credit_config');
+                    const { Tool: ToolModel } = await import('../models/tool');
+                    const toolId: string = item.tool_id;
+                    const creditAmount: number = Number(item.credit_amount || 0);
+                    const tool = toolId ? await ToolModel.findByPk(toolId) : null;
+                    if (!tool) continue;
+                    const config = await ToolCreditConfig.findByPk(toolId);
+                    if (
+                        !config ||
+                        !config.alacarte_enabled ||
+                        !config.price_per_credit ||
+                        !config.alacarte_stripe_price_id ||
+                        !Number.isInteger(creditAmount) ||
+                        creditAmount <= 0 ||
+                        creditAmount < (config.min_credits ?? 1) ||
+                        (config.max_credits != null && creditAmount > config.max_credits)
+                    ) {
+                        continue;
+                    }
+                    lineItems.push({ price: config.alacarte_stripe_price_id, quantity: creditAmount });
+                    metadataItems.push({ id: toolId, type: 'custom_credits' });
+                    creditPurpose = 'alacarte_credits';
+                    creditMeta = { tool_id: toolId, credits: creditAmount };
+                    hasPaidComponent = true;
+                    continue;
+                }
 
                 if (item.type === 'plan') {
                     const plan = await Plan.findByPk(item.id, { include: [{ model: Tool, as: 'tool' }] });
@@ -107,7 +169,16 @@ class BillingController {
                     organizationId: organization.id,
                     items: JSON.stringify(metadataItems),
                     interval: firstInterval,
-                    userId: user?.id
+                    userId: user?.id,
+                    // Credit purchase routing — picked up by webhook.controller.ts
+                    ...(creditPurpose
+                        ? {
+                            purpose: creditPurpose,
+                            tool_id: creditMeta.tool_id || '',
+                            credits: String(creditMeta.credits || ''),
+                            ...(creditMeta.credit_pack_id ? { credit_pack_id: creditMeta.credit_pack_id } : {}),
+                        }
+                        : {}),
                 }
             };
             

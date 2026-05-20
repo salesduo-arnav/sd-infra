@@ -12,12 +12,15 @@ export interface FeatureAttributes {
   name: string;
   slug: string;
   description?: string;
+  credit_cost: number;
+  requires_subscription: boolean;
+  use_credit_system: boolean;
   deleted_at?: Date | null;
   created_at?: Date;
   updated_at?: Date;
 }
 
-export type FeatureCreationAttributes = Optional<FeatureAttributes, 'id' | 'description' | 'created_at' | 'updated_at' | 'deleted_at'>;
+export type FeatureCreationAttributes = Optional<FeatureAttributes, 'id' | 'description' | 'credit_cost' | 'requires_subscription' | 'use_credit_system' | 'created_at' | 'updated_at' | 'deleted_at'>;
 
 export class Feature extends Model<FeatureAttributes, FeatureCreationAttributes> implements FeatureAttributes {
   public id!: string;
@@ -25,6 +28,9 @@ export class Feature extends Model<FeatureAttributes, FeatureCreationAttributes>
   public name!: string;
   public slug!: string;
   public description!: string;
+  public credit_cost!: number;
+  public requires_subscription!: boolean;
+  public use_credit_system!: boolean;
   public readonly deleted_at!: Date | null;
 
   public readonly created_at!: Date;
@@ -62,6 +68,25 @@ Feature.init(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    credit_cost: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+      comment: 'Credits consumed per unit of this feature. 0 = free.',
+    },
+    requires_subscription: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+      comment: 'When true, this feature requires an active subscription to the tool, i.e cant be used in credit-only mode. ',
+    },
+    use_credit_system: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment:
+        'When true, this feature is credit-metered (cost charged per invocation). When false, falls back to entitlement/plan-limit enforcement.',
+    },
     deleted_at: {
       type: DataTypes.DATE,
       allowNull: true,
@@ -77,8 +102,11 @@ Feature.init(
     deletedAt: 'deleted_at',
     indexes: [
       {
+        // Scoped per-tool: different tools can legitimately share an operation
+        // slug (e.g. multiple creative tools each having "dp_image_generation").
+        name: 'features_tool_slug_active_unique',
         unique: true,
-        fields: ['slug'],
+        fields: ['tool_id', 'slug'],
         where: {
           deleted_at: null,
         },

@@ -18,6 +18,7 @@ import { BillingAlert } from "@/components/billing/BillingAlert";
 import { getSubscriptionColumns, invoiceColumns, oneTimePurchaseColumns } from "@/components/billing/columns";
 import { OneTimePurchase } from "@/types/subscription";
 import { BillingSkeleton } from "@/components/billing/BillingSkeleton";
+import CreditsOverviewCard from "@/components/billing/CreditsOverviewCard";
 import { useTranslation } from 'react-i18next';
 
 export default function Billing() {
@@ -348,6 +349,8 @@ export default function Billing() {
             gracePeriodDays={gracePeriodDays}
           />
         )}
+
+        <CreditsOverviewCard />
 
         <Card className="mb-8">
           <CardHeader className="flex flex-row items-center justify-between">

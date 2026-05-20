@@ -36,8 +36,7 @@ export function FeatureComparisonModal({
   apps,
   tiers
 }: FeatureComparisonModalProps) {
-  
-  // Format price helper
+
   const formatPrice = (price: number, currency = 'USD') => {
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
@@ -47,10 +46,6 @@ export function FeatureComparisonModal({
     }).format(price);
   };
 
-  // 1. Identify all unique features and group them
-  // If apps are provided (Bundle), group by App.
-  // If no apps (Single App), use a single group "General" or just list them.
-  
   interface FeatureGroup {
     name: string;
     description?: string;
@@ -66,13 +61,12 @@ export function FeatureComparisonModal({
       features: app.features
     }));
   } else {
-    // Single App case: Collect all unique feature names from all tiers
     const allFeatures = Array.from(new Set(
       tiers.flatMap(tier => tier.features?.map(f => f.name) || [])
     ));
     featureGroups = [{
-      name: "Features", 
-      description: description, 
+      name: "Features",
+      description: description,
       features: allFeatures
     }];
   }
@@ -88,7 +82,7 @@ export function FeatureComparisonModal({
                 </div>
             </div>
         </DialogHeader>
-        
+
         <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="p-6 pt-2">
                 <Table>
@@ -111,7 +105,6 @@ export function FeatureComparisonModal({
                     <TableBody>
                         {featureGroups.map((group, groupIdx) => (
                             <>
-                                {/* Group Header (App Name + Description) */}
                                 {apps && apps.length > 0 && (
                                     <TableRow key={`group-${groupIdx}`} className="bg-muted/30 hover:bg-muted/40">
                                         <TableCell colSpan={tiers.length + 1} className="py-3">
@@ -129,7 +122,6 @@ export function FeatureComparisonModal({
                                     </TableRow>
                                 )}
 
-                                {/* Features Rows */}
                                 {group.features.map((featureName, featIdx) => (
                                     <TableRow key={`${group.name}-${featureName}-${featIdx}`} className="hover:bg-muted/5">
                                         <TableCell className="font-medium text-sm py-4">
@@ -137,11 +129,10 @@ export function FeatureComparisonModal({
                                         </TableCell>
                                         {tiers.map(tier => {
                                             const tierFeature = tier.features?.find(
-                                                f => f.name === featureName && 
+                                                f => f.name === featureName &&
                                                 (!f.toolName || f.toolName === group.name || !apps)
                                             );
-                                            
-                                            // Determine what to show
+
                                             let content = <X className="h-4 w-4 text-muted-foreground/30 mx-auto" />;
 
                                             if (tierFeature) {
@@ -163,11 +154,9 @@ export function FeatureComparisonModal({
                                                         content = <Check className="h-5 w-5 text-emerald-500 mx-auto font-bold" />;
                                                     }
                                                 } else {
-                                                     // Explicitly disabled
                                                      content = <X className="h-4 w-4 text-muted-foreground/30 mx-auto" />;
                                                 }
                                             } else {
-                                                // Feature not listed implies disabled
                                                  content = <X className="h-4 w-4 text-muted-foreground/30 mx-auto" />;
                                             }
 

@@ -2,10 +2,25 @@ import cron from 'node-cron';
 import { Op } from 'sequelize';
 import { Subscription } from '../models/subscription';
 import { OrganizationEntitlement } from '../models/organization_entitlement';
-import { SubStatus, FeatureResetPeriod } from '../models/enums';
+import { CreditReservation } from '../models/credit_reservation';
+import { CreditWallet } from '../models/credit_wallet';
+import { CreditLedgerEntry } from '../models/credit_ledger';
+import { PlanCreditGrant } from '../models/plan_credit_grant';
+import { Plan } from '../models/plan';
+import { BundlePlan } from '../models/bundle_plan';
+import {
+  SubStatus,
+  FeatureResetPeriod,
+  CreditReservationStatus,
+  CreditOnCancel,
+  CreditBucket,
+  CreditEntryType,
+} from '../models/enums';
 import { stripeService } from './stripe.service';
 import { entitlementService } from './entitlement.service';
+import { creditService } from './credit.service';
 import { AuditService } from './audit.service';
+import sequelize from '../config/db';
 import Logger from '../utils/logger';
 import redisClient from '../config/redis';
 import { configService } from './config.service';
@@ -17,6 +32,9 @@ export class CronService {
 
         const cancelSchedule = configService.get('cron_cancel_past_due', '00 00 * * *')!;
         const resetSchedule = configService.get('cron_reset_entitlements', '00 01 * * *')!;
+        const sweepReservationsSchedule = configService.get('cron_sweep_credit_reservations', '*/5 * * * *')!;
+        const creditCancellationSchedule = configService.get('cron_credit_cancellation_tail', '15 02 * * *')!;
+        const creditTrialExpirySchedule = configService.get('cron_credit_trial_expiry', '30 02 * * *')!;
 
         cron.schedule(cancelSchedule, async () => {
             Logger.info('[Cron] Starting check for past_due subscriptions...');
@@ -28,7 +46,252 @@ export class CronService {
             await this.resetEntitlementUsage();
         });
 
-        Logger.info(`Cron Jobs scheduled. Cancel past-due: "${cancelSchedule}", Reset entitlements: "${resetSchedule}"`);
+        cron.schedule(sweepReservationsSchedule, async () => {
+            await this.sweepExpiredCreditReservations();
+        });
+
+        cron.schedule(creditCancellationSchedule, async () => {
+            await this.processCreditCancellationTail();
+        });
+
+        cron.schedule(creditTrialExpirySchedule, async () => {
+            await this.expireUnconvertedTrialCredits();
+        });
+
+        Logger.info(
+            `Cron Jobs scheduled. Cancel past-due: "${cancelSchedule}", Reset entitlements: "${resetSchedule}", ` +
+            `Credit sweep: "${sweepReservationsSchedule}", Credit cancel tail: "${creditCancellationSchedule}", Trial credit expiry: "${creditTrialExpirySchedule}"`,
+        );
+    }
+
+    /**
+     * Releases reservations whose TTL has passed. Marks them `expired` (not `released`)
+     * so we can distinguish in the ledger.
+     */
+    public async sweepExpiredCreditReservations() {
+        try {
+            const lockKey = 'cron:lock:sweepExpiredCreditReservations';
+            const acquired = await redisClient.set(lockKey, 'locked', { NX: true, EX: 240 });
+            if (!acquired) {
+                Logger.debug('[Cron] sweepExpiredCreditReservations skipped (locked)');
+                return;
+            }
+
+            const now = new Date();
+            const stale = await CreditReservation.findAll({
+                where: {
+                    status: CreditReservationStatus.HELD,
+                    expires_at: { [Op.lt]: now },
+                },
+                limit: 200,
+                order: [['expires_at', 'ASC']],
+            });
+
+            if (stale.length === 0) return;
+
+            Logger.info(`[Cron] Releasing ${stale.length} expired credit reservations`);
+            let releasedCount = 0;
+            for (const reservation of stale) {
+                try {
+                    await creditService.releaseReservation({
+                        reservationId: reservation.id,
+                        cause: 'sweeper',
+                    });
+                    releasedCount++;
+                } catch (err) {
+                    Logger.error(`[Cron] Failed to release reservation ${reservation.id}`, err);
+                }
+            }
+            if (releasedCount > 0) {
+                await AuditService.log({
+                    action: 'CREDIT_RESERVATIONS_EXPIRED',
+                    entityType: 'System',
+                    entityId: 'cron',
+                    details: { actor: 'system_cron', count: releasedCount },
+                });
+            }
+        } catch (error) {
+            Logger.error('[Cron] sweepExpiredCreditReservations error', error);
+        }
+    }
+
+    /**
+     * Applies `keep_till_period_end` forfeiture once the period has passed for
+     * canceled subscriptions whose plan-credits haven't been zeroed yet.
+     */
+    public async processCreditCancellationTail() {
+        try {
+            const lockKey = 'cron:lock:processCreditCancellationTail';
+            const acquired = await redisClient.set(lockKey, 'locked', { NX: true, EX: 240 });
+            if (!acquired) return;
+
+            const now = new Date();
+            const canceledSubs = await Subscription.findAll({
+                where: {
+                    status: SubStatus.CANCELED,
+                    current_period_end: { [Op.lt]: now, [Op.ne]: null },
+                },
+                limit: 200,
+            });
+
+            for (const sub of canceledSubs) {
+                try {
+                    // Resolve plans (direct + bundle)
+                    const planIds = new Set<string>();
+                    if (sub.plan_id) planIds.add(sub.plan_id);
+                    if (sub.bundle_id) {
+                        const bundlePlans = await BundlePlan.findAll({
+                            where: { bundle_id: sub.bundle_id },
+                            attributes: ['plan_id'],
+                        });
+                        for (const bp of bundlePlans) planIds.add(bp.plan_id);
+                    }
+                    if (planIds.size === 0) continue;
+
+                    const grants = await PlanCreditGrant.findAll({
+                        where: {
+                            plan_id: { [Op.in]: Array.from(planIds) },
+                            on_cancel: CreditOnCancel.KEEP_TILL_PERIOD_END,
+                        },
+                    });
+
+                    for (const grant of grants) {
+                        const wallet = await CreditWallet.findOne({
+                            where: { organization_id: sub.organization_id, tool_id: grant.tool_id },
+                        });
+                        if (!wallet || wallet.plan_balance === 0) continue;
+
+                        const meta = (wallet.metadata ?? {}) as Record<string, unknown>;
+                        const cancelMark = `cancel_tail:${sub.id}`;
+                        if (meta[cancelMark]) continue; // Already processed
+
+                        await sequelize.transaction(async (transaction) => {
+                            const w = await CreditWallet.findOne({
+                                where: { id: wallet.id },
+                                transaction,
+                                lock: transaction.LOCK.UPDATE,
+                            });
+                            if (!w || w.plan_balance === 0) return;
+                            const expired = w.plan_balance;
+                            w.plan_balance = 0;
+                            const wMeta = (w.metadata ?? {}) as Record<string, unknown>;
+                            wMeta[cancelMark] = new Date().toISOString();
+                            w.metadata = wMeta;
+                            await w.save({ transaction });
+                            await CreditLedgerEntry.create(
+                                {
+                                    organization_id: w.organization_id,
+                                    tool_id: w.tool_id,
+                                    entry_type: CreditEntryType.EXPIRE,
+                                    bucket: CreditBucket.PLAN,
+                                    amount: -expired,
+                                    balance_after_plan: w.plan_balance,
+                                    balance_after_purchased: w.purchased_balance,
+                                    source: 'sweeper',
+                                    related_subscription_id: sub.id,
+                                    related_plan_id: grant.plan_id,
+                                    metadata: { reason: 'cancel_keep_till_period_end' },
+                                },
+                                { transaction },
+                            );
+                        });
+                        Logger.info(
+                            `[Cron] Forfeited plan credits for org=${sub.organization_id} tool=${grant.tool_id} on cancel-tail`,
+                        );
+                    }
+                } catch (err) {
+                    Logger.error(`[Cron] processCreditCancellationTail sub ${sub.id}`, err);
+                }
+            }
+        } catch (error) {
+            Logger.error('[Cron] processCreditCancellationTail error', error);
+        }
+    }
+
+    /**
+     * Expires trial credits from wallets where the trial ended without converting.
+     */
+    public async expireUnconvertedTrialCredits() {
+        try {
+            const lockKey = 'cron:lock:expireUnconvertedTrialCredits';
+            const acquired = await redisClient.set(lockKey, 'locked', { NX: true, EX: 240 });
+            if (!acquired) return;
+
+            // Find wallets with metadata.trial.subscription_id where that subscription is no longer trialing
+            const wallets = await CreditWallet.findAll({
+                where: { plan_balance: { [Op.gt]: 0 } },
+                limit: 500,
+            });
+            for (const wallet of wallets) {
+                try {
+                    const meta = (wallet.metadata ?? {}) as Record<string, unknown>;
+                    const trial = meta.trial as
+                        | { subscription_id?: string; trial_end?: string | null; granted?: number; expired?: boolean }
+                        | undefined;
+                    if (!trial || trial.expired || !trial.subscription_id || !trial.granted) continue;
+
+                    const trialEnd = trial.trial_end ? new Date(trial.trial_end) : null;
+                    if (!trialEnd || trialEnd > new Date()) continue;
+
+                    // Check subscription status — if it's still trialing or has converted to active, skip
+                    const sub = await Subscription.findByPk(trial.subscription_id);
+                    if (!sub) continue;
+                    if (sub.status === SubStatus.TRIALING) continue;
+                    if (sub.status === SubStatus.ACTIVE) {
+                        // Trial converted; just mark expired so we don't keep checking
+                        meta.trial = { ...trial, expired: true };
+                        wallet.metadata = meta;
+                        await wallet.save();
+                        continue;
+                    }
+
+                    // Trial ended without conversion — expire remaining trial credits
+                    await sequelize.transaction(async (transaction) => {
+                        const w = await CreditWallet.findOne({
+                            where: { id: wallet.id },
+                            transaction,
+                            lock: transaction.LOCK.UPDATE,
+                        });
+                        if (!w) return;
+                        const remaining = Math.min(w.plan_balance, trial.granted ?? 0);
+                        if (remaining <= 0) {
+                            const m = (w.metadata ?? {}) as Record<string, unknown>;
+                            m.trial = { ...(m.trial as object | undefined), expired: true };
+                            w.metadata = m;
+                            await w.save({ transaction });
+                            return;
+                        }
+                        w.plan_balance -= remaining;
+                        const m = (w.metadata ?? {}) as Record<string, unknown>;
+                        m.trial = { ...(m.trial as object | undefined), expired: true };
+                        w.metadata = m;
+                        await w.save({ transaction });
+                        await CreditLedgerEntry.create(
+                            {
+                                organization_id: w.organization_id,
+                                tool_id: w.tool_id,
+                                entry_type: CreditEntryType.EXPIRE,
+                                bucket: CreditBucket.TRIAL,
+                                amount: -remaining,
+                                balance_after_plan: w.plan_balance,
+                                balance_after_purchased: w.purchased_balance,
+                                source: 'trial_expiry',
+                                related_subscription_id: trial.subscription_id,
+                                metadata: { reason: 'trial_unconverted' },
+                            },
+                            { transaction },
+                        );
+                    });
+                    Logger.info(
+                        `[Cron] Expired trial credits for org=${wallet.organization_id} tool=${wallet.tool_id}`,
+                    );
+                } catch (err) {
+                    Logger.error(`[Cron] trial credit expiry failed for wallet ${wallet.id}`, err);
+                }
+            }
+        } catch (error) {
+            Logger.error('[Cron] expireUnconvertedTrialCredits error', error);
+        }
     }
 
     public async checkAndCancelPastDueSubscriptions() {

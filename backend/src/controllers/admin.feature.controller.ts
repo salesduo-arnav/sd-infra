@@ -79,7 +79,12 @@ export const createFeature = async (req: Request, res: Response) => {
         }
 
         const feature = await sequelize.transaction(async (t) => {
-            const existingFeature = await Feature.findOne({ where: { slug }, transaction: t });
+            // Slug uniqueness is scoped per-tool — two different tools may legitimately
+            // share an operation slug (e.g. "dp_image_generation" across creative tools).
+            const existingFeature = await Feature.findOne({
+                where: { tool_id, slug },
+                transaction: t,
+            });
             if (existingFeature) {
                 throw new Error('ALREADY_EXISTS');
             }
@@ -121,7 +126,11 @@ export const updateFeature = async (req: Request, res: Response) => {
             }
 
             if (slug && slug !== feature.slug) {
-                const existingFeature = await Feature.findOne({ where: { slug }, transaction: t });
+                // Scope by the feature's own tool — slug only needs to be unique within a tool.
+                const existingFeature = await Feature.findOne({
+                    where: { tool_id: feature.tool_id, slug },
+                    transaction: t,
+                });
                 if (existingFeature) {
                     throw new Error('SLUG_EXISTS');
                 }

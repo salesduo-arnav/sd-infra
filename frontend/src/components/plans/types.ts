@@ -16,6 +16,14 @@ export interface BundleTier {
   limits: string;
   features?: FeatureItem[];
   currency?: string;
+  /** Per-tool credit grants this bundle tier confers each period. */
+  creditGrants?: Array<{
+    tool_id: string;
+    tool_slug?: string;
+    tool_name?: string;
+    credits_per_period: number;
+    period_unit: 'monthly' | 'yearly';
+  }>;
 }
 
 export interface Bundle {
@@ -29,7 +37,7 @@ export interface Bundle {
 }
 
 export interface AppTier {
-  id: string; // The Plan ID
+  id: string;
   name: string;
   price: number;
   period: string;
@@ -38,15 +46,40 @@ export interface AppTier {
   isTrial?: boolean;
   trialDays?: number;
   currency?: string;
+  /** Credits granted per period by this tier (e.g. "100 credits/month"). */
+  creditsPerPeriod?: number;
+  creditsPeriodUnit?: 'monthly' | 'yearly';
+}
+
+export interface AppCreditPack {
+  id: string;
+  name: string;
+  credit_amount: number;
+  price: number;
+  currency: string;
+  description?: string | null;
+}
+
+export interface AppCustomCreditPricing {
+  price_per_credit_cents: number;
+  min: number;
+  max: number;
+  currency: string;
+}
+
+export interface AppWallet {
+  total_available: number;
+  plan_period_end?: string | null;
 }
 
 export interface App {
   id: string;
+  slug?: string;
   name: string;
   description: string;
   icon: ReactNode;
   tiers: AppTier[];
-  features: string[]; // This might stay as string[] for the summary card
+  features: string[];
   status: "available" | "coming-soon";
   trialDays?: number;
   trialEligible?: boolean;
@@ -55,23 +88,32 @@ export interface App {
   trialPlanInterval?: string;
   trialPlanDescription?: string;
   trialPlanCurrency?: string;
+  /** Credit packs available for à-la-carte purchase against this tool's wallet. */
+  creditPacks?: AppCreditPack[];
+  /** Custom-amount per-credit pricing. Only set when the admin master switch is ON. */
+  customCredits?: AppCustomCreditPricing;
+  /** The signed-in org's current wallet snapshot for this tool, if any. */
+  wallet?: AppWallet;
 }
 
 export interface CartItem {
   id: string;
   planId: string;
-  type: "bundle" | "app";
+  type: "bundle" | "app" | "credit_pack" | "custom_credits";
   name: string;
   tierName: string;
   price: number;
   period: string;
   features?: FeatureItem[];
   limits?: string;
-  // Upgrade/Downgrade metadata
   isUpgrade?: boolean;
   isDowngrade?: boolean;
   currentPrice?: number;
   subscriptionId?: string;
   trialDays?: number;
   currency?: string;
+  /** For custom_credits: the tool whose wallet should be credited. */
+  toolId?: string;
+  /** For custom_credits: how many credits to grant. */
+  creditAmount?: number;
 }

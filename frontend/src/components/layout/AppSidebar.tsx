@@ -16,6 +16,7 @@ import {
   Activity,
   Globe,
   Gauge,
+  Coins,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/contexts/PermissionsContext";
@@ -255,6 +256,30 @@ export function AppSidebar() {
                       <Link to="/admin/organizations">
                         <Building2 className="h-4 w-4 opacity-70" />
                         <span>{t('nav.manageOrgs')}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive("/admin/credits")}
+                      className="gap-3 px-3 py-2"
+                    >
+                      <Link to="/admin/credits">
+                        <Coins className="h-4 w-4 opacity-70" />
+                        <span>Credits</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive("/admin/org-credits")}
+                      className="gap-3 px-3 py-2"
+                    >
+                      <Link to="/admin/org-credits">
+                        <Coins className="h-4 w-4 opacity-70" />
+                        <span>Org Credits</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

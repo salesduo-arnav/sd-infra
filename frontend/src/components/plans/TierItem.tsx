@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Coins } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AppTier, BundleTier } from "./types";
 
@@ -59,15 +60,31 @@ export function TierItem({
           {isCurrent && <Badge className="h-5 text-[10px] px-1.5">Current</Badge>}
           {isUpcoming && <Badge variant="outline" className="h-5 text-[10px] px-1.5 border-orange-500 text-orange-500">Scheduled</Badge>}
         </div>
-        <p className="text-xs text-muted-foreground line-clamp-1">{tier.limits}</p>
+        {"creditsPerPeriod" in tier && tier.creditsPerPeriod ? (
+          <p className="text-xs text-primary font-medium flex items-center gap-1 mt-0.5">
+            <Coins className="h-3 w-3" />
+            {tier.creditsPerPeriod} credits / {tier.creditsPeriodUnit === 'yearly' ? 'year' : 'month'}
+          </p>
+        ) : null}
+        {"creditGrants" in tier && tier.creditGrants && tier.creditGrants.length > 0 ? (
+          <div className="text-xs text-primary font-medium mt-0.5 space-y-0.5">
+            {tier.creditGrants.map((g, i) => (
+              <p key={i} className="flex items-center gap-1">
+                <Coins className="h-3 w-3" />
+                {g.credits_per_period} {g.tool_name ?? g.tool_slug ?? 'tool'} credits / {g.period_unit === 'yearly' ? 'year' : 'month'}
+              </p>
+            ))}
+          </div>
+        ) : null}
+        {tier.limits && (!("creditsPerPeriod" in tier) || !tier.creditsPerPeriod) && !("creditGrants" in tier && tier.creditGrants?.length) ? (
+          <p className="text-xs text-muted-foreground line-clamp-1">{tier.limits}</p>
+        ) : null}
       </div>
       <div className="text-right whitespace-nowrap flex items-center gap-3">
         <p className="font-semibold text-foreground">
           {formatPrice(tier.price, tier.currency)}
           <span className="text-xs text-muted-foreground">{tier.period}</span>
         </p>
-
-        {/* Upgrade/Downgrade label for non-current tiers */}
         {isUpgrade && (
           <Badge variant="outline" className="h-5 text-[10px] px-1.5 border-green-500 text-green-500">Upgrade</Badge>
         )}

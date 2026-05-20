@@ -204,6 +204,16 @@ export class StripeService {
     });
   }
 
+  // One-time price (for credit packs and a-la-carte credits)
+  async createOneTimePrice(productId: string, unitAmount: number, currency: string) {
+    return this.stripe.prices.create({
+      product: productId,
+      unit_amount: unitAmount,
+      currency,
+      // No `recurring` block = one-time price
+    });
+  }
+
   // Trial Subscription
   async createTrialSubscription(customerId: string, priceId: string, trialDays: number, metadata?: Record<string, string>) {
     return this.stripe.subscriptions.create({

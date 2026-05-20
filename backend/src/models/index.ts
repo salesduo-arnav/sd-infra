@@ -17,8 +17,26 @@ import { IntegrationAccount, IntegrationType, IntegrationStatus } from './integr
 import { IntegrationAccountGroup } from './integration_account_group';
 import { GlobalIntegration, GlobalIntegrationStatus } from './global_integration';
 import { WebhookEvent, WebhookEventStatus } from './webhook_event';
-import { PriceInterval, TierType, SubStatus, FeatureResetPeriod, InvitationStatus, OrgStatus } from './enums';
+import {
+  PriceInterval,
+  TierType,
+  SubStatus,
+  FeatureResetPeriod,
+  InvitationStatus,
+  OrgStatus,
+  CreditEntryType,
+  CreditBucket,
+  CreditResetInterval,
+  CreditOnCancel,
+  CreditReservationStatus,
+} from './enums';
 import { SystemConfig } from './system_config';
+import { ToolCreditConfig } from './tool_credit_config';
+import { PlanCreditGrant } from './plan_credit_grant';
+import { CreditPack } from './credit_pack';
+import { CreditWallet } from './credit_wallet';
+import { CreditReservation } from './credit_reservation';
+import { CreditLedgerEntry } from './credit_ledger';
 
 // =====================
 // Associations
@@ -197,6 +215,54 @@ IntegrationAccount.belongsTo(Organization, { foreignKey: 'organization_id', as: 
 Organization.hasMany(GlobalIntegration, { foreignKey: 'organization_id', as: 'global_integrations', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 GlobalIntegration.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
 
+// =====================
+// Credit Wallet Associations
+// =====================
+
+// Tool <-> ToolCreditConfig (one-to-one)
+Tool.hasOne(ToolCreditConfig, { foreignKey: 'tool_id', as: 'credit_config', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+ToolCreditConfig.belongsTo(Tool, { foreignKey: 'tool_id', as: 'tool' });
+
+// Tool <-> CreditPack
+Tool.hasMany(CreditPack, { foreignKey: 'tool_id', as: 'credit_packs', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+CreditPack.belongsTo(Tool, { foreignKey: 'tool_id', as: 'tool' });
+
+// Plan <-> PlanCreditGrant
+Plan.hasMany(PlanCreditGrant, { foreignKey: 'plan_id', as: 'credit_grants', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+PlanCreditGrant.belongsTo(Plan, { foreignKey: 'plan_id', as: 'plan' });
+
+// Tool <-> PlanCreditGrant
+Tool.hasMany(PlanCreditGrant, { foreignKey: 'tool_id', as: 'plan_credit_grants', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+PlanCreditGrant.belongsTo(Tool, { foreignKey: 'tool_id', as: 'tool' });
+
+// Organization <-> CreditWallet
+Organization.hasMany(CreditWallet, { foreignKey: 'organization_id', as: 'credit_wallets', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+CreditWallet.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
+
+// Tool <-> CreditWallet
+Tool.hasMany(CreditWallet, { foreignKey: 'tool_id', as: 'credit_wallets', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+CreditWallet.belongsTo(Tool, { foreignKey: 'tool_id', as: 'tool' });
+
+// Organization <-> CreditReservation
+Organization.hasMany(CreditReservation, { foreignKey: 'organization_id', as: 'credit_reservations', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+CreditReservation.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
+
+// Tool <-> CreditReservation
+Tool.hasMany(CreditReservation, { foreignKey: 'tool_id', as: 'credit_reservations', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+CreditReservation.belongsTo(Tool, { foreignKey: 'tool_id', as: 'tool' });
+
+// Organization <-> CreditLedgerEntry
+Organization.hasMany(CreditLedgerEntry, { foreignKey: 'organization_id', as: 'credit_ledger_entries', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+CreditLedgerEntry.belongsTo(Organization, { foreignKey: 'organization_id', as: 'organization' });
+
+// Tool <-> CreditLedgerEntry
+Tool.hasMany(CreditLedgerEntry, { foreignKey: 'tool_id', as: 'credit_ledger_entries', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+CreditLedgerEntry.belongsTo(Tool, { foreignKey: 'tool_id', as: 'tool' });
+
+// CreditReservation <-> CreditLedgerEntry
+CreditReservation.hasMany(CreditLedgerEntry, { foreignKey: 'reservation_id', as: 'ledger_entries', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+CreditLedgerEntry.belongsTo(CreditReservation, { foreignKey: 'reservation_id', as: 'reservation' });
+
 // Export all models
 export {
   User,
@@ -232,4 +298,15 @@ export {
   SystemConfig,
   WebhookEvent,
   WebhookEventStatus,
+  ToolCreditConfig,
+  PlanCreditGrant,
+  CreditPack,
+  CreditWallet,
+  CreditReservation,
+  CreditLedgerEntry,
+  CreditEntryType,
+  CreditBucket,
+  CreditResetInterval,
+  CreditOnCancel,
+  CreditReservationStatus,
 };

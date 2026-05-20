@@ -1,23 +1,37 @@
 import { Package, Star, Zap, Crown, Sparkles, FileText, ImageIcon, BarChart, TrendingUp } from "lucide-react";
-import { PublicBundleGroup, PublicBundlePlan, PublicPlan, PublicBundle } from "@/services/public.service";
-import { PlanLimit } from "@/services/admin.service";
+import { PublicBundleGroup, PublicBundlePlan, PublicPlan, PublicBundle, PublicPlanCreditGrant } from "@/services/public.service";
+import { CreditWalletSnapshot, PricePerCredit, PublicCreditPack } from "@/services/billing.service";
 import { App, Bundle } from "./types";
 
-// Icons mapping helper
 export const getIconForSlug = (slug: string) => {
     if (slug.includes('generator') || slug.includes('content')) return <FileText className="h-5 w-5" />;
     if (slug.includes('image')) return <ImageIcon className="h-5 w-5" />;
     if (slug.includes('analytics') || slug.includes('tracker')) return <BarChart className="h-5 w-5" />;
     if (slug.includes('inventory')) return <Package className="h-5 w-5" />;
     if (slug.includes('competitor')) return <TrendingUp className="h-5 w-5" />;
-    // Bundles
+    if (slug.includes('seo')) return <TrendingUp className="h-5 w-5" />;
     if (slug.includes('creator')) return <Sparkles className="h-5 w-5" />;
     if (slug.includes('automation')) return <Zap className="h-5 w-5" />;
     if (slug.includes('full')) return <Crown className="h-5 w-5" />;
     return <Star className="h-5 w-5" />;
 };
 
-export const transformBundles = (publicBundles: PublicBundleGroup[]): Bundle[] => {
+function buildGrantIndex(grants: PublicPlanCreditGrant[] = []) {
+    const byPlan = new Map<string, PublicPlanCreditGrant[]>();
+    for (const g of grants) {
+        const arr = byPlan.get(g.plan_id) || [];
+        arr.push(g);
+        byPlan.set(g.plan_id, arr);
+    }
+    return byPlan;
+}
+
+export const transformBundles = (
+    publicBundles: PublicBundleGroup[],
+    grants: PublicPlanCreditGrant[] = [],
+): Bundle[] => {
+    const grantsByPlan = buildGrantIndex(grants);
+
     return publicBundles.map((group: PublicBundleGroup) => {
         const firstBundle = group.bundles && group.bundles.length > 0 ? group.bundles[0] : null;
 
@@ -32,39 +46,88 @@ export const transformBundles = (publicBundles: PublicBundleGroup[]): Bundle[] =
             name: group.name,
             description: group.description,
             apps: apps,
-            tiers: group.bundles.map((b: PublicBundle) => ({
-                id: b.id,
-                name: b.tier_label || b.name, // Use label vs name fallback
-                price: b.price,
-                currency: b.currency,
-                period: "/" + b.interval,
-                limits: b.description || "Full access",
-                features: b.bundle_plans?.flatMap((bp: PublicBundlePlan) =>
-                    bp.plan?.limits?.map((limit: PlanLimit) => ({
-                        name: limit.feature?.name || "Unknown Feature",
-                        limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
-                        isEnabled: limit.is_enabled,
-                        toolName: bp.plan?.tool?.name || "Unknown Tool",
-                        resetPeriod: limit.reset_period
-                    })) || []
-                ) || []
-            })),
-            popular: false, 
+            tiers: group.bundles.map((b: PublicBundle) => {
+                const collected = (b.bundle_plans || [])
+                    .flatMap((bp: PublicBundlePlan) => grantsByPlan.get(bp.plan?.id) || [])
+                    .filter((g) => !g.is_trial_grant)
+                    .map((g) => ({
+                        tool_id: g.tool_id,
+                        tool_slug: g.tool_slug,
+                        tool_name: g.tool_name,
+                        credits_per_period: g.credits_per_period,
+                        period_unit: g.period_unit,
+                    }));
+                return {
+                    id: b.id,
+                    name: b.tier_label || b.name,
+                    price: b.price,
+                    currency: b.currency,
+                    period: "/" + b.interval,
+                    limits: b.description || "Full access",
+                    creditGrants: collected.length ? collected : undefined,
+                };
+            }),
+            popular: false,
             icon: getIconForSlug(group.slug)
         };
     });
 };
 
-export const transformPlansToApps = (publicPlans: PublicPlan[]): App[] => {
+export const transformPlansToApps = (
+    publicPlans: PublicPlan[],
+    grants: PublicPlanCreditGrant[] = [],
+    packs: PublicCreditPack[] = [],
+    pricingByToolId: Map<string, PricePerCredit> = new Map(),
+    walletByToolId: Map<string, CreditWalletSnapshot> = new Map(),
+): App[] => {
+    const grantsByPlan = buildGrantIndex(grants);
     const appsMap = new Map<string, App>();
+    const packsByToolId = new Map<string, PublicCreditPack[]>();
+    for (const p of packs) {
+        if (!p.tool_id) continue;
+        const arr = packsByToolId.get(p.tool_id) || [];
+        arr.push(p);
+        packsByToolId.set(p.tool_id, arr);
+    }
+
+    const annotateCredits = (app: App, toolId: string) => {
+        const toolPacks = (packsByToolId.get(toolId) || []).sort((a, b) => a.credit_amount - b.credit_amount);
+        if (toolPacks.length > 0) {
+            app.creditPacks = toolPacks.map((p) => ({
+                id: p.id,
+                name: p.name,
+                credit_amount: p.credit_amount,
+                price: p.price,
+                currency: p.currency,
+                description: p.description ?? null,
+            }));
+        }
+        const pricing = pricingByToolId.get(toolId);
+        if (pricing && pricing.price_per_credit_cents) {
+            app.customCredits = {
+                price_per_credit_cents: pricing.price_per_credit_cents,
+                min: pricing.min,
+                max: pricing.max,
+                currency: pricing.currency,
+            };
+        }
+        const wallet = walletByToolId.get(toolId);
+        if (wallet) {
+            app.wallet = {
+                total_available: wallet.total_available,
+                plan_period_end: wallet.plan_period_end ?? null,
+            };
+        }
+    };
 
     publicPlans.forEach(plan => {
         const tool = plan.tool;
         if (!tool) return;
 
         if (!appsMap.has(tool.id)) {
-            appsMap.set(tool.id, {
+            const app: App = {
                 id: tool.id,
+                slug: tool.slug,
                 name: tool.name,
                 description: tool.description,
                 icon: getIconForSlug(tool.slug),
@@ -73,57 +136,48 @@ export const transformPlansToApps = (publicPlans: PublicPlan[]): App[] => {
                 status: tool.is_active ? "available" : "coming-soon",
                 trialDays: tool.trial_days || 0,
                 trialCardRequired: tool.trial_card_required
-            });
+            };
+            annotateCredits(app, tool.id);
+            appsMap.set(tool.id, app);
         }
 
+        const planGrants = grantsByPlan.get(plan.id) || [];
+        const ownToolGrant = planGrants.find((g) => g.tool_id === tool.id) || planGrants[0];
+
         if (plan.is_trial_plan) {
-            // It's a trial plan
             if (plan.price === 0) {
-                // Free trial plan - don't show in tiers, but store ID for trial logic
                 const app = appsMap.get(tool.id)!;
                 app.trialPlanId = plan.id;
                 app.trialPlanInterval = plan.interval;
-                app.trialPlanDescription = plan.description; // Store description for button
-                app.trialPlanCurrency = plan.currency; // Store currency for cart presentation
-                // Ensure trial days are consistent if available here
+                app.trialPlanDescription = plan.description;
+                app.trialPlanCurrency = plan.currency;
                 if (tool.trial_days) app.trialDays = tool.trial_days;
             } else {
-                // Paid trial plan - show in tiers with special badge
                 const app = appsMap.get(tool.id)!;
                 app.tiers.push({
                     id: plan.id,
-                    name: plan.name,
+                    name: plan.name || (plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1)),
                     price: plan.price,
                     currency: plan.currency,
                     period: "/" + plan.interval,
                     limits: plan.description || "See details",
-                    features: plan.limits?.map((limit: PlanLimit) => ({
-                        name: limit.feature?.name || "Unknown Feature",
-                        limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
-                        isEnabled: limit.is_enabled,
-                        toolName: tool.name,
-                        resetPeriod: limit.reset_period
-                    })) || [],
                     isTrial: true,
-                    trialDays: tool.trial_days
+                    trialDays: tool.trial_days,
+                    creditsPerPeriod: ownToolGrant?.credits_per_period,
+                    creditsPeriodUnit: ownToolGrant?.period_unit,
                 });
             }
         } else {
             const app = appsMap.get(tool.id)!;
             app.tiers.push({
                 id: plan.id,
-                name: plan.name,
+                name: plan.name || (plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1)),
                 price: plan.price,
                 currency: plan.currency,
                 period: "/" + plan.interval,
                 limits: plan.description || "See details",
-                features: plan.limits?.map((limit: PlanLimit) => ({
-                    name: limit.feature?.name || "Unknown Feature",
-                    limit: limit.default_limit !== null ? String(limit.default_limit) : undefined,
-                    isEnabled: limit.is_enabled,
-                    toolName: tool.name,
-                    resetPeriod: limit.reset_period
-                })) || []
+                creditsPerPeriod: ownToolGrant?.credits_per_period,
+                creditsPeriodUnit: ownToolGrant?.period_unit,
             });
         }
     });
@@ -135,21 +189,17 @@ export const enrichAppsWithEligibility = (apps: App[], trialEligibility: Record<
     return apps.map(app => {
         const eligibility = trialEligibility[app.id];
         const isEligible = eligibility?.eligible || false;
-        
-        // Filter and modify tiers based on eligibility
+
         const processedTiers = app.tiers
             .filter(tier => {
-                // If eligible, keep everything.
                 if (isEligible) return true;
-                // If not eligible, remove free trial plans (price 0)
                 return tier.price > 0;
             })
             .map(tier => {
-                 // If not eligible, convert paid trials to normal plans
-                 if (!isEligible && tier.isTrial) {
-                     return { ...tier, isTrial: false, trialDays: 0 };
-                 }
-                 return tier;
+                if (!isEligible && tier.isTrial) {
+                    return { ...tier, isTrial: false, trialDays: 0 };
+                }
+                return tier;
             });
 
         return {
@@ -157,9 +207,8 @@ export const enrichAppsWithEligibility = (apps: App[], trialEligibility: Record<
             tiers: processedTiers,
             trialDays: isEligible ? (eligibility?.trialDays || app.trialDays || 0) : 0,
             trialEligible: isEligible,
-            trialCardRequired: app.trialCardRequired, 
-            // Ensure trialPlanId is nulled if not eligible to prevent any trial logic
-            trialPlanId: isEligible ? app.trialPlanId : undefined 
+            trialCardRequired: app.trialCardRequired,
+            trialPlanId: isEligible ? app.trialPlanId : undefined
         };
-      });
+    });
 };

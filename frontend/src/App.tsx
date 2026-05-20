@@ -19,6 +19,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Apps from "./pages/Apps";
 import Plans from "./pages/Plans";
 import Billing from "./pages/Billing";
+import BuyCredits from "./pages/BuyCredits";
 import CheckoutPage from "./pages/CheckoutPage";
 import Profile from "./pages/Profile";
 import Organisation from "./pages/Organisation";
@@ -37,6 +38,8 @@ import AdminConfigs from "./pages/admin/AdminConfigs";
 import AdminRBAC from "./pages/admin/AdminRBAC";
 import AuditLogs from "./pages/admin/AuditLogs";
 import AdminEntitlements from "./pages/admin/AdminEntitlements";
+import AdminCredits from "./pages/admin/AdminCredits";
+import AdminOrgCredits from "./pages/admin/AdminOrgCredits";
 import InviteAccepted from "./pages/InviteAccepted";
 import PendingInvitations from "./pages/PendingInvitations";
 import DesignSystem from "./pages/DesignSystem";
@@ -289,6 +292,16 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/billing/credits/:toolSlug"
+          element={
+            <ProtectedRoute>
+              <PermissionRoute permission="billing.view">
+                <PageTitle title="Buy Credits"><BuyCredits /></PageTitle>
+              </PermissionRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/integrations"
           element={
             <ProtectedRoute>
@@ -367,6 +380,22 @@ function AppRoutes() {
           element={
             <AdminRoute>
               <AdminEntitlements />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/credits"
+          element={
+            <AdminRoute>
+              <PageTitle title="Admin - Credits"><AdminCredits /></PageTitle>
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/org-credits"
+          element={
+            <AdminRoute>
+              <PageTitle title="Admin - Org Credits"><AdminOrgCredits /></PageTitle>
             </AdminRoute>
           }
         />

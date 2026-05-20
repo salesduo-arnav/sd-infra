@@ -19,6 +19,17 @@ import {
     getIntegrationAccounts,
     getIntegrationCredentials,
 } from '../controllers/internal.controller';
+import {
+    reserveCredits,
+    settleReservation,
+    releaseReservation,
+    extendReservation,
+    consumeCredits,
+    getCreditWallets,
+    getCreditWalletByTool,
+    getCreditLedger,
+    getToolFeatureCosts,
+} from '../controllers/internal.credit.controller';
 
 const router = Router();
 
@@ -32,6 +43,17 @@ router.get('/organizations/:id/subscription', getSubscription);
 router.get('/organizations/:id/subscriptions', getSubscriptions);
 router.get('/organizations/:id/entitlements', getEntitlements);
 router.post('/organizations/:id/entitlements/consume', consumeEntitlement);
+
+// Credits
+router.post('/organizations/:id/credits/reserve', reserveCredits);
+router.post('/organizations/:id/credits/reservations/:reservationId/settle', settleReservation);
+router.post('/organizations/:id/credits/reservations/:reservationId/release', releaseReservation);
+router.post('/organizations/:id/credits/reservations/:reservationId/extend', extendReservation);
+router.post('/organizations/:id/credits/consume', consumeCredits);
+router.get('/organizations/:id/credits/wallets', getCreditWallets);
+router.get('/organizations/:id/credits/tools/:toolSlug/wallet', getCreditWalletByTool);
+router.get('/organizations/:id/credits/tools/:toolSlug/ledger', getCreditLedger);
+router.get('/tools/:toolSlug/credit-costs', getToolFeatureCosts);
 
 // Integration credentials
 router.get('/integrations/accounts', getIntegrationAccounts);

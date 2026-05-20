@@ -10,6 +10,7 @@ import { WebhookEvent, WebhookEventStatus } from '../models/webhook_event';
 import sequelize from '../config/db';
 import { Op } from 'sequelize';
 import { entitlementService } from '../services/entitlement.service';
+import { creditService } from '../services/credit.service';
 import Logger from '../utils/logger';
 
 class WebhookController {
@@ -136,11 +137,17 @@ class WebhookController {
                 Logger.info(`Checkout completed for Org ${orgId}, Sub ${session.subscription}`);
             } else if (session.mode === 'payment' && session.payment_intent) {
                  Logger.info(`Payment Checkout completed for Org ${orgId}, Intent ${session.payment_intent}`);
-                 
+
+                 const purpose = session.metadata?.purpose;
+                 if (purpose === 'credit_pack' || purpose === 'alacarte_credits') {
+                     await this.handleCreditPurchase(session, orgId, purpose);
+                     return;
+                 }
+
                  const itemsMeta = session.metadata?.items ? JSON.parse(session.metadata.items) : [];
                  let planId = null;
                  let bundleId = null;
-                 
+
                  if (itemsMeta.length > 0) {
                      const item = itemsMeta[0];
                      if (item.type === 'plan') planId = item.id;
@@ -148,7 +155,7 @@ class WebhookController {
                  }
 
                  const { OneTimePurchase } = await import('../models/one_time_purchase');
-                 
+
                  await OneTimePurchase.create({
                      organization_id: orgId,
                      plan_id: planId,
@@ -159,6 +166,63 @@ class WebhookController {
                      status: 'succeeded'
                  });
             }
+        }
+    }
+
+    private async handleCreditPurchase(
+        session: Stripe.Checkout.Session,
+        orgId: string,
+        purpose: 'credit_pack' | 'alacarte_credits',
+    ) {
+        try {
+            const toolId = session.metadata?.tool_id;
+            const credits = Number(session.metadata?.credits ?? 0);
+            const creditPackId = session.metadata?.credit_pack_id;
+
+            if (!toolId || credits <= 0) {
+                Logger.warn(`[Webhook] Credit purchase session ${session.id} missing tool_id/credits in metadata`);
+                return;
+            }
+
+            const idempotencyKey = `checkout:${session.id}`;
+            const source = purpose === 'credit_pack' ? 'credit_pack_purchase' : 'alacarte_purchase';
+
+            const result = await creditService.grantPurchaseCredits({
+                orgId,
+                toolSlugOrId: toolId,
+                credits,
+                idempotencyKey,
+                source,
+                relatedCreditPackId: creditPackId || undefined,
+                metadata: {
+                    stripe_session_id: session.id,
+                    stripe_payment_intent: session.payment_intent,
+                    amount_paid: session.amount_total,
+                    currency: session.currency,
+                },
+            });
+
+            if (!result.already_applied) {
+                // Append to unified billing history
+                const { OneTimePurchase } = await import('../models/one_time_purchase');
+                await OneTimePurchase.create({
+                    organization_id: orgId,
+                    plan_id: undefined,
+                    bundle_id: undefined,
+                    stripe_payment_intent_id: session.payment_intent as string,
+                    amount_paid: session.amount_total || 0,
+                    currency: session.currency || 'usd',
+                    status: 'succeeded',
+                });
+            }
+
+            Logger.info(
+                `[Webhook] ${purpose} grant complete for org=${orgId} tool=${toolId} credits=${credits}` +
+                    (result.already_applied ? ' (replay)' : ''),
+            );
+        } catch (err) {
+            Logger.error(`[Webhook] Failed to apply credit purchase for session ${session.id}:`, err);
+            throw err;
         }
     }
 
@@ -286,6 +350,13 @@ class WebhookController {
             Logger.error(`[WebhookController] Failed to provision entitlements on sub update for org ${orgId}:`, provErr);
         }
 
+        // Provision / refresh credits (additive — does nothing if no PlanCreditGrant rows)
+        try {
+            await creditService.applySubscriptionGrants(subscription);
+        } catch (creditErr) {
+            Logger.error(`[WebhookController] Failed to apply credit grants on sub update for org ${orgId}:`, creditErr);
+        }
+
         if (fingerprint && (status === SubStatus.TRIALING || status === SubStatus.ACTIVE)) {
             await this.checkAndEnforceTrialAbuse(subscription, stripeSub, finalPlanId || subscription.plan_id, fingerprint, stripeSub.metadata?.userId);
         }
@@ -356,6 +427,13 @@ class WebhookController {
                 } catch (provErr) {
                     Logger.error(`[WebhookController] Failed to revoke entitlements on sub deletion for org ${sub.organization_id}:`, provErr);
                 }
+
+                // Apply per-plan credit cancellation policy
+                try {
+                    await creditService.applySubscriptionCancellation(sub);
+                } catch (creditErr) {
+                    Logger.error(`[WebhookController] Failed to apply credit cancellation policy for org ${sub.organization_id}:`, creditErr);
+                }
             }
         }
     }
@@ -410,11 +488,21 @@ class WebhookController {
 
             if (subscription) {
                 Logger.info(`[WebhookController] Validating subscription ${subscription.id} status after payment success.`);
-                
+
                 await subscription.update({
                     status: SubStatus.ACTIVE,
                     last_payment_failure_at: null
                 });
+
+                // Trigger credit grant on renewal (idempotent via last_granted_period_start)
+                const billingReason = (invoice as Stripe.Invoice & { billing_reason?: string }).billing_reason;
+                if (billingReason === 'subscription_cycle' || billingReason === 'subscription_create') {
+                    try {
+                        await creditService.applySubscriptionGrants(subscription);
+                    } catch (creditErr) {
+                        Logger.error(`[WebhookController] Failed to grant cycle credits for sub ${subscription.id}:`, creditErr);
+                    }
+                }
             }
         }
     }

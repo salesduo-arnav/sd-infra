@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { billingController } from '../controllers/billing.controller';
-import { authenticate } from '../middlewares/auth.middleware'; 
+import { billingCreditController } from '../controllers/billing.credit.controller';
+import { authenticate } from '../middlewares/auth.middleware';
 import { resolveOrganization, requireOrganization, requirePermission } from '../middlewares/organization.middleware';
 
 const router = Router();
@@ -27,6 +28,21 @@ router.put('/subscription/:id', requirePermission('billing.manage'), billingCont
 router.post('/sync', requirePermission('billing.manage'), billingController.syncSubscription.bind(billingController));
 router.post('/trial/start', requirePermission('billing.manage'), billingController.startTrial.bind(billingController));
 router.post('/trial/:id/cancel', requirePermission('billing.manage'), billingController.cancelTrial.bind(billingController));
+
+// =====================
+// Credits — user-facing
+// =====================
+
+router.get('/credits', requirePermission('billing.view'), billingCreditController.getMyCredits.bind(billingCreditController));
+router.get('/credit-packs', requirePermission('billing.view'), billingCreditController.listAllPacks.bind(billingCreditController));
+router.get('/credits/price-per-credit', requirePermission('billing.view'), billingCreditController.getPricePerCredit.bind(billingCreditController));
+router.get('/credits/wallets', requirePermission('billing.view'), billingCreditController.getWallets.bind(billingCreditController));
+router.get('/credits/wallets/:toolSlug', requirePermission('billing.view'), billingCreditController.getWalletByTool.bind(billingCreditController));
+router.get('/credits/tools/:toolSlug/packs', requirePermission('billing.view'), billingCreditController.listPacks.bind(billingCreditController));
+router.get('/credits/tools/:toolSlug/alacarte', requirePermission('billing.view'), billingCreditController.getAlacarteConfig.bind(billingCreditController));
+router.get('/credits/tools/:toolSlug/ledger', requirePermission('billing.view'), billingCreditController.getLedger.bind(billingCreditController));
+router.post('/credits/credit-packs/:packId/checkout', requirePermission('billing.manage'), billingCreditController.checkoutPack.bind(billingCreditController));
+router.post('/credits/tools/:toolSlug/alacarte/checkout', requirePermission('billing.manage'), billingCreditController.checkoutAlacarte.bind(billingCreditController));
 
 export default router;
 

@@ -5,7 +5,7 @@ import { CartItem } from "./types";
 
 interface CartSidebarItemProps {
   item: CartItem;
-  onRemove: (id: string, planId: string) => void;
+  onRemove: (id: string, tierName: string) => void;
 }
 
 export function CartSidebarItem({ item, onRemove }: CartSidebarItemProps) {
@@ -55,13 +55,13 @@ export function CartSidebarItem({ item, onRemove }: CartSidebarItemProps) {
             variant="ghost"
             size="icon"
             className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-            onClick={() => onRemove(item.id, item.planId)}
+            onClick={() => onRemove(item.id, item.tierName)}
           >
             <X className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
-      
+
       {item.isUpgrade && (
         <p className="text-[11px] text-green-600 bg-green-50 dark:bg-green-950/30 rounded px-2 py-1">
           Pro-rated charge of ~{formatPrice((item.price - (item.currentPrice ?? 0)), item.currency)} applies immediately

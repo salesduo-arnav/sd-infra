@@ -89,6 +89,26 @@ router.get('/entitlements', EntitlementController.getEntitlements);
 router.post('/entitlements', EntitlementController.createEntitlements);
 router.put('/entitlements/:id', EntitlementController.updateEntitlement);
 
+// Credits — admin config + org wallets
+import * as CreditController from '../controllers/admin.credit.controller';
+router.put('/features/:id/credit-cost', CreditController.updateFeatureCreditCost);
+router.get('/feature-credit-costs', CreditController.listFeatureCreditCosts);
+router.get('/tools/:id/credit-config', CreditController.getToolCreditConfig);
+router.put('/tools/:id/credit-config', CreditController.upsertToolCreditConfig);
+router.get('/credit-packs', CreditController.listCreditPacks);
+router.post('/credit-packs', CreditController.createCreditPack);
+router.put('/credit-packs/:id', CreditController.updateCreditPack);
+router.delete('/credit-packs/:id', CreditController.deleteCreditPack);
+router.get('/plan-credit-grants', CreditController.listAllPlanCreditGrants);
+router.get('/plans/:planId/credit-grants', CreditController.listPlanCreditGrants);
+router.put('/plans/:planId/credit-grants/:toolId', CreditController.upsertPlanCreditGrant);
+router.delete('/plans/:planId/credit-grants/:toolId', CreditController.deletePlanCreditGrant);
+router.get('/credit-orgs', CreditController.listOrgsWithWallets);
+router.get('/organizations/:id/credit-wallets', CreditController.getOrgCreditWallets);
+router.get('/organizations/:id/credit-wallets/:toolId/ledger', CreditController.getOrgWalletLedger);
+router.get('/organizations/:id/credit-wallets/:toolId/usage', CreditController.getOrgWalletUsage);
+router.post('/organizations/:id/credit-wallets/:toolId/adjust', CreditController.adjustOrgWallet);
+
 // RBAC Management
 import * as RBACController from '../controllers/admin.rbac.controller';
 router.get('/rbac/roles', RBACController.getRoles);
