@@ -6,6 +6,7 @@ import {
   CreditOnCancel,
   CreditReservationStatus,
   CreditResetInterval,
+  SubStatus,
 } from '../models/enums';
 import { CreditLedgerEntry } from '../models/credit_ledger';
 import { CreditReservation } from '../models/credit_reservation';
@@ -16,6 +17,8 @@ import { PlanCreditGrant } from '../models/plan_credit_grant';
 import { BundlePlan } from '../models/bundle_plan';
 import { Plan } from '../models/plan';
 import Logger from '../utils/logger';
+
+const ACTIVE_SUB_STATUSES: SubStatus[] = [SubStatus.ACTIVE, SubStatus.TRIALING, SubStatus.PAST_DUE];
 
 // =====================
 // Typed errors
@@ -1210,6 +1213,236 @@ export class CreditService {
         policy: grant.on_cancel,
       });
     }
+  }
+
+  // =====================
+  // PLAN GRANT CHANGE PROPAGATION
+  // =====================
+
+  /**
+   * Finds active subscriptions that include `planId` — either directly via plan_id
+   * or indirectly via a bundle that contains this plan.
+   */
+  private async findActiveSubscriptionsForPlan(planId: string): Promise<Subscription[]> {
+    const direct = await Subscription.findAll({
+      where: { plan_id: planId, status: { [Op.in]: ACTIVE_SUB_STATUSES } },
+    });
+
+    const bundleRows = await BundlePlan.findAll({
+      where: { plan_id: planId },
+      attributes: ['bundle_id'],
+    });
+    const bundleIds = bundleRows.map((b) => b.bundle_id);
+    const viaBundle = bundleIds.length
+      ? await Subscription.findAll({
+          where: { bundle_id: { [Op.in]: bundleIds }, status: { [Op.in]: ACTIVE_SUB_STATUSES } },
+        })
+      : [];
+
+    const byId = new Map<string, Subscription>();
+    for (const s of [...direct, ...viaBundle]) byId.set(s.id, s);
+    return Array.from(byId.values());
+  }
+
+  /**
+   * Propagates an admin edit to a (plan, tool) credit grant to all existing active
+   * subscribers on that plan (or on bundles that include the plan).
+   *
+   * - Only positive deltas are applied instantly:
+   *     - delta = newCreditsPerCycle - oldCreditsPerCycle (if > 0) is added to each
+   *       subscriber's plan_balance for the given tool.
+   *     - delta_trial = newTrialCredits - oldTrialCredits (if > 0) is added only to
+   *       subscribers currently in `trialing` status.
+   *   Reductions (delta < 0) deliberately take effect on the next renewal cycle —
+   *   existing users keep what they already have for the current period and the
+   *   lower amount is granted naturally on the next billing cycle.
+   * - The reset_interval / carry_over / on_cancel fields are NOT backfilled: those
+   *   take effect on the next renewal or cancellation event.
+   */
+  public async applyPlanGrantUpdateToSubscribers(params: {
+    planId: string;
+    toolId: string;
+    oldCreditsPerCycle: number;
+    newCreditsPerCycle: number;
+    oldTrialCredits: number;
+    newTrialCredits: number;
+    adminUserId: string;
+    reason?: string;
+  }): Promise<{ affected: number; skipped: number }> {
+    const {
+      planId,
+      toolId,
+      oldCreditsPerCycle,
+      newCreditsPerCycle,
+      oldTrialCredits,
+      newTrialCredits,
+      adminUserId,
+    } = params;
+    const reason = params.reason ?? 'Admin updated plan credit grant';
+
+    // Only positive deltas propagate instantly. Reductions wait for next renewal —
+    // the new lower credits_per_cycle/trial_credits will be granted then automatically.
+    const rawCycleDelta = newCreditsPerCycle - oldCreditsPerCycle;
+    const rawTrialDelta = newTrialCredits - oldTrialCredits;
+    const cycleDelta = rawCycleDelta > 0 ? rawCycleDelta : 0;
+    const trialDelta = rawTrialDelta > 0 ? rawTrialDelta : 0;
+    if (cycleDelta === 0 && trialDelta === 0) {
+      Logger.info(
+        `[CreditService] Plan grant update for plan=${planId} tool=${toolId}: no positive deltas (cycleDelta=${rawCycleDelta}, trialDelta=${rawTrialDelta}); reductions defer to next cycle.`,
+      );
+      return { affected: 0, skipped: 0 };
+    }
+
+    const subscriptions = await this.findActiveSubscriptionsForPlan(planId);
+    if (subscriptions.length === 0) return { affected: 0, skipped: 0 };
+
+    const changeTs = Date.now();
+    let affected = 0;
+    let skipped = 0;
+
+    for (const sub of subscriptions) {
+      try {
+        await sequelize.transaction(async (transaction) => {
+          const wallet = await this.lockWallet(sub.organization_id, toolId, transaction);
+
+          const applied =
+            cycleDelta + (sub.status === SubStatus.TRIALING ? trialDelta : 0);
+          if (applied <= 0) {
+            skipped += 1;
+            return;
+          }
+
+          wallet.plan_balance += applied;
+          await wallet.save({ transaction });
+
+          await CreditLedgerEntry.create(
+            {
+              organization_id: sub.organization_id,
+              tool_id: toolId,
+              entry_type: CreditEntryType.ADJUSTMENT,
+              bucket: CreditBucket.PLAN,
+              amount: applied,
+              balance_after_plan: wallet.plan_balance,
+              balance_after_purchased: wallet.purchased_balance,
+              idempotency_key: `plan_grant_update:${planId}:${toolId}:${changeTs}:${sub.id}`,
+              source: 'plan_grant_update',
+              related_subscription_id: sub.id,
+              related_plan_id: planId,
+              admin_user_id: adminUserId,
+              reason,
+              metadata: {
+                raw_cycle_delta: rawCycleDelta,
+                raw_trial_delta: rawTrialDelta,
+                applied_cycle_delta: cycleDelta,
+                applied_trial_delta: sub.status === SubStatus.TRIALING ? trialDelta : 0,
+                old_credits_per_cycle: oldCreditsPerCycle,
+                new_credits_per_cycle: newCreditsPerCycle,
+                old_trial_credits: oldTrialCredits,
+                new_trial_credits: newTrialCredits,
+                sub_status: sub.status,
+                note: 'reductions deferred to next cycle',
+              },
+            },
+            { transaction },
+          );
+
+          affected += 1;
+        });
+      } catch (e) {
+        Logger.error(
+          `[CreditService] applyPlanGrantUpdateToSubscribers failed for sub=${sub.id}`,
+          e,
+        );
+        skipped += 1;
+      }
+    }
+
+    Logger.info(
+      `[CreditService] Plan grant update propagated for plan=${planId} tool=${toolId}: affected=${affected} skipped=${skipped} cycleDelta=${cycleDelta} trialDelta=${trialDelta}`,
+    );
+    return { affected, skipped };
+  }
+
+  /**
+   * Propagates the removal of a (plan, tool) credit grant to active subscribers.
+   *
+   * - action = 'forfeit' (default): expire remaining plan_balance for this tool on
+   *   each active subscriber (since no future grants will arrive for this tool from
+   *   this plan).
+   * - action = 'keep': leave existing balances untouched; the only effect is that
+   *   no further grants will be issued (handled implicitly by the grant row being gone).
+   *
+   * Note: plan_balance is per (org, tool). If another active plan grants credits to
+   * the same tool, this still expires the full balance — there is no per-grant
+   * provenance on plan_balance. That is intentional: keeping it would be confusing
+   * to admins. In practice an org has one subscription, so this matches expectations.
+   */
+  public async applyPlanGrantDeletionToSubscribers(params: {
+    planId: string;
+    toolId: string;
+    action: 'forfeit' | 'keep';
+    adminUserId: string;
+    reason?: string;
+  }): Promise<{ affected: number; skipped: number }> {
+    const { planId, toolId, action, adminUserId } = params;
+    const reason = params.reason ?? 'Admin deleted plan credit grant';
+
+    if (action === 'keep') return { affected: 0, skipped: 0 };
+
+    const subscriptions = await this.findActiveSubscriptionsForPlan(planId);
+    if (subscriptions.length === 0) return { affected: 0, skipped: 0 };
+
+    const changeTs = Date.now();
+    let affected = 0;
+    let skipped = 0;
+
+    for (const sub of subscriptions) {
+      try {
+        await sequelize.transaction(async (transaction) => {
+          const wallet = await this.lockWallet(sub.organization_id, toolId, transaction);
+          if (wallet.plan_balance <= 0) {
+            skipped += 1;
+            return;
+          }
+          const expired = wallet.plan_balance;
+          wallet.plan_balance = 0;
+          await wallet.save({ transaction });
+
+          await CreditLedgerEntry.create(
+            {
+              organization_id: sub.organization_id,
+              tool_id: toolId,
+              entry_type: CreditEntryType.EXPIRE,
+              bucket: CreditBucket.PLAN,
+              amount: -expired,
+              balance_after_plan: wallet.plan_balance,
+              balance_after_purchased: wallet.purchased_balance,
+              idempotency_key: `plan_grant_delete:${planId}:${toolId}:${changeTs}:${sub.id}`,
+              source: 'plan_grant_delete',
+              related_subscription_id: sub.id,
+              related_plan_id: planId,
+              admin_user_id: adminUserId,
+              reason,
+              metadata: { expired_credits: expired },
+            },
+            { transaction },
+          );
+
+          affected += 1;
+        });
+      } catch (e) {
+        Logger.error(
+          `[CreditService] applyPlanGrantDeletionToSubscribers failed for sub=${sub.id}`,
+          e,
+        );
+        skipped += 1;
+      }
+    }
+
+    Logger.info(
+      `[CreditService] Plan grant deletion propagated for plan=${planId} tool=${toolId}: affected=${affected} skipped=${skipped}`,
+    );
+    return { affected, skipped };
   }
 
   // =====================

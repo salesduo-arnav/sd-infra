@@ -391,7 +391,10 @@ interface PlanGrantDialogState {
   reset_interval: 'monthly' | 'yearly' | 'never';
   carry_over: boolean;
   on_cancel: 'forfeit_immediate' | 'keep_till_period_end' | 'keep_forever';
+  apply_to_existing: boolean;
   isEdit: boolean;
+  original_credits_per_cycle?: number;
+  original_trial_credits?: number;
 }
 
 const EMPTY_GRANT_STATE: PlanGrantDialogState = {
@@ -403,7 +406,20 @@ const EMPTY_GRANT_STATE: PlanGrantDialogState = {
   reset_interval: 'monthly',
   carry_over: true,
   on_cancel: 'keep_till_period_end',
+  apply_to_existing: true,
   isEdit: false,
+};
+
+interface DeleteGrantDialogState {
+  open: boolean;
+  grant: PlanCreditGrant | null;
+  existing_action: 'keep' | 'forfeit';
+}
+
+const EMPTY_DELETE_STATE: DeleteGrantDialogState = {
+  open: false,
+  grant: null,
+  existing_action: 'keep',
 };
 
 function PlanGrantsTab() {
@@ -414,6 +430,8 @@ function PlanGrantsTab() {
   const [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState<PlanGrantDialogState>(EMPTY_GRANT_STATE);
   const [saving, setSaving] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState<DeleteGrantDialogState>(EMPTY_DELETE_STATE);
+  const [deleting, setDeleting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -448,8 +466,19 @@ function PlanGrantsTab() {
       reset_interval: g.reset_interval,
       carry_over: g.carry_over,
       on_cancel: g.on_cancel,
+      apply_to_existing: true,
       isEdit: true,
+      original_credits_per_cycle: g.credits_per_cycle,
+      original_trial_credits: g.trial_credits,
     });
+
+  const nextCreditsPerCycle = Number(dialog.credits_per_cycle) || 0;
+  const nextTrialCredits = Number(dialog.trial_credits) || 0;
+  const cycleDelta =
+    nextCreditsPerCycle - (dialog.original_credits_per_cycle ?? 0);
+  const trialDelta = nextTrialCredits - (dialog.original_trial_credits ?? 0);
+  const hasIncrease = cycleDelta > 0 || trialDelta > 0;
+  const hasDecrease = cycleDelta < 0 || trialDelta < 0;
 
   const save = async () => {
     if (!dialog.planId || !dialog.toolId) {
@@ -458,14 +487,21 @@ function PlanGrantsTab() {
     }
     setSaving(true);
     try {
-      await upsertPlanCreditGrant(dialog.planId, dialog.toolId, {
-        credits_per_cycle: Number(dialog.credits_per_cycle) || 0,
-        trial_credits: Number(dialog.trial_credits) || 0,
+      const result = await upsertPlanCreditGrant(dialog.planId, dialog.toolId, {
+        credits_per_cycle: nextCreditsPerCycle,
+        trial_credits: nextTrialCredits,
         reset_interval: dialog.reset_interval,
         carry_over: dialog.carry_over,
         on_cancel: dialog.on_cancel,
+        apply_to_existing: dialog.apply_to_existing,
       });
-      toast({ title: dialog.isEdit ? 'Grant updated' : 'Grant created' });
+      const prop = result.propagation;
+      toast({
+        title: dialog.isEdit ? 'Grant updated' : 'Grant created',
+        description: prop
+          ? `Propagation: ${prop.affected} subscriber(s) topped up, ${prop.skipped} skipped.`
+          : undefined,
+      });
       setDialog(EMPTY_GRANT_STATE);
       await load();
     } catch {
@@ -475,14 +511,32 @@ function PlanGrantsTab() {
     }
   };
 
-  const remove = async (g: PlanCreditGrant) => {
-    if (!window.confirm('Delete this grant? Active subscribers keep credits already granted.')) return;
+  const openDelete = (g: PlanCreditGrant) =>
+    setDeleteDialog({ open: true, grant: g, existing_action: 'keep' });
+
+  const confirmDelete = async () => {
+    if (!deleteDialog.grant) return;
+    setDeleting(true);
     try {
-      await deletePlanCreditGrant(g.plan_id, g.tool_id);
-      toast({ title: 'Grant deleted' });
+      const result = await deletePlanCreditGrant(
+        deleteDialog.grant.plan_id,
+        deleteDialog.grant.tool_id,
+        { existing_action: deleteDialog.existing_action },
+      );
+      const prop = result.propagation;
+      toast({
+        title: 'Grant deleted',
+        description:
+          deleteDialog.existing_action === 'forfeit' && prop
+            ? `Forfeited credits on ${prop.affected} subscriber(s), ${prop.skipped} skipped.`
+            : 'Existing balances kept for the current period; no future grants.',
+      });
+      setDeleteDialog(EMPTY_DELETE_STATE);
       await load();
     } catch {
       toast({ title: 'Delete failed', variant: 'destructive' });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -553,7 +607,7 @@ function PlanGrantsTab() {
                       <Button variant="ghost" size="icon" onClick={() => openEdit(g)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => remove(g)}>
+                      <Button variant="ghost" size="icon" onClick={() => openDelete(g)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -713,6 +767,48 @@ function PlanGrantsTab() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={dialog.apply_to_existing}
+                  onCheckedChange={(v) =>
+                    setDialog((d) => ({ ...d, apply_to_existing: v }))
+                  }
+                />
+                <Label className="cursor-pointer">
+                  Apply changes to existing subscribers immediately
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                When enabled, increases are added to active subscribers' wallets right now.
+                {hasIncrease && (
+                  <span className="block text-foreground">
+                    {' '}Increase detected: <strong>+{Math.max(cycleDelta, 0)}</strong> credits/cycle
+                    {trialDelta > 0 && (
+                      <>, <strong>+{trialDelta}</strong> trial (trialing users only)</>
+                    )}
+                    {' '}— will be granted instantly.
+                  </span>
+                )}
+                {hasDecrease && (
+                  <span className="block text-foreground">
+                    {' '}Reduction detected — by design, reductions always take effect on the
+                    next renewal cycle, never instantly. Existing subscribers keep what they
+                    already have for the current period.
+                  </span>
+                )}
+                {!hasIncrease && !hasDecrease && dialog.isEdit && (
+                  <span className="block"> No change to credit amounts.</span>
+                )}
+                {!dialog.isEdit && (
+                  <span className="block">
+                    {' '}For a new grant, this will give active subscribers the full{' '}
+                    <strong>{nextCreditsPerCycle}</strong> credits now.
+                  </span>
+                )}
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDialog(EMPTY_GRANT_STATE)}>
@@ -720,6 +816,72 @@ function PlanGrantsTab() {
             </Button>
             <Button onClick={save} disabled={saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save grant
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteDialog.open}
+        onOpenChange={(o) => !o && setDeleteDialog(EMPTY_DELETE_STATE)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete plan credit grant</DialogTitle>
+            <DialogDescription>
+              {deleteDialog.grant ? (
+                <>
+                  Remove the grant for{' '}
+                  <strong>{deleteDialog.grant.plan?.name || 'this plan'}</strong> →{' '}
+                  <strong>{deleteDialog.grant.tool?.name || 'this tool'}</strong>. No future
+                  renewals will grant credits for this combination.
+                </>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label>What should happen to credits active subscribers already have?</Label>
+            <Select
+              value={deleteDialog.existing_action}
+              onValueChange={(v) =>
+                setDeleteDialog((d) => ({
+                  ...d,
+                  existing_action: v as 'keep' | 'forfeit',
+                }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="keep">
+                  Keep existing balances (recommended) — subscribers use what they have; no
+                  future grants
+                </SelectItem>
+                <SelectItem value="forfeit">
+                  Forfeit immediately — expire remaining plan credits for this tool now
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              "Keep" matches the upsert behavior where reductions defer to the next cycle.
+              "Forfeit" is destructive — credits already in subscribers' wallets are removed
+              and a ledger EXPIRE entry is written.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteDialog(EMPTY_DELETE_STATE)}>
+              Cancel
+            </Button>
+            <Button
+              variant={deleteDialog.existing_action === 'forfeit' ? 'destructive' : 'default'}
+              onClick={confirmDelete}
+              disabled={deleting}
+            >
+              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {deleteDialog.existing_action === 'forfeit'
+                ? 'Delete and forfeit credits'
+                : 'Delete grant'}
             </Button>
           </DialogFooter>
         </DialogContent>

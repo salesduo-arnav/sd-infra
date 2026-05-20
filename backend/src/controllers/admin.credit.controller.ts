@@ -371,6 +371,7 @@ export const upsertPlanCreditGrant = async (req: Request, res: Response) => {
       reset_interval,
       carry_over,
       on_cancel,
+      apply_to_existing,
     } = req.body ?? {};
 
     const plan = await Plan.findByPk(planId);
@@ -378,7 +379,7 @@ export const upsertPlanCreditGrant = async (req: Request, res: Response) => {
     const tool = await Tool.findByPk(toolId);
     if (!tool) return res.status(404).json({ message: 'Tool not found' });
 
-    const [grant] = await PlanCreditGrant.findOrCreate({
+    const [grant, wasCreated] = await PlanCreditGrant.findOrCreate({
       where: { plan_id: planId, tool_id: toolId },
       defaults: {
         plan_id: planId,
@@ -391,6 +392,10 @@ export const upsertPlanCreditGrant = async (req: Request, res: Response) => {
       },
     });
 
+    // Snapshot pre-update values so we can compute deltas after the update.
+    const oldCreditsPerCycle = wasCreated ? 0 : grant.credits_per_cycle;
+    const oldTrialCredits = wasCreated ? 0 : grant.trial_credits;
+
     await grant.update({
       credits_per_cycle: Number.isInteger(credits_per_cycle) ? credits_per_cycle : grant.credits_per_cycle,
       trial_credits: Number.isInteger(trial_credits) ? trial_credits : grant.trial_credits,
@@ -399,15 +404,40 @@ export const upsertPlanCreditGrant = async (req: Request, res: Response) => {
       on_cancel: Object.values(CreditOnCancel).includes(on_cancel) ? on_cancel : grant.on_cancel,
     });
 
+    const shouldPropagate = apply_to_existing !== false;
+    let propagation: { affected: number; skipped: number } | null = null;
+    if (shouldPropagate && req.user?.id) {
+      propagation = await creditService.applyPlanGrantUpdateToSubscribers({
+        planId,
+        toolId,
+        oldCreditsPerCycle,
+        newCreditsPerCycle: grant.credits_per_cycle,
+        oldTrialCredits,
+        newTrialCredits: grant.trial_credits,
+        adminUserId: req.user.id,
+        reason: wasCreated
+          ? 'Admin added plan credit grant'
+          : 'Admin updated plan credit grant',
+      });
+    }
+
     await AuditService.log({
       actorId: req.user?.id,
       action: 'credit.plan_grant.update',
       entityType: 'plan',
       entityId: planId,
-      details: { tool_id: toolId, ...req.body },
+      details: {
+        tool_id: toolId,
+        was_created: wasCreated,
+        old_credits_per_cycle: oldCreditsPerCycle,
+        old_trial_credits: oldTrialCredits,
+        apply_to_existing: shouldPropagate,
+        propagation,
+        ...req.body,
+      },
     });
 
-    res.json(grant);
+    res.json({ grant, propagation });
   } catch (error) {
     handleError(res, error, 'Admin: Upsert Plan Credit Grant');
   }
@@ -416,17 +446,35 @@ export const upsertPlanCreditGrant = async (req: Request, res: Response) => {
 export const deletePlanCreditGrant = async (req: Request, res: Response) => {
   try {
     const { planId, toolId } = req.params;
+    const { existing_action } = req.body ?? {};
+    // Default 'keep' to match the "reductions defer to next cycle" policy used on
+    // upserts. Future grants stop automatically (the grant row is gone), but the
+    // existing plan_balance is left intact for the current period. Admin can pass
+    // existing_action='forfeit' to expire balances immediately.
+    const action: 'forfeit' | 'keep' = existing_action === 'forfeit' ? 'forfeit' : 'keep';
+
     const grant = await PlanCreditGrant.findOne({ where: { plan_id: planId, tool_id: toolId } });
     if (!grant) return res.status(404).json({ message: 'Grant not found' });
+
+    let propagation: { affected: number; skipped: number } | null = null;
+    if (req.user?.id) {
+      propagation = await creditService.applyPlanGrantDeletionToSubscribers({
+        planId,
+        toolId,
+        action,
+        adminUserId: req.user.id,
+      });
+    }
+
     await grant.destroy();
     await AuditService.log({
       actorId: req.user?.id,
       action: 'credit.plan_grant.delete',
       entityType: 'plan',
       entityId: planId,
-      details: { tool_id: toolId },
+      details: { tool_id: toolId, existing_action: action, propagation },
     });
-    res.json({ ok: true });
+    res.json({ ok: true, propagation });
   } catch (error) {
     handleError(res, error, 'Admin: Delete Plan Credit Grant');
   }

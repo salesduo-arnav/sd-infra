@@ -150,16 +150,32 @@ export const listPlanCreditGrants = async (planId: string): Promise<PlanCreditGr
   const res = await api.get(`/admin/plans/${planId}/credit-grants`);
   return res.data;
 };
+export interface PlanGrantPropagation {
+  affected: number;
+  skipped: number;
+}
+export interface UpsertPlanCreditGrantResponse {
+  grant: PlanCreditGrant;
+  propagation: PlanGrantPropagation | null;
+}
+export interface DeletePlanCreditGrantResponse {
+  ok: boolean;
+  propagation: PlanGrantPropagation | null;
+}
 export const upsertPlanCreditGrant = async (
   planId: string,
   toolId: string,
-  data: Partial<PlanCreditGrant>,
-): Promise<PlanCreditGrant> => {
+  data: Partial<PlanCreditGrant> & { apply_to_existing?: boolean },
+): Promise<UpsertPlanCreditGrantResponse> => {
   const res = await api.put(`/admin/plans/${planId}/credit-grants/${toolId}`, data);
   return res.data;
 };
-export const deletePlanCreditGrant = async (planId: string, toolId: string) => {
-  const res = await api.delete(`/admin/plans/${planId}/credit-grants/${toolId}`);
+export const deletePlanCreditGrant = async (
+  planId: string,
+  toolId: string,
+  data?: { existing_action?: 'keep' | 'forfeit' },
+): Promise<DeletePlanCreditGrantResponse> => {
+  const res = await api.delete(`/admin/plans/${planId}/credit-grants/${toolId}`, { data });
   return res.data;
 };
 
