@@ -101,6 +101,29 @@ export interface GrantResult {
 // Helpers
 // =====================
 
+/**
+ * Computes the wallet's next_reset_at from the grant's own cadence — NOT from
+ * the Stripe billing cycle. A YEARLY grant on a monthly-billed plan must show a
+ * year-from-now boundary, not the next monthly invoice.
+ *  - NEVER   → null (no boundary)
+ *  - MONTHLY → anchor + 1 calendar month (UTC)
+ *  - YEARLY  → anchor + 1 calendar year (UTC)
+ */
+export function computeNextResetAt(
+  resetInterval: CreditResetInterval | undefined | null,
+  anchor: Date | null | undefined,
+): Date | null {
+  if (!resetInterval || resetInterval === CreditResetInterval.NEVER) return null;
+  if (!anchor) return null;
+  const d = new Date(anchor.getTime());
+  if (resetInterval === CreditResetInterval.MONTHLY) {
+    d.setUTCMonth(d.getUTCMonth() + 1);
+  } else if (resetInterval === CreditResetInterval.YEARLY) {
+    d.setUTCFullYear(d.getUTCFullYear() + 1);
+  }
+  return d;
+}
+
 function asBalances(wallet: CreditWallet): Balances {
   return {
     plan_balance: wallet.plan_balance,
@@ -757,7 +780,13 @@ export class CreditService {
         wallet.plan_balance += creditsPerCycle;
       }
       wallet.last_granted_period_start = periodStart;
-      if (params.nextResetAt !== undefined) {
+      // next_reset_at is driven by the GRANT'S cadence, not the Stripe billing
+      // cycle. A YEARLY grant on a monthly Stripe plan must show year-from-now.
+      // Caller may override via params.nextResetAt only when resetInterval is
+      // not provided (back-compat).
+      if (resetInterval) {
+        wallet.next_reset_at = computeNextResetAt(resetInterval, periodStart);
+      } else if (params.nextResetAt !== undefined) {
         wallet.next_reset_at = params.nextResetAt;
       }
       await wallet.save({ transaction });
@@ -1168,7 +1197,9 @@ export class CreditService {
         creditsPerCycle: grant.credits_per_cycle,
         carryOver: grant.carry_over,
         resetInterval: grant.reset_interval,
-        nextResetAt: subscription.current_period_end ?? null,
+        // next_reset_at is derived from grant.reset_interval inside
+        // grantPlanCredits — do not pass the Stripe period_end here, it is the
+        // billing cadence, not the credit reset cadence.
       });
 
       // Grant trial credits on initial trial entry only
@@ -1266,6 +1297,8 @@ export class CreditService {
     newCreditsPerCycle: number;
     oldTrialCredits: number;
     newTrialCredits: number;
+    oldResetInterval?: CreditResetInterval;
+    newResetInterval?: CreditResetInterval;
     adminUserId: string;
     reason?: string;
   }): Promise<{ affected: number; skipped: number }> {
@@ -1276,6 +1309,8 @@ export class CreditService {
       newCreditsPerCycle,
       oldTrialCredits,
       newTrialCredits,
+      oldResetInterval,
+      newResetInterval,
       adminUserId,
     } = params;
     const reason = params.reason ?? 'Admin updated plan credit grant';
@@ -1286,9 +1321,14 @@ export class CreditService {
     const rawTrialDelta = newTrialCredits - oldTrialCredits;
     const cycleDelta = rawCycleDelta > 0 ? rawCycleDelta : 0;
     const trialDelta = rawTrialDelta > 0 ? rawTrialDelta : 0;
-    if (cycleDelta === 0 && trialDelta === 0) {
+    // reset_interval changes ALSO need to propagate, even with zero credit
+    // deltas — otherwise switching MONTHLY→YEARLY leaves existing wallets
+    // showing the old monthly boundary until next renewal.
+    const resetIntervalChanged =
+      !!newResetInterval && newResetInterval !== oldResetInterval;
+    if (cycleDelta === 0 && trialDelta === 0 && !resetIntervalChanged) {
       Logger.info(
-        `[CreditService] Plan grant update for plan=${planId} tool=${toolId}: no positive deltas (cycleDelta=${rawCycleDelta}, trialDelta=${rawTrialDelta}); reductions defer to next cycle.`,
+        `[CreditService] Plan grant update for plan=${planId} tool=${toolId}: no positive deltas and no cadence change (cycleDelta=${rawCycleDelta}, trialDelta=${rawTrialDelta}); reductions defer to next cycle.`,
       );
       return { affected: 0, skipped: 0 };
     }
@@ -1307,12 +1347,67 @@ export class CreditService {
 
           const applied =
             cycleDelta + (sub.status === SubStatus.TRIALING ? trialDelta : 0);
+
+          // Recompute next_reset_at from the NEW cadence, anchored to the
+          // wallet's existing last_granted_period_start (or the subscription's
+          // current_period_start as a fallback).
+          if (resetIntervalChanged && newResetInterval) {
+            const anchor =
+              wallet.last_granted_period_start ?? sub.current_period_start ?? null;
+            wallet.next_reset_at = computeNextResetAt(newResetInterval, anchor);
+          }
+
           if (applied <= 0) {
-            skipped += 1;
+            if (resetIntervalChanged) {
+              await wallet.save({ transaction });
+              affected += 1;
+            } else {
+              skipped += 1;
+            }
             return;
           }
 
           wallet.plan_balance += applied;
+
+          // Keep trial-bucket provenance consistent so the cron sweeper
+          // (expireUnconvertedTrialCredits) can expire the right amount if the
+          // trial ends unconverted. Without this, an admin-added trial delta is
+          // invisible to the sweeper.
+          if (sub.status === SubStatus.TRIALING && trialDelta > 0) {
+            const meta = (wallet.metadata ?? {}) as Record<string, unknown>;
+            const existingTrial = (meta.trial ?? {}) as {
+              subscription_id?: string;
+              trial_end?: string | null;
+              granted?: number;
+              expired?: boolean;
+            };
+            meta.trial = {
+              subscription_id: existingTrial.subscription_id ?? sub.id,
+              trial_end:
+                existingTrial.trial_end ??
+                (sub.trial_end ? sub.trial_end.toISOString() : null),
+              granted: (existingTrial.granted ?? 0) + trialDelta,
+              expired: existingTrial.expired ?? false,
+            };
+            wallet.metadata = meta;
+          }
+
+          // Backfill cycle anchors. The wallet may have been created lazily
+          // (pre-credit-system subs, or first time this tool gets a grant) with
+          // NULL next_reset_at / last_granted_period_start — without these the
+          // UI shows "no expiry" and the renewal webhook idempotency gate
+          // can't function. last_granted_period_start anchors to the
+          // subscription's current_period_start; next_reset_at is derived from
+          // the grant cadence (NEW cadence if it just changed, otherwise OLD).
+          if (!wallet.last_granted_period_start && sub.current_period_start) {
+            wallet.last_granted_period_start = sub.current_period_start;
+          }
+          if (!wallet.next_reset_at) {
+            const cadence = newResetInterval ?? oldResetInterval;
+            const anchor =
+              wallet.last_granted_period_start ?? sub.current_period_start ?? null;
+            wallet.next_reset_at = computeNextResetAt(cadence, anchor);
+          }
           await wallet.save({ transaction });
 
           await CreditLedgerEntry.create(

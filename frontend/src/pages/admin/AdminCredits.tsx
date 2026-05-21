@@ -138,6 +138,10 @@ function FeatureCostsTab() {
     return features.filter((f) => f.tool_id === toolFilter);
   }, [features, toolFilter]);
 
+  const patchFeature = (id: string, patch: Partial<FeatureCost>) => {
+    setFeatures((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  };
+
   const saveCost = async (id: string) => {
     const cost = Number(editValue);
     if (!Number.isInteger(cost) || cost < 0) {
@@ -147,9 +151,9 @@ function FeatureCostsTab() {
     setSaving(true);
     try {
       await updateFeatureCreditCost(id, { credit_cost: cost });
+      patchFeature(id, { credit_cost: cost });
       toast({ title: 'Feature cost updated' });
       setEditingId(null);
-      await load();
     } catch {
       toast({ title: 'Update failed', variant: 'destructive' });
     } finally {
@@ -158,6 +162,7 @@ function FeatureCostsTab() {
   };
 
   const toggleUseCreditSystem = async (f: FeatureCost, next: boolean) => {
+    patchFeature(f.id, { use_credit_system: next });
     try {
       await updateFeatureCreditCost(f.id, { use_credit_system: next });
       toast({
@@ -165,13 +170,14 @@ function FeatureCostsTab() {
           ? `${f.name} now uses the credit system`
           : `${f.name} now uses plan entitlements`,
       });
-      await load();
     } catch {
+      patchFeature(f.id, { use_credit_system: !next });
       toast({ title: 'Update failed', variant: 'destructive' });
     }
   };
 
   const toggleRequiresSubscription = async (f: FeatureCost, next: boolean) => {
+    patchFeature(f.id, { requires_subscription: next });
     try {
       await updateFeatureCreditCost(f.id, { requires_subscription: next });
       toast({
@@ -179,8 +185,8 @@ function FeatureCostsTab() {
           ? `${f.name} now requires an active subscription`
           : `${f.name} is now available to credit-only users`,
       });
-      await load();
     } catch {
+      patchFeature(f.id, { requires_subscription: !next });
       toast({ title: 'Update failed', variant: 'destructive' });
     }
   };
@@ -563,7 +569,7 @@ function PlanGrantsTab() {
                 <TableHead>Period</TableHead>
                 <TableHead>Carry over</TableHead>
                 <TableHead>On cancel</TableHead>
-                <TableHead className="w-[100px] text-right" />
+                <TableHead className="w-[110px] text-right" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -604,12 +610,14 @@ function PlanGrantsTab() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(g)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => openDelete(g)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(g)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => openDelete(g)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -1020,7 +1028,7 @@ function CreditPacksTab() {
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead>Stripe price</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-[100px] text-right" />
+                <TableHead className="w-[110px] text-right" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1062,12 +1070,14 @@ function CreditPacksTab() {
                       {p.active ? <Badge>Active</Badge> : <Badge variant="secondary">Inactive</Badge>}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(p)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => remove(p)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(p)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => remove(p)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

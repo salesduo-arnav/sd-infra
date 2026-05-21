@@ -395,6 +395,7 @@ export const upsertPlanCreditGrant = async (req: Request, res: Response) => {
     // Snapshot pre-update values so we can compute deltas after the update.
     const oldCreditsPerCycle = wasCreated ? 0 : grant.credits_per_cycle;
     const oldTrialCredits = wasCreated ? 0 : grant.trial_credits;
+    const oldResetInterval = grant.reset_interval;
 
     await grant.update({
       credits_per_cycle: Number.isInteger(credits_per_cycle) ? credits_per_cycle : grant.credits_per_cycle,
@@ -414,6 +415,8 @@ export const upsertPlanCreditGrant = async (req: Request, res: Response) => {
         newCreditsPerCycle: grant.credits_per_cycle,
         oldTrialCredits,
         newTrialCredits: grant.trial_credits,
+        oldResetInterval,
+        newResetInterval: grant.reset_interval,
         adminUserId: req.user.id,
         reason: wasCreated
           ? 'Admin added plan credit grant'
