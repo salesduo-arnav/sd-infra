@@ -1,0 +1,69 @@
+#
+# Local-dev override to resolve two blockers when bringing up this stack on a
+# Mac that already has Postgres running natively:
+#
+#   1. Native Postgres holds port 5432, so the `postgres` container can't
+#      bind it. Remap to 5433 externally; internal docker-network traffic
+#      still uses 5432 via the service hostname.
+#
+#   2. `.env`'s REDIS_PASSWORD is empty/missing → `redis-server --requirepass`
+#      crashes. Disable auth in dev (safe because redis isn't exposed outside
+#      the docker network) and tell the backend not to supply a password.
+#
+# This file is loaded automatically by `docker compose up` alongside
+# docker-compose.yml.
+
+services:
+  # Rebuild the FE image with Vite env vars that point at the local gateway
+  # (api.lvh.me → core-backend, app.lvh.me → this FE). The base .env defaults
+  # bake localhost:3000 in, which collides with the dashboard FE.
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://api.lvh.me
+        VITE_INFRA_URL: http://app.lvh.me
+        VITE_INFRA_API_URL: http://api.lvh.me
+
+  postgres:
+    ports:
+      - "5433:5432"
+
+  redis:
+    # Hardcode a dev password so both redis-server and the backend agree.
+    # Override the base command to use this literal rather than $REDIS_PASSWORD
+    # which might be empty in .env.
+    command: redis-server --requirepass dev
+    environment:
+      REDIS_PASSWORD: dev
+
+  backend:
+    # Backend listens on 4001 per infra/PORT-MAP.md (matches .env's PORT=4001
+    # and nginx's proxy_pass to core-backend:4001). Base compose handles the
+    # 4001:4001 host mapping; no override needed here. Ports 3000/3001 are
+    # reserved for the SD-Dashboard (BI) project running natively on dev.
+    # Force docker-network hostnames so the backend reaches sibling
+    # containers no matter what the .env says. These override the env_file.
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      PGHOST: postgres
+      PGPORT: 5432
+      # Point the backend at the host-native Redis (same one the listings-optimizer
+      # reads from) so session_id cookies written here are readable by the
+      # optimizer's get_current_user. Otherwise sessions land in the docker-network
+      # shared-redis (pwd: dev) while the optimizer looks in native redis (no auth)
+      # and every tool-api call gets 401.
+      REDIS_HOST: host.docker.internal
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_URL: redis://host.docker.internal:6379
+      # Whitelist local dev origins so app.lvh.me can call api.lvh.me without CORS errors.
+      CORS_ORIGINS: "http://app.lvh.me,http://api.lvh.me,http://creatives.lvh.me,http://localhost:3000,http://localhost:5173,http://localhost:8081"
+      # Scope the session cookie to .lvh.me so app / api / creatives subdomains share it.
+      # Without this the cookie gets bound to api.lvh.me only and the FE redirect loops.
+      COOKIE_DOMAIN: .lvh.me
+      # Extend superuser allowlist for local demo. The login controller syncs
+      # users.is_superuser from this list on every login, so editing the DB
+      # directly gets overwritten unless the email is listed here.
+      SUPERUSER_EMAILS: "arnav@salesduo.com,admin@salesduo.com,archit@salesduo.com,kishore@salesduo.com"
