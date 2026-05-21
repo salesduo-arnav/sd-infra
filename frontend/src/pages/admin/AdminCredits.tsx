@@ -411,7 +411,7 @@ const EMPTY_GRANT_STATE: PlanGrantDialogState = {
   trial_credits: '0',
   reset_interval: 'monthly',
   carry_over: true,
-  on_cancel: 'keep_till_grant_period_end',
+  on_cancel: 'forfeit_immediate',
   apply_to_existing: true,
   isEdit: false,
 };

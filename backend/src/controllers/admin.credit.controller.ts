@@ -388,7 +388,7 @@ export const upsertPlanCreditGrant = async (req: Request, res: Response) => {
         trial_credits: 0,
         reset_interval: CreditResetInterval.MONTHLY,
         carry_over: true,
-        on_cancel: CreditOnCancel.KEEP_TILL_GRANT_PERIOD_END,
+        on_cancel: CreditOnCancel.FORFEIT_IMMEDIATE,
       },
     });
 

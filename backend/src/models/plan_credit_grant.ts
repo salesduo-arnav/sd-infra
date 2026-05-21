@@ -99,7 +99,7 @@ PlanCreditGrant.init(
     on_cancel: {
       type: DataTypes.ENUM(...Object.values(CreditOnCancel)),
       allowNull: false,
-      defaultValue: CreditOnCancel.KEEP_TILL_GRANT_PERIOD_END,
+      defaultValue: CreditOnCancel.FORFEIT_IMMEDIATE,
     },
     deleted_at: { type: DataTypes.DATE, allowNull: true },
   },
