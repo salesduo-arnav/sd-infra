@@ -12,6 +12,7 @@ import sequelize from '../config/db';
 import { Op } from 'sequelize';
 import { AuditService } from '../services/audit.service';
 import { entitlementService } from '../services/entitlement.service';
+import { creditService } from '../services/credit.service';
 import { SystemConfig } from '../models/system_config';
 import Logger from '../utils/logger';
 
@@ -744,14 +745,24 @@ class BillingController {
             } else {
                 // UPGRADE (or same price switch) -> Immediate
                 console.log(`[BillingController] Upgrading subscription ${stripeSubId} to ${targetItem.type} ${targetItem.id}`);
-                
+
                 // End trial immediately if current price was 0 (upgrading a free trial)
                 const isCurrentlyFreeTrial = currentPriceAmount === 0;
 
+                // Capture OLD plan/bundle BEFORE we overwrite — we need them for
+                // credit teardown. The webhook can't do this because we eagerly
+                // update local plan_id below; by the time customer.subscription.updated
+                // arrives, priorPlanId already matches the new plan.
+                const oldPlanIdForCredits = subscription.plan_id ?? null;
+                const oldBundleIdForCredits = subscription.bundle_id ?? null;
+                const planActuallyChanged =
+                    oldPlanIdForCredits !== targetPlanId ||
+                    oldBundleIdForCredits !== targetBundleId;
+
                 // Ensure userId is in metadata for future webhooks
                 await stripeService.updateSubscription(
-                    stripeSubId, 
-                    targetPriceId, 
+                    stripeSubId,
+                    targetPriceId,
                     req.user ? { userId: req.user.id } : undefined,
                     isCurrentlyFreeTrial
                 );
@@ -773,6 +784,29 @@ class BillingController {
                     }
                 } catch (provErr) {
                     Logger.error(`[Billing] Error provisioning entitlements during upgrade for org ${organization!.id}:`, provErr);
+                }
+
+                // Apply credit teardown + force-grant inline. Doing it here (not
+                // waiting on the webhook) is required because we just overwrote
+                // plan_id — the webhook can no longer detect the change. The
+                // webhook will still run later, but its planChanged check will
+                // be false and applySubscriptionGrants is per-key idempotent, so
+                // it becomes a safe no-op. See credit.service.ts for the gate
+                // semantics this `force: true` bypasses.
+                if (planActuallyChanged) {
+                    try {
+                        if (oldPlanIdForCredits || oldBundleIdForCredits) {
+                            await creditService.applyPlanSwitchTeardown({
+                                orgId: organization!.id,
+                                subscriptionId: subscription.id,
+                                oldPlanId: oldPlanIdForCredits,
+                                oldBundleId: oldBundleIdForCredits,
+                            });
+                        }
+                        await creditService.applySubscriptionGrants(subscription, { force: true });
+                    } catch (creditErr) {
+                        Logger.error(`[Billing] Failed to apply credit grants on upgrade for org ${organization!.id}:`, creditErr);
+                    }
                 }
 
                 res.status(200).json({ message: 'Subscription updated successfully' });

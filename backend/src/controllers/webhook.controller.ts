@@ -284,6 +284,14 @@ class WebhookController {
             paranoid: false,
         });
 
+        // Capture prior plan/bundle BEFORE we overwrite — needed to detect plan
+        // switches so credit grants for the new plan apply immediately (Stripe
+        // preserves current_period_start on in-place updates, which otherwise
+        // makes applySubscriptionGrants a no-op via the period-anchor gate).
+        const priorPlanId = subscription?.plan_id ?? null;
+        const priorBundleId = subscription?.bundle_id ?? null;
+        const isFreshSubscriptionRecord = !subscription || !!subscription.deleted_at;
+
         // Fingerprint & Abuse Check
         let fingerprint: string | null = null;
         if (status === SubStatus.TRIALING || status === SubStatus.ACTIVE) {
@@ -350,9 +358,34 @@ class WebhookController {
             Logger.error(`[WebhookController] Failed to provision entitlements on sub update for org ${orgId}:`, provErr);
         }
 
+        // Detect plan/bundle switch — Stripe keeps current_period_start on
+        // in-place price updates, so the standard period-anchor & reset_interval
+        // gates would otherwise skip the grant entirely.
+        const planChanged =
+            (priorPlanId ?? null) !== (finalPlanId ?? null) ||
+            (priorBundleId ?? null) !== (finalBundleId ?? null);
+
+        // Teardown the OLD plan's credits when switching plans (applies the
+        // old grants' on_cancel policy with KEEP_TILL_PERIOD_END coerced to
+        // FORFEIT_IMMEDIATE — see applyPlanSwitchTeardown).
+        if (planChanged && (priorPlanId || priorBundleId)) {
+            try {
+                await creditService.applyPlanSwitchTeardown({
+                    orgId,
+                    subscriptionId: subscription.id,
+                    oldPlanId: priorPlanId,
+                    oldBundleId: priorBundleId,
+                });
+            } catch (teardownErr) {
+                Logger.error(`[WebhookController] Failed plan-switch credit teardown for org ${orgId}:`, teardownErr);
+            }
+        }
+
         // Provision / refresh credits (additive — does nothing if no PlanCreditGrant rows)
         try {
-            await creditService.applySubscriptionGrants(subscription);
+            await creditService.applySubscriptionGrants(subscription, {
+                force: planChanged || isFreshSubscriptionRecord,
+            });
         } catch (creditErr) {
             Logger.error(`[WebhookController] Failed to apply credit grants on sub update for org ${orgId}:`, creditErr);
         }
@@ -498,7 +531,17 @@ class WebhookController {
                 const billingReason = (invoice as Stripe.Invoice & { billing_reason?: string }).billing_reason;
                 if (billingReason === 'subscription_cycle' || billingReason === 'subscription_create') {
                     try {
-                        await creditService.applySubscriptionGrants(subscription);
+                        // `subscription_create` covers the first paid invoice — either the
+                        // initial paid subscription or a trial→paid conversion. On a short
+                        // trial that converts within the same calendar month as trial start,
+                        // the MONTHLY reset_interval gate would otherwise skip the first
+                        // paid cycle's grant, since last_granted_period_start was set during
+                        // the trial. Force here so the new paid cycle always grants. We do
+                        // NOT force on `subscription_cycle`: the reset_interval gate must
+                        // remain authoritative for ongoing renewals (e.g., a YEARLY grant on
+                        // a monthly Stripe plan still grants only 1 of 12 cycles).
+                        const forceGrant = billingReason === 'subscription_create';
+                        await creditService.applySubscriptionGrants(subscription, { force: forceGrant });
                     } catch (creditErr) {
                         Logger.error(`[WebhookController] Failed to grant cycle credits for sub ${subscription.id}:`, creditErr);
                     }

@@ -679,6 +679,14 @@ export class CreditService {
     resetInterval?: CreditResetInterval;
     nextResetAt?: Date | null;
     source?: string;
+    // When true, bypass the wallet's period-anchor short-circuit and the
+    // reset_interval cadence gate. Used by callers that know this invocation
+    // represents a real new grant rather than a cycle replay — e.g., plan
+    // switches (Stripe keeps current_period_start the same on in-place updates)
+    // and brand-new subscriptions reusing a wallet from a previously canceled
+    // sub. Per-key ledger idempotency still applies, so Stripe webhook replays
+    // remain safe.
+    force?: boolean;
   }): Promise<GrantResult> {
     const {
       orgId,
@@ -689,6 +697,7 @@ export class CreditService {
       creditsPerCycle,
       carryOver,
       resetInterval,
+      force,
     } = params;
     const source = params.source ?? 'subscription_renewal';
     const idempotencyKey = `plan_grant:${subscriptionId}:${planId}:${periodStart.toISOString()}`;
@@ -706,8 +715,10 @@ export class CreditService {
 
       const wallet = await this.lockWallet(orgId, toolId, transaction);
 
-      // Wallet-level idempotency short-circuit (exact same period replay)
+      // Wallet-level idempotency short-circuit (exact same period replay).
+      // Bypassed on `force` because plan switches reuse the same period anchor.
       if (
+        !force &&
         wallet.last_granted_period_start &&
         wallet.last_granted_period_start.getTime() === periodStart.getTime()
       ) {
@@ -725,7 +736,8 @@ export class CreditService {
       //  - 'yearly' → only refresh if last grant was in a different calendar year.
       // Stripe may emit invoice cycles on its own cadence (monthly Stripe plan
       // with reset_interval='yearly' → 11 of 12 cycles are skipped here).
-      if (resetInterval && wallet.last_granted_period_start) {
+      // Bypassed on `force` (plan switch / new subscription).
+      if (!force && resetInterval && wallet.last_granted_period_start) {
         const last = wallet.last_granted_period_start;
         let skipGrant = false;
         if (resetInterval === CreditResetInterval.NEVER) {
@@ -1163,7 +1175,10 @@ export class CreditService {
    * Iterates the credit grants for this subscription (direct plan + bundle-composed plans)
    * and applies grantPlanCredits + optional grantTrialCredits per (plan, tool) pair.
    */
-  public async applySubscriptionGrants(subscription: Subscription, opts?: { granted_trial?: boolean }): Promise<void> {
+  public async applySubscriptionGrants(
+    subscription: Subscription,
+    opts?: { granted_trial?: boolean; force?: boolean },
+  ): Promise<void> {
     if (!subscription.current_period_start) {
       Logger.warn(`[CreditService] Subscription ${subscription.id} has no current_period_start; skipping credit grants`);
       return;
@@ -1197,6 +1212,7 @@ export class CreditService {
         creditsPerCycle: grant.credits_per_cycle,
         carryOver: grant.carry_over,
         resetInterval: grant.reset_interval,
+        force: opts?.force,
         // next_reset_at is derived from grant.reset_interval inside
         // grantPlanCredits — do not pass the Stripe period_end here, it is the
         // billing cadence, not the credit reset cadence.
@@ -1213,6 +1229,52 @@ export class CreditService {
           trialEnd: subscription.trial_end ?? null,
         });
       }
+    }
+  }
+
+  /**
+   * Applies cancellation-style teardown to all credit grants attached to the
+   * given (planId | bundleId) — used on a plan switch to clear out the OLD
+   * plan's credits before granting the NEW plan's. The user did not cancel
+   * (they upgraded/downgraded/switched), so KEEP_TILL_PERIOD_END is reduced to
+   * FORFEIT_IMMEDIATE: "period_end" of the old plan is no longer meaningful
+   * once Stripe has moved the subscription onto a new price, and the cron tail
+   * sweeper would never trigger because the subscription stays ACTIVE.
+   * FORFEIT_IMMEDIATE and KEEP_FOREVER behave normally.
+   */
+  public async applyPlanSwitchTeardown(params: {
+    orgId: string;
+    subscriptionId: string;
+    oldPlanId?: string | null;
+    oldBundleId?: string | null;
+  }): Promise<void> {
+    const { orgId, subscriptionId, oldPlanId, oldBundleId } = params;
+    const planIds = new Set<string>();
+    if (oldPlanId) planIds.add(oldPlanId);
+    if (oldBundleId) {
+      const bps = await BundlePlan.findAll({
+        where: { bundle_id: oldBundleId },
+        attributes: ['plan_id'],
+      });
+      for (const bp of bps) planIds.add(bp.plan_id);
+    }
+    if (planIds.size === 0) return;
+
+    const grants = await PlanCreditGrant.findAll({
+      where: { plan_id: { [Op.in]: Array.from(planIds) } },
+    });
+    for (const grant of grants) {
+      const policy =
+        grant.on_cancel === CreditOnCancel.KEEP_TILL_PERIOD_END
+          ? CreditOnCancel.FORFEIT_IMMEDIATE
+          : grant.on_cancel;
+      await this.applyCancellationPolicy({
+        orgId,
+        toolId: grant.tool_id,
+        planId: grant.plan_id,
+        subscriptionId,
+        policy,
+      });
     }
   }
 
