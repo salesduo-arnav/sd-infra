@@ -50,7 +50,7 @@ module.exports = {
         on_cancel: {
           type: Sequelize.ENUM('forfeit_immediate', 'keep_till_period_end', 'keep_forever'),
           allowNull: false,
-          defaultValue: 'keep_till_period_end',
+          defaultValue: 'forfeit_immediate',
         },
         created_at: {
           type: Sequelize.DATE,
