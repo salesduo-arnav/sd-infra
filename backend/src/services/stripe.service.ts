@@ -97,22 +97,30 @@ export class StripeService {
   async scheduleDowngrade(subscriptionId: string, newPriceId: string) {
     const subscription = await this.stripe.subscriptions.retrieve(subscriptionId) as Stripe.Subscription;
 
-    let scheduleId = subscription.schedule;
-
-    // If no schedule exists, create one from the subscription
-    if (!scheduleId || typeof scheduleId !== 'string') {
-      const newSchedule = await this.stripe.subscriptionSchedules.create({
-        from_subscription: subscriptionId,
-      });
-      scheduleId = newSchedule.id;
+    // If a schedule already exists (e.g. previous downgrade), release it so we
+    // start from a clean slate. `release` detaches the schedule without cancelling
+    // the subscription.
+    const existingScheduleId = subscription.schedule;
+    if (existingScheduleId && typeof existingScheduleId === 'string') {
+      try {
+        await this.stripe.subscriptionSchedules.release(existingScheduleId);
+      } catch (err) {
+        // If it's already released/cancelled, ignore.
+      }
     }
 
-    // Retrieve the schedule to get the auto-populated current phase
-    const schedule = await this.stripe.subscriptionSchedules.retrieve(scheduleId) as Stripe.SubscriptionSchedule;
-    const currentPhase = schedule.phases[schedule.phases.length - 1];
+    // Create a fresh schedule anchored to the live subscription. The returned
+    // schedule has exactly one phase: the current in-progress one, with the
+    // canonical `start_date` Stripe will accept back verbatim.
+    const schedule = await this.stripe.subscriptionSchedules.create({
+      from_subscription: subscriptionId,
+    });
+    const currentPhase = schedule.phases[0];
 
-    // Build phases: keep the current phase as-is, add the downgrade phase after it
-    return this.stripe.subscriptionSchedules.update(scheduleId, {
+    // Append the downgrade phase. The future phase intentionally omits
+    // `start_date` — Stripe defaults it to the previous phase's `end_date`, which
+    // is exactly what we want and avoids any timestamp drift.
+    return this.stripe.subscriptionSchedules.update(schedule.id, {
       end_behavior: 'release',
       phases: [
         {
@@ -125,8 +133,7 @@ export class StripeService {
         },
         {
           items: [{ price: newPriceId, quantity: 1 }],
-          start_date: currentPhase.end_date,
-        }
+        },
       ],
     });
   }

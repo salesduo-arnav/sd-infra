@@ -33,7 +33,7 @@ export class CronService {
         const cancelSchedule = configService.get('cron_cancel_past_due', '00 00 * * *')!;
         const resetSchedule = configService.get('cron_reset_entitlements', '00 01 * * *')!;
         const sweepReservationsSchedule = configService.get('cron_sweep_credit_reservations', '*/5 * * * *')!;
-        const creditCancellationSchedule = configService.get('cron_credit_cancellation_tail', '15 02 * * *')!;
+        const creditCancellationSchedule = configService.get('cron_credit_cancellation_tail', '0 * * * *')!;
         const creditTrialExpirySchedule = configService.get('cron_credit_trial_expiry', '30 02 * * *')!;
 
         cron.schedule(cancelSchedule, async () => {
@@ -116,8 +116,12 @@ export class CronService {
     }
 
     /**
-     * Applies `keep_till_period_end` forfeiture once the period has passed for
-     * canceled subscriptions whose plan-credits haven't been zeroed yet.
+     * Expires plan credits for canceled subscriptions whose grant uses
+     * `keep_till_grant_period_end`, once each wallet's own next_reset_at
+     * (driven by grant.reset_interval, NOT the Stripe billing cycle) has
+     * elapsed. Wallets whose grant has reset_interval='never' (next_reset_at
+     * is null) are skipped — that combination is rejected at the admin layer
+     * and behaves as keep_forever for any legacy rows.
      */
     public async processCreditCancellationTail() {
         try {
@@ -129,7 +133,6 @@ export class CronService {
             const canceledSubs = await Subscription.findAll({
                 where: {
                     status: SubStatus.CANCELED,
-                    current_period_end: { [Op.lt]: now, [Op.ne]: null },
                 },
                 limit: 200,
             });
@@ -151,7 +154,7 @@ export class CronService {
                     const grants = await PlanCreditGrant.findAll({
                         where: {
                             plan_id: { [Op.in]: Array.from(planIds) },
-                            on_cancel: CreditOnCancel.KEEP_TILL_PERIOD_END,
+                            on_cancel: CreditOnCancel.KEEP_TILL_GRANT_PERIOD_END,
                         },
                     });
 
@@ -160,6 +163,11 @@ export class CronService {
                             where: { organization_id: sub.organization_id, tool_id: grant.tool_id },
                         });
                         if (!wallet || wallet.plan_balance === 0) continue;
+
+                        // Sweep only after the grant's own cadence boundary has
+                        // elapsed. Null next_reset_at means there is no cadence
+                        // (reset_interval='never') — leave the credits alone.
+                        if (!wallet.next_reset_at || wallet.next_reset_at > now) continue;
 
                         const meta = (wallet.metadata ?? {}) as Record<string, unknown>;
                         const cancelMark = `cancel_tail:${sub.id}`;
@@ -172,8 +180,11 @@ export class CronService {
                                 lock: transaction.LOCK.UPDATE,
                             });
                             if (!w || w.plan_balance === 0) return;
+                            if (!w.next_reset_at || w.next_reset_at > now) return;
                             const expired = w.plan_balance;
                             w.plan_balance = 0;
+                            w.next_reset_at = null;
+                            w.last_granted_period_start = null;
                             const wMeta = (w.metadata ?? {}) as Record<string, unknown>;
                             wMeta[cancelMark] = new Date().toISOString();
                             w.metadata = wMeta;
@@ -190,13 +201,13 @@ export class CronService {
                                     source: 'sweeper',
                                     related_subscription_id: sub.id,
                                     related_plan_id: grant.plan_id,
-                                    metadata: { reason: 'cancel_keep_till_period_end' },
+                                    metadata: { reason: 'cancel_keep_till_grant_period_end' },
                                 },
                                 { transaction },
                             );
                         });
                         Logger.info(
-                            `[Cron] Forfeited plan credits for org=${sub.organization_id} tool=${grant.tool_id} on cancel-tail`,
+                            `[Cron] Forfeited plan credits for org=${sub.organization_id} tool=${grant.tool_id} on grant-period-end cancel-tail`,
                         );
                     }
                 } catch (err) {

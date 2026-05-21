@@ -65,7 +65,10 @@ export enum CreditResetInterval {
 
 export enum CreditOnCancel {
   FORFEIT_IMMEDIATE = 'forfeit_immediate',
-  KEEP_TILL_PERIOD_END = 'keep_till_period_end',
+  // Credits stay usable until the grant's own reset cadence (next_reset_at)
+  // elapses — NOT the Stripe subscription's billing period. Invalid combined
+  // with reset_interval='never'; the admin layer rejects that combination.
+  KEEP_TILL_GRANT_PERIOD_END = 'keep_till_grant_period_end',
   KEEP_FOREVER = 'keep_forever',
 }
 

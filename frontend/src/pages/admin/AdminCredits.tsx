@@ -60,7 +60,7 @@ import {
 const RESET_INTERVALS = ['monthly', 'yearly', 'never'] as const;
 const ON_CANCEL_LABELS: Record<string, string> = {
   forfeit_immediate: 'Forfeit immediately',
-  keep_till_period_end: 'Keep till period end',
+  keep_till_grant_period_end: 'Keep till grant period end',
   keep_forever: 'Keep forever',
 };
 
@@ -396,7 +396,7 @@ interface PlanGrantDialogState {
   trial_credits: string;
   reset_interval: 'monthly' | 'yearly' | 'never';
   carry_over: boolean;
-  on_cancel: 'forfeit_immediate' | 'keep_till_period_end' | 'keep_forever';
+  on_cancel: 'forfeit_immediate' | 'keep_till_grant_period_end' | 'keep_forever';
   apply_to_existing: boolean;
   isEdit: boolean;
   original_credits_per_cycle?: number;
@@ -411,7 +411,7 @@ const EMPTY_GRANT_STATE: PlanGrantDialogState = {
   trial_credits: '0',
   reset_interval: 'monthly',
   carry_over: true,
-  on_cancel: 'keep_till_period_end',
+  on_cancel: 'keep_till_grant_period_end',
   apply_to_existing: true,
   isEdit: false,
 };
@@ -705,7 +705,17 @@ function PlanGrantsTab() {
                 <Select
                   value={dialog.reset_interval}
                   onValueChange={(v: (typeof RESET_INTERVALS)[number]) =>
-                    setDialog((d) => ({ ...d, reset_interval: v }))
+                    setDialog((d) => ({
+                      ...d,
+                      reset_interval: v,
+                      // Switching to "never" makes keep_till_grant_period_end
+                      // semantically invalid — coerce to keep_forever, which is
+                      // its functional equivalent when there is no cadence.
+                      on_cancel:
+                        v === 'never' && d.on_cancel === 'keep_till_grant_period_end'
+                          ? 'keep_forever'
+                          : d.on_cancel,
+                    }))
                   }
                 >
                   <SelectTrigger>
@@ -770,10 +780,28 @@ function PlanGrantsTab() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="forfeit_immediate">Forfeit immediately</SelectItem>
-                  <SelectItem value="keep_till_period_end">Keep till period end</SelectItem>
+                  <SelectItem
+                    value="keep_till_grant_period_end"
+                    disabled={dialog.reset_interval === 'never'}
+                  >
+                    Keep till grant period end
+                  </SelectItem>
                   <SelectItem value="keep_forever">Keep forever (convert to purchased)</SelectItem>
                 </SelectContent>
               </Select>
+              {dialog.on_cancel === 'keep_till_grant_period_end' && (
+                <p className="text-xs text-muted-foreground">
+                  Credits stay usable until the grant's next reset boundary
+                  ({dialog.reset_interval === 'yearly' ? 'one year' : 'one month'} after the last
+                  top-up), then expire — independent of the Stripe billing period.
+                </p>
+              )}
+              {dialog.reset_interval === 'never' && (
+                <p className="text-xs text-muted-foreground">
+                  "Keep till grant period end" is unavailable when the reset interval is
+                  "never" — with no cadence there is no period to wait for.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2 rounded-md border bg-muted/30 p-3">

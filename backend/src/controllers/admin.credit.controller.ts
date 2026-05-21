@@ -388,7 +388,7 @@ export const upsertPlanCreditGrant = async (req: Request, res: Response) => {
         trial_credits: 0,
         reset_interval: CreditResetInterval.MONTHLY,
         carry_over: true,
-        on_cancel: CreditOnCancel.KEEP_TILL_PERIOD_END,
+        on_cancel: CreditOnCancel.KEEP_TILL_GRANT_PERIOD_END,
       },
     });
 
@@ -397,12 +397,30 @@ export const upsertPlanCreditGrant = async (req: Request, res: Response) => {
     const oldTrialCredits = wasCreated ? 0 : grant.trial_credits;
     const oldResetInterval = grant.reset_interval;
 
+    // Compute effective values so we can validate the combination before persisting.
+    const effectiveResetInterval = Object.values(CreditResetInterval).includes(reset_interval)
+      ? reset_interval
+      : grant.reset_interval;
+    const effectiveOnCancel = Object.values(CreditOnCancel).includes(on_cancel)
+      ? on_cancel
+      : grant.on_cancel;
+
+    if (
+      effectiveOnCancel === CreditOnCancel.KEEP_TILL_GRANT_PERIOD_END &&
+      effectiveResetInterval === CreditResetInterval.NEVER
+    ) {
+      return res.status(400).json({
+        message:
+          '"Keep till grant period end" requires a reset interval (monthly or yearly). With "never", credits have no cadence to expire on — choose "Forfeit immediately" or "Keep forever" instead.',
+      });
+    }
+
     await grant.update({
       credits_per_cycle: Number.isInteger(credits_per_cycle) ? credits_per_cycle : grant.credits_per_cycle,
       trial_credits: Number.isInteger(trial_credits) ? trial_credits : grant.trial_credits,
-      reset_interval: Object.values(CreditResetInterval).includes(reset_interval) ? reset_interval : grant.reset_interval,
+      reset_interval: effectiveResetInterval,
       carry_over: typeof carry_over === 'boolean' ? carry_over : grant.carry_over,
-      on_cancel: Object.values(CreditOnCancel).includes(on_cancel) ? on_cancel : grant.on_cancel,
+      on_cancel: effectiveOnCancel,
     });
 
     const shouldPropagate = apply_to_existing !== false;

@@ -366,8 +366,8 @@ class WebhookController {
             (priorBundleId ?? null) !== (finalBundleId ?? null);
 
         // Teardown the OLD plan's credits when switching plans (applies the
-        // old grants' on_cancel policy with KEEP_TILL_PERIOD_END coerced to
-        // FORFEIT_IMMEDIATE — see applyPlanSwitchTeardown).
+        // old grants' on_cancel policy with KEEP_TILL_GRANT_PERIOD_END coerced
+        // to FORFEIT_IMMEDIATE — see applyPlanSwitchTeardown).
         if (planChanged && (priorPlanId || priorBundleId)) {
             try {
                 await creditService.applyPlanSwitchTeardown({

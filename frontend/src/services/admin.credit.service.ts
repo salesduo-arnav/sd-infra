@@ -1,7 +1,7 @@
 import api from '../lib/api';
 
 export type CreditResetInterval = 'monthly' | 'yearly' | 'never';
-export type CreditOnCancel = 'forfeit_immediate' | 'keep_till_period_end' | 'keep_forever';
+export type CreditOnCancel = 'forfeit_immediate' | 'keep_till_grant_period_end' | 'keep_forever';
 export type CreditBucket = 'plan' | 'purchased' | 'trial';
 
 export interface FeatureCost {

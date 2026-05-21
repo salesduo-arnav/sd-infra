@@ -1090,8 +1090,9 @@ export class CreditService {
     return sequelize.transaction(async (transaction) => {
       const wallet = await this.lockWallet(orgId, toolId, transaction);
 
-      if (policy === CreditOnCancel.KEEP_TILL_PERIOD_END) {
-        // No-op now; sweeper handles forfeiture when current_period_end passes.
+      if (policy === CreditOnCancel.KEEP_TILL_GRANT_PERIOD_END) {
+        // No-op now; the cron sweeper expires plan_balance once the wallet's
+        // own next_reset_at (driven by grant.reset_interval) elapses.
         return { applied: policy, balances: asBalances(wallet) };
       }
 
@@ -1099,6 +1100,8 @@ export class CreditService {
         if (wallet.plan_balance > 0) {
           const expired = wallet.plan_balance;
           wallet.plan_balance = 0;
+          wallet.next_reset_at = null;
+          wallet.last_granted_period_start = null;
           await wallet.save({ transaction });
           await CreditLedgerEntry.create(
             {
@@ -1125,6 +1128,8 @@ export class CreditService {
           const moved = wallet.plan_balance;
           wallet.plan_balance = 0;
           wallet.purchased_balance += moved;
+          wallet.next_reset_at = null;
+          wallet.last_granted_period_start = null;
           await wallet.save({ transaction });
           // Two ledger entries: expire from plan, grant to purchased
           await CreditLedgerEntry.create(
@@ -1236,11 +1241,11 @@ export class CreditService {
    * Applies cancellation-style teardown to all credit grants attached to the
    * given (planId | bundleId) — used on a plan switch to clear out the OLD
    * plan's credits before granting the NEW plan's. The user did not cancel
-   * (they upgraded/downgraded/switched), so KEEP_TILL_PERIOD_END is reduced to
-   * FORFEIT_IMMEDIATE: "period_end" of the old plan is no longer meaningful
-   * once Stripe has moved the subscription onto a new price, and the cron tail
-   * sweeper would never trigger because the subscription stays ACTIVE.
-   * FORFEIT_IMMEDIATE and KEEP_FOREVER behave normally.
+   * (they upgraded/downgraded/switched), so KEEP_TILL_GRANT_PERIOD_END is
+   * reduced to FORFEIT_IMMEDIATE: the OLD grant's cadence is no longer
+   * meaningful once the subscription has been moved onto a new plan, and the
+   * cron tail sweeper would never trigger because the subscription stays
+   * ACTIVE. FORFEIT_IMMEDIATE and KEEP_FOREVER behave normally.
    */
   public async applyPlanSwitchTeardown(params: {
     orgId: string;
@@ -1265,7 +1270,7 @@ export class CreditService {
     });
     for (const grant of grants) {
       const policy =
-        grant.on_cancel === CreditOnCancel.KEEP_TILL_PERIOD_END
+        grant.on_cancel === CreditOnCancel.KEEP_TILL_GRANT_PERIOD_END
           ? CreditOnCancel.FORFEIT_IMMEDIATE
           : grant.on_cancel;
       await this.applyCancellationPolicy({
