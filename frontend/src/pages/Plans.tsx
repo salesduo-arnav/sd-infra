@@ -145,7 +145,9 @@ export default function Plans() {
         limits: 'Free Trial',
         isUpgrade: false,
         isDowngrade: false,
-        trialDays: app.trialDays
+        trialDays: app.trialDays,
+        trialCredits: app.trialCredits,
+        trialCreditsPeriodUnit: app.trialCreditsPeriodUnit,
       };
       toggleCartItem(trialItem);
       setIsCartOpen(true);
@@ -266,9 +268,15 @@ export default function Plans() {
         price: item.price,
         name: item.name,
         tier: item.tierName,
+        tierName: item.tierName,
         features: item.features,
         limits: item.limits,
-        currency: item.currency
+        currency: item.currency,
+        creditsPerPeriod: item.creditsPerPeriod,
+        creditsPeriodUnit: item.creditsPeriodUnit,
+        trialDays: item.trialDays,
+        trialCredits: item.trialCredits,
+        trialCreditsPeriodUnit: item.trialCreditsPeriodUnit,
       };
     });
 

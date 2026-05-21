@@ -6,6 +6,10 @@ export interface FeatureItem {
   isEnabled: boolean;
   toolName?: string;
   resetPeriod?: string;
+  /** Credits consumed per unit when this feature is credit-metered. */
+  creditCost?: number;
+  /** When true, this feature is metered by credits rather than a hard limit. */
+  useCreditSystem?: boolean;
 }
 
 export interface BundleTier {
@@ -49,6 +53,9 @@ export interface AppTier {
   /** Credits granted per period by this tier (e.g. "100 credits/month"). */
   creditsPerPeriod?: number;
   creditsPeriodUnit?: 'monthly' | 'yearly';
+  /** Credits granted by this tier's free trial portion, if any. */
+  trialCredits?: number;
+  trialCreditsPeriodUnit?: 'monthly' | 'yearly';
 }
 
 export interface AppCreditPack {
@@ -88,6 +95,9 @@ export interface App {
   trialPlanInterval?: string;
   trialPlanDescription?: string;
   trialPlanCurrency?: string;
+  /** Credits granted by the free trial (if any). */
+  trialCredits?: number;
+  trialCreditsPeriodUnit?: 'monthly' | 'yearly';
   /** Credit packs available for à-la-carte purchase against this tool's wallet. */
   creditPacks?: AppCreditPack[];
   /** Custom-amount per-credit pricing. Only set when the admin master switch is ON. */
@@ -112,6 +122,12 @@ export interface CartItem {
   subscriptionId?: string;
   trialDays?: number;
   currency?: string;
+  /** Credits included in this plan/tier per billing cycle, if any. */
+  creditsPerPeriod?: number;
+  creditsPeriodUnit?: 'monthly' | 'yearly';
+  /** Credits granted by the free trial associated with this plan, if any. */
+  trialCredits?: number;
+  trialCreditsPeriodUnit?: 'monthly' | 'yearly';
   /** For custom_credits: the tool whose wallet should be credited. */
   toolId?: string;
   /** For custom_credits: how many credits to grant. */

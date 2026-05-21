@@ -108,6 +108,7 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
                 <Sparkles className="h-4 w-4 text-indigo-500 shrink-0" />
                 <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium flex-1">
                   {app.trialDays}-day free trial available
+                  {app.trialCredits ? ` · ${app.trialCredits} credits included` : ''}
                 </span>
               </div>
           </div>
@@ -153,6 +154,8 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
                               period: tier.period,
                               limits: tier.limits,
                               features: tier.features,
+                              creditsPerPeriod: tier.creditsPerPeriod,
+                              creditsPeriodUnit: tier.creditsPeriodUnit,
                               ...(currentSubscription
                                 ? {
                                     isUpgrade: !!isUpgrade,
@@ -161,7 +164,9 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
                                     subscriptionId: currentSubscription.id,
                                   }
                                 : {}),
-                              trialDays: tier.trialDays,
+                              trialDays: app.trialEligible ? tier.trialDays : undefined,
+                              trialCredits: app.trialEligible ? tier.trialCredits : undefined,
+                              trialCreditsPeriodUnit: app.trialEligible ? tier.trialCreditsPeriodUnit : undefined,
                             })
                     }
                   />
@@ -228,6 +233,12 @@ export function AppCard({ app, isExpanded, onToggle, onToggleCartItem, isInCart,
               <Sparkles className="h-4 w-4 mr-2" />
               {isStartingTrial ? 'Starting...' : `Start your ${app.trialDays}-day free trial`}
             </Button>
+            {app.trialCredits ? (
+              <p className="text-[11px] text-indigo-600 dark:text-indigo-400 mt-1 text-center font-medium flex items-center justify-center gap-1">
+                <Coins className="h-3 w-3" />
+                {app.trialCredits} credits included in trial
+              </p>
+            ) : null}
             {app.trialCardRequired && (
               <p className="text-[10px] text-muted-foreground mt-1 text-center">Credit card required</p>
             )}

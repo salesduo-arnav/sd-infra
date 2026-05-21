@@ -167,7 +167,15 @@ export default function CheckoutPage() {
                           </p>
                         </div>
 
-                        <CheckoutFeatureList features={item.features} limits={item.limits} />
+                        <CheckoutFeatureList
+                          features={item.features}
+                          limits={item.limits}
+                          creditsPerPeriod={item.creditsPerPeriod}
+                          creditsPeriodUnit={item.creditsPeriodUnit}
+                          trialDays={item.trialDays}
+                          trialCredits={item.trialCredits}
+                          trialCreditsPeriodUnit={item.trialCreditsPeriodUnit}
+                        />
                       </div>
                     ))}
                   </div>

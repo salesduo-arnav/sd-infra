@@ -42,6 +42,9 @@ export interface Feature {
   name: string;
   slug: string;
   description?: string;
+  credit_cost?: number;
+  use_credit_system?: boolean;
+  requires_subscription?: boolean;
 }
 
 export interface Plan {

@@ -1,7 +1,22 @@
 import { Package, Star, Zap, Crown, Sparkles, FileText, ImageIcon, BarChart, TrendingUp } from "lucide-react";
 import { PublicBundleGroup, PublicBundlePlan, PublicPlan, PublicBundle, PublicPlanCreditGrant } from "@/services/public.service";
 import { CreditWalletSnapshot, PricePerCredit, PublicCreditPack } from "@/services/billing.service";
-import { App, Bundle } from "./types";
+import { App, Bundle, FeatureItem } from "./types";
+
+function mapPlanLimitsToFeatures(plan: PublicPlan): FeatureItem[] {
+    if (!plan.limits || plan.limits.length === 0) return [];
+    return plan.limits
+        .filter((lim) => !!lim.feature)
+        .map((lim) => ({
+            name: lim.feature!.name,
+            toolName: plan.tool?.name,
+            isEnabled: lim.is_enabled,
+            limit: lim.default_limit != null ? String(lim.default_limit) : undefined,
+            resetPeriod: lim.reset_period,
+            creditCost: lim.feature!.credit_cost,
+            useCreditSystem: lim.feature!.use_credit_system,
+        }));
+}
 
 export const getIconForSlug = (slug: string) => {
     if (slug.includes('generator') || slug.includes('content')) return <FileText className="h-5 w-5" />;
@@ -57,6 +72,9 @@ export const transformBundles = (
                         credits_per_period: g.credits_per_period,
                         period_unit: g.period_unit,
                     }));
+                const bundleFeatures = (b.bundle_plans || []).flatMap((bp: PublicBundlePlan) =>
+                    bp.plan ? mapPlanLimitsToFeatures(bp.plan) : []
+                );
                 return {
                     id: b.id,
                     name: b.tier_label || b.name,
@@ -65,6 +83,7 @@ export const transformBundles = (
                     period: "/" + b.interval,
                     limits: b.description || "Full access",
                     creditGrants: collected.length ? collected : undefined,
+                    features: bundleFeatures.length ? bundleFeatures : undefined,
                 };
             }),
             popular: false,
@@ -142,7 +161,11 @@ export const transformPlansToApps = (
         }
 
         const planGrants = grantsByPlan.get(plan.id) || [];
-        const ownToolGrant = planGrants.find((g) => g.tool_id === tool.id) || planGrants[0];
+        const regularGrant = planGrants.find((g) => g.tool_id === tool.id && !g.is_trial_grant)
+            || planGrants.find((g) => !g.is_trial_grant);
+        const trialGrant = planGrants.find((g) => g.tool_id === tool.id && g.is_trial_grant)
+            || planGrants.find((g) => g.is_trial_grant);
+        const tierFeatures = mapPlanLimitsToFeatures(plan);
 
         if (plan.is_trial_plan) {
             if (plan.price === 0) {
@@ -152,6 +175,10 @@ export const transformPlansToApps = (
                 app.trialPlanDescription = plan.description;
                 app.trialPlanCurrency = plan.currency;
                 if (tool.trial_days) app.trialDays = tool.trial_days;
+                if (trialGrant?.credits_per_period) {
+                    app.trialCredits = trialGrant.credits_per_period;
+                    app.trialCreditsPeriodUnit = trialGrant.period_unit;
+                }
             } else {
                 const app = appsMap.get(tool.id)!;
                 app.tiers.push({
@@ -163,9 +190,16 @@ export const transformPlansToApps = (
                     limits: plan.description || "See details",
                     isTrial: true,
                     trialDays: tool.trial_days,
-                    creditsPerPeriod: ownToolGrant?.credits_per_period,
-                    creditsPeriodUnit: ownToolGrant?.period_unit,
+                    creditsPerPeriod: regularGrant?.credits_per_period,
+                    creditsPeriodUnit: regularGrant?.period_unit,
+                    trialCredits: trialGrant?.credits_per_period,
+                    trialCreditsPeriodUnit: trialGrant?.period_unit,
+                    features: tierFeatures.length ? tierFeatures : undefined,
                 });
+                if (trialGrant?.credits_per_period && !app.trialCredits) {
+                    app.trialCredits = trialGrant.credits_per_period;
+                    app.trialCreditsPeriodUnit = trialGrant.period_unit;
+                }
             }
         } else {
             const app = appsMap.get(tool.id)!;
@@ -176,8 +210,12 @@ export const transformPlansToApps = (
                 currency: plan.currency,
                 period: "/" + plan.interval,
                 limits: plan.description || "See details",
-                creditsPerPeriod: ownToolGrant?.credits_per_period,
-                creditsPeriodUnit: ownToolGrant?.period_unit,
+                creditsPerPeriod: regularGrant?.credits_per_period,
+                creditsPeriodUnit: regularGrant?.period_unit,
+                trialDays: trialGrant && tool.trial_days ? tool.trial_days : undefined,
+                trialCredits: trialGrant?.credits_per_period,
+                trialCreditsPeriodUnit: trialGrant?.period_unit,
+                features: tierFeatures.length ? tierFeatures : undefined,
             });
         }
     });
@@ -196,8 +234,12 @@ export const enrichAppsWithEligibility = (apps: App[], trialEligibility: Record<
                 return tier.price > 0;
             })
             .map(tier => {
+                // For ineligible users, demote any isTrial tier back to a plain
+                // tier (so the "trial" badge doesn't show). The trialDays /
+                // trialCredits fields stay on the tier — UI consumers gate
+                // their use behind app.trialEligible.
                 if (!isEligible && tier.isTrial) {
-                    return { ...tier, isTrial: false, trialDays: 0 };
+                    return { ...tier, isTrial: false };
                 }
                 return tier;
             });
@@ -208,7 +250,7 @@ export const enrichAppsWithEligibility = (apps: App[], trialEligibility: Record<
             trialDays: isEligible ? (eligibility?.trialDays || app.trialDays || 0) : 0,
             trialEligible: isEligible,
             trialCardRequired: app.trialCardRequired,
-            trialPlanId: isEligible ? app.trialPlanId : undefined
+            trialPlanId: isEligible ? app.trialPlanId : undefined,
         };
     });
 };
