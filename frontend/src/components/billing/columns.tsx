@@ -35,7 +35,7 @@ export const getSubscriptionColumns = ({
             const sub = row.original;
             // Bundle Group Name takes precedence for bundles, Tool Name for plans
             const name = sub.bundle?.group?.name || sub.plan?.tool?.name || sub.plan?.name || sub.bundle?.name || "Unknown Plan";
-            const tier = sub.plan?.is_trial_plan ? 'Free Trial' : (sub.bundle?.tier_label || sub.plan?.tier || (sub.plan?.price > 0 ? 'Paid' : 'Free'));
+            const tier = (sub.plan?.is_trial_plan && sub.status === 'trialing') ? 'Free Trial' : (sub.bundle?.tier_label || sub.plan?.tier || (sub.plan?.price > 0 ? 'Paid' : 'Free'));
             
             const upcomingName = sub.upcoming_bundle?.group?.name || sub.upcoming_plan?.tool?.name || sub.upcoming_plan?.name || sub.upcoming_bundle?.name;
             const upcomingTier = sub.upcoming_bundle?.tier_label || sub.upcoming_plan?.tier;

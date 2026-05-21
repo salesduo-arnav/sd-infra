@@ -34,7 +34,7 @@ export class CronService {
         const resetSchedule = configService.get('cron_reset_entitlements', '00 01 * * *')!;
         const sweepReservationsSchedule = configService.get('cron_sweep_credit_reservations', '*/5 * * * *')!;
         const creditCancellationSchedule = configService.get('cron_credit_cancellation_tail', '0 * * * *')!;
-        const creditTrialExpirySchedule = configService.get('cron_credit_trial_expiry', '30 02 * * *')!;
+        const creditTrialExpirySchedule = configService.get('cron_credit_trial_expiry', '0 */6 * * *')!;
 
         cron.schedule(cancelSchedule, async () => {
             Logger.info('[Cron] Starting check for past_due subscriptions...');

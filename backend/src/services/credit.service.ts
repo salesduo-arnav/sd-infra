@@ -876,6 +876,13 @@ export class CreditService {
 
       const wallet = await this.lockWallet(orgId, toolId, transaction);
       wallet.plan_balance += trialCredits;
+      // Anchor the wallet's expiry to trial_end so the UI shows when credits
+      // will expire. The real cycle reset cadence kicks in once the trial
+      // converts and grantPlanCredits runs (which overwrites next_reset_at
+      // from grant.reset_interval).
+      if (trialEnd) {
+        wallet.next_reset_at = trialEnd;
+      }
       // Track trial provenance in metadata so the sweeper can expire unspent trial credits
       const meta = (wallet.metadata ?? {}) as Record<string, unknown>;
       meta.trial = {
@@ -1208,6 +1215,25 @@ export class CreditService {
     const isTrialing = subscription.status === 'trialing';
 
     for (const grant of grants) {
+      // During a trial, only grant trial_credits — the per-cycle plan credits
+      // are reserved for the first paid cycle (granted when status transitions
+      // to ACTIVE via customer.subscription.updated or invoice.payment_succeeded
+      // with billing_reason=subscription_create). Granting both during the
+      // trial would stack them in plan_balance (e.g., 25 trial + 50 cycle = 75).
+      if (isTrialing) {
+        if (grant.trial_credits > 0 && !opts?.granted_trial) {
+          await this.grantTrialCredits({
+            orgId: subscription.organization_id,
+            toolId: grant.tool_id,
+            planId: grant.plan_id,
+            subscriptionId: subscription.id,
+            trialCredits: grant.trial_credits,
+            trialEnd: subscription.trial_end ?? null,
+          });
+        }
+        continue;
+      }
+
       await this.grantPlanCredits({
         orgId: subscription.organization_id,
         toolId: grant.tool_id,
@@ -1222,18 +1248,6 @@ export class CreditService {
         // grantPlanCredits — do not pass the Stripe period_end here, it is the
         // billing cadence, not the credit reset cadence.
       });
-
-      // Grant trial credits on initial trial entry only
-      if (isTrialing && grant.trial_credits > 0 && !opts?.granted_trial) {
-        await this.grantTrialCredits({
-          orgId: subscription.organization_id,
-          toolId: grant.tool_id,
-          planId: grant.plan_id,
-          subscriptionId: subscription.id,
-          trialCredits: grant.trial_credits,
-          trialEnd: subscription.trial_end ?? null,
-        });
-      }
     }
   }
 

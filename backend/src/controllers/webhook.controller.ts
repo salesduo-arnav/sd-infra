@@ -522,6 +522,20 @@ class WebhookController {
             if (subscription) {
                 Logger.info(`[WebhookController] Validating subscription ${subscription.id} status after payment success.`);
 
+                // Stripe emits invoice.payment_succeeded for the $0 invoice at
+                // trial start (billing_reason='subscription_create', amount_paid=0).
+                // Treating that as a paid renewal would (a) flip local status from
+                // TRIALING to ACTIVE prematurely and (b) trigger the cycle credit
+                // grant before the trial has actually converted to paid. Skip both
+                // for the trial-start invoice; customer.subscription.updated drives
+                // the trial→active transition and grants the cycle credits then.
+                const amountPaid = (invoice as Stripe.Invoice & { amount_paid?: number }).amount_paid ?? 0;
+                const isTrialStartInvoice = amountPaid === 0;
+                if (isTrialStartInvoice) {
+                    Logger.info(`[WebhookController] Skipping status/grant for $0 trial-start invoice ${invoice.id} on sub ${subscription.id}`);
+                    return;
+                }
+
                 await subscription.update({
                     status: SubStatus.ACTIVE,
                     last_payment_failure_at: null
