@@ -947,9 +947,11 @@ const EMPTY_PACK_STATE: PackDialogState = {
   name: '',
   credits: '',
   price: '',
-  currency: 'usd',
+  currency: 'USD',
   active: true,
 };
+
+const SUPPORTED_CURRENCIES = ['USD', 'EUR', 'INR'] as const;
 
 function CreditPacksTab() {
   const { toast } = useToast();
@@ -984,7 +986,7 @@ function CreditPacksTab() {
       name: pack.name,
       credits: String(pack.credits),
       price: String(pack.price),
-      currency: pack.currency,
+      currency: (pack.currency || 'USD').toUpperCase(),
       active: pack.active,
     });
 
@@ -1173,10 +1175,21 @@ function CreditPacksTab() {
               </div>
               <div className="space-y-1">
                 <Label>Currency</Label>
-                <Input
+                <Select
                   value={dialog.currency}
-                  onChange={(e) => setDialog((d) => ({ ...d, currency: e.target.value.toLowerCase() }))}
-                />
+                  onValueChange={(v) => setDialog((d) => ({ ...d, currency: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUPPORTED_CURRENCIES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -1215,7 +1228,7 @@ function AlacarteTab() {
   const [form, setForm] = useState({
     alacarte_enabled: false,
     price_per_credit: '',
-    currency: 'usd',
+    currency: 'USD',
     min_credits: '1',
     max_credits: '',
   });
@@ -1236,7 +1249,7 @@ function AlacarteTab() {
         setForm({
           alacarte_enabled: c.alacarte_enabled,
           price_per_credit: c.price_per_credit ? String(c.price_per_credit) : '',
-          currency: c.currency,
+          currency: (c.currency || 'USD').toUpperCase(),
           min_credits: String(c.min_credits),
           max_credits: c.max_credits ? String(c.max_credits) : '',
         });
@@ -1320,10 +1333,21 @@ function AlacarteTab() {
               </div>
               <div className="space-y-1">
                 <Label>Currency</Label>
-                <Input
+                <Select
                   value={form.currency}
-                  onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value.toLowerCase() }))}
-                />
+                  onValueChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUPPORTED_CURRENCIES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <Label>Min credits</Label>
