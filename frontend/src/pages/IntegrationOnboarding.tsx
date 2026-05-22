@@ -43,6 +43,7 @@ import {
 } from "@/services/integration.service";
 import { getToolBySlug } from "@/services/tool.service";
 import { SplitScreenLayout } from "@/components/layout/SplitScreenLayout";
+import { FullPageLoader } from "@/components/layout/FullPageLoader";
 import { useOAuthPopup } from "@/hooks/useOAuthPopup";
 import { captureRedirectContext, getRedirectContext, clearRedirectContext, finalizeRedirect } from "@/lib/redirectContext";
 import {
@@ -129,6 +130,10 @@ export default function IntegrationOnboarding() {
     // Required integrations from backend
     const [requiredIntegrations, setRequiredIntegrations] = useState<string[]>(ALL_INTEGRATIONS);
     const [isLoadingRequirements, setIsLoadingRequirements] = useState(!!appId);
+    // Tracks the initial accounts fetch so we can keep a full-page loader visible
+    // until we know whether to auto-redirect or render the onboarding form.
+    // Re-set to false on every refresh, which is a no-op after the first one.
+    const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
 
     // Track created account IDs for connecting later
     const [createdAccountIds, setCreatedAccountIds] = useState<Record<string, string>>({});
@@ -173,12 +178,17 @@ export default function IntegrationOnboarding() {
     }, [appId]);
 
     const refreshIntegrations = useCallback(async () => {
-        if (!orgId) return;
+        if (!orgId) {
+            setIsLoadingAccounts(false);
+            return;
+        }
         try {
             const fetchedAccounts = await getIntegrationAccounts(orgId);
             setAccounts(fetchedAccounts);
         } catch (error) {
             console.error("Failed to refresh integrations", error);
+        } finally {
+            setIsLoadingAccounts(false);
         }
     }, [orgId]);
 
@@ -633,6 +643,14 @@ export default function IntegrationOnboarding() {
     // Render
     // ------------------------------------------------------------------------
 
+    // Short-circuit the entire page (chrome included) while we're still doing
+    // the initial requirements + accounts check, or while an auto-redirect to
+    // the external app is in flight. Without this, users hit by `PublicRoute`
+    // briefly see the onboarding form even when they have nothing to set up.
+    if (isLoadingRequirements || isLoadingAccounts || autoRedirected) {
+        return <FullPageLoader message={t('pages.integrationOnboarding.loadingRequirements')} />;
+    }
+
     const leftContent = (
         <div className="relative z-10 w-full">
             <h1 className="text-4xl xl:text-5xl font-bold text-white mb-4 leading-tight">
@@ -693,210 +711,203 @@ export default function IntegrationOnboarding() {
                     </div>
                 </div>
 
-                {isLoadingRequirements ? (
-                    <div className="flex flex-col items-center justify-center py-16">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-                        <p className="text-sm text-muted-foreground">{t('pages.integrationOnboarding.loadingRequirements')}</p>
+                <div className="space-y-8">
+
+                    {/* 1. Account Name */}
+                    <div className="space-y-3">
+                        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            {t('pages.integrationOnboarding.accountName')}
+                        </label>
+                        <Input
+                            placeholder='e.g. "US Main Account"'
+                            value={accountName}
+                            onChange={(e) => setAccountName(e.target.value)}
+                            className="h-11"
+                            disabled={isFormLocked}
+                        />
                     </div>
-                ) : (
-                    <div className="space-y-8">
 
-                        {/* 1. Account Name */}
-                        <div className="space-y-3">
-                            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                {t('pages.integrationOnboarding.accountName')}
-                            </label>
-                            <Input
-                                placeholder='e.g. "US Main Account"'
-                                value={accountName}
-                                onChange={(e) => setAccountName(e.target.value)}
-                                className="h-11"
-                                disabled={isFormLocked}
-                            />
-                        </div>
+                    {/* 2. Marketplace Selection */}
+                    <div className="space-y-3">
+                        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            {t('pages.integrationOnboarding.selectRegion')}
+                        </label>
+                        <Select
+                            value={marketplace}
+                            onValueChange={setMarketplace}
+                            disabled={isFormLocked}
+                        >
+                            <SelectTrigger className="w-full h-11">
+                                <SelectValue placeholder={t('pages.integrationOnboarding.chooseRegion')} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {MARKETPLACES.map((m) => (
+                                    <SelectItem key={m.id} value={m.id}>
+                                        <span className="mr-2 text-lg">{m.flag}</span>
+                                        {m.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
 
-                        {/* 2. Marketplace Selection */}
-                        <div className="space-y-3">
-                            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                {t('pages.integrationOnboarding.selectRegion')}
-                            </label>
-                            <Select
-                                value={marketplace}
-                                onValueChange={setMarketplace}
-                                disabled={isFormLocked}
-                            >
-                                <SelectTrigger className="w-full h-11">
-                                    <SelectValue placeholder={t('pages.integrationOnboarding.chooseRegion')} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {MARKETPLACES.map((m) => (
-                                        <SelectItem key={m.id} value={m.id}>
-                                            <span className="mr-2 text-lg">{m.flag}</span>
-                                            {m.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {/* 3. Connect Services */}
-                        {resumeAccount && (
-                            <Card className="mb-6 bg-blue-50/50 border-blue-200">
-                                <CardContent className="p-4 flex items-center justify-between">
-                                    <div className="flex gap-3">
-                                        <div className="p-2 bg-blue-100 rounded-full h-8 w-8 flex items-center justify-center text-blue-600">
-                                            <Package className="h-4 w-4" />
-                                        </div>
-                                        <div>
-                                            <h4 className="font-medium text-sm text-blue-900">{t('pages.integrationOnboarding.existingAccountFound')}</h4>
-                                            <p className="text-xs text-blue-700">
-                                                An account matching <strong>"{resumeAccount.account_name}"</strong> in this region already exists.
-                                            </p>
-                                        </div>
+                    {/* 3. Connect Services */}
+                    {resumeAccount && (
+                        <Card className="mb-6 bg-blue-50/50 border-blue-200">
+                            <CardContent className="p-4 flex items-center justify-between">
+                                <div className="flex gap-3">
+                                    <div className="p-2 bg-blue-100 rounded-full h-8 w-8 flex items-center justify-center text-blue-600">
+                                        <Package className="h-4 w-4" />
                                     </div>
-                                    <Button size="sm" onClick={handleResume} className="bg-blue-600 hover:bg-blue-700 text-white border-none whitespace-nowrap ml-4">
-                                        {t('pages.integrationOnboarding.syncStatus')}
-                                    </Button>
-                                </CardContent>
-                            </Card>
-                        )}
+                                    <div>
+                                        <h4 className="font-medium text-sm text-blue-900">{t('pages.integrationOnboarding.existingAccountFound')}</h4>
+                                        <p className="text-xs text-blue-700">
+                                            An account matching <strong>"{resumeAccount.account_name}"</strong> in this region already exists.
+                                        </p>
+                                    </div>
+                                </div>
+                                <Button size="sm" onClick={handleResume} className="bg-blue-600 hover:bg-blue-700 text-white border-none whitespace-nowrap ml-4">
+                                    {t('pages.integrationOnboarding.syncStatus')}
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    )}
 
-                        <div className="space-y-3">
-                            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                {t('pages.integrationOnboarding.connectServices')}
-                            </label>
+                    <div className="space-y-3">
+                        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            {t('pages.integrationOnboarding.connectServices')}
+                        </label>
 
-                            <div className="grid gap-4">
-                                {/* SP-API Card */}
-                                {isSpApiRequired && (
-                                    <Card className={`transition-all ${isSpApiMet ? 'border-green-200 bg-green-50/30' : ''}`}>
-                                        <CardContent className="p-5">
-                                            <div className="flex items-start gap-4">
-                                                <div className={`p-2 rounded-lg shrink-0 ${isSpApiMet ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
-                                                    <ShoppingCart className="h-6 w-6" />
+                        <div className="grid gap-4">
+                            {/* SP-API Card */}
+                            {isSpApiRequired && (
+                                <Card className={`transition-all ${isSpApiMet ? 'border-green-200 bg-green-50/30' : ''}`}>
+                                    <CardContent className="p-5">
+                                        <div className="flex items-start gap-4">
+                                            <div className={`p-2 rounded-lg shrink-0 ${isSpApiMet ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                                <ShoppingCart className="h-6 w-6" />
+                                            </div>
+                                            <div className="flex-1 space-y-4">
+                                                <div>
+                                                    <div className="flex items-center justify-between">
+                                                        <h3 className="font-medium">{t('pages.integrationOnboarding.spApiTitle')}</h3>
+                                                        {isSpApiMet ? (
+                                                            <Badge className="bg-green-100 text-green-600 text-[10px]">{t('pages.integrationOnboarding.connected')}</Badge>
+                                                        ) : (
+                                                            <RequirementBadge
+                                                                sellerRequired={isSellerCentralRequired}
+                                                                sellerSatisfied={!!satisfiedMap['sp_api_sc']}
+                                                                vendorRequired={isVendorCentralRequired}
+                                                                vendorSatisfied={!!satisfiedMap['sp_api_vc']}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                    <p className="text-sm text-muted-foreground mt-1">
+                                                        {t('pages.integrationOnboarding.spApiDescription')}
+                                                    </p>
                                                 </div>
-                                                <div className="flex-1 space-y-4">
-                                                    <div>
-                                                        <div className="flex items-center justify-between">
-                                                            <h3 className="font-medium">{t('pages.integrationOnboarding.spApiTitle')}</h3>
-                                                            {isSpApiMet ? (
-                                                                <Badge className="bg-green-100 text-green-600 text-[10px]">{t('pages.integrationOnboarding.connected')}</Badge>
-                                                            ) : (
-                                                                <RequirementBadge
-                                                                    sellerRequired={isSellerCentralRequired}
-                                                                    sellerSatisfied={!!satisfiedMap['sp_api_sc']}
-                                                                    vendorRequired={isVendorCentralRequired}
-                                                                    vendorSatisfied={!!satisfiedMap['sp_api_vc']}
-                                                                />
+
+                                                <div className="space-y-3">
+                                                    {showSellerRow && (
+                                                        <div className="flex items-center justify-between p-2.5 rounded-lg border bg-card">
+                                                            <div className="flex items-center gap-2.5">
+                                                                <Store className="h-4 w-4 text-muted-foreground" />
+                                                                <span className="text-sm font-medium">{t('pages.integrationOnboarding.sellerCentral')}</span>
+                                                            </div>
+                                                            {renderConnectionButton(
+                                                                "seller",
+                                                                "Connect",
+                                                                <ExternalLink className="h-3.5 w-3.5" />,
+                                                                isSellerConnected
                                                             )}
                                                         </div>
-                                                        <p className="text-sm text-muted-foreground mt-1">
-                                                            {t('pages.integrationOnboarding.spApiDescription')}
-                                                        </p>
-                                                    </div>
+                                                    )}
 
-                                                    <div className="space-y-3">
-                                                        {showSellerRow && (
-                                                            <div className="flex items-center justify-between p-2.5 rounded-lg border bg-card">
-                                                                <div className="flex items-center gap-2.5">
-                                                                    <Store className="h-4 w-4 text-muted-foreground" />
-                                                                    <span className="text-sm font-medium">{t('pages.integrationOnboarding.sellerCentral')}</span>
+                                                    {showVendorRow && (
+                                                        <div className="flex items-center justify-between p-2.5 rounded-lg border bg-card">
+                                                            <div className="flex items-center gap-2.5">
+                                                                <Building2 className="h-4 w-4 text-muted-foreground" />
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-sm font-medium">{t('pages.integrationOnboarding.vendorCentral')}</span>
                                                                 </div>
-                                                                {renderConnectionButton(
-                                                                    "seller",
-                                                                    "Connect",
-                                                                    <ExternalLink className="h-3.5 w-3.5" />,
-                                                                    isSellerConnected
-                                                                )}
                                                             </div>
-                                                        )}
-
-                                                        {showVendorRow && (
-                                                            <div className="flex items-center justify-between p-2.5 rounded-lg border bg-card">
-                                                                <div className="flex items-center gap-2.5">
-                                                                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-sm font-medium">{t('pages.integrationOnboarding.vendorCentral')}</span>
-                                                                    </div>
-                                                                </div>
-                                                                {renderConnectionButton(
-                                                                    "vendor",
-                                                                    "Connect",
-                                                                    <ExternalLink className="h-3.5 w-3.5" />,
-                                                                    isVendorConnected
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                )}
-
-                                {/* Advertising API Card */}
-                                {isAdsApiRequired && (
-                                    <Card className={`transition-all ${isAdsConnected ? 'border-green-200 bg-green-50/30' : ''}`}>
-                                        <CardContent className="p-5">
-                                            <div className="flex items-start gap-4">
-                                                <div className={`p-2 rounded-lg shrink-0 ${isAdsConnected ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
-                                                    <BarChart3 className="h-6 w-6" />
-                                                </div>
-                                                <div className="flex-1 space-y-4">
-                                                    <div>
-                                                        <div className="flex items-center justify-between">
-                                                            <h3 className="font-medium">{t('pages.integrationOnboarding.adsApiTitle')}</h3>
-                                                            <Badge variant="secondary" className={`text-[10px] ${isAdsConnected ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}>{isAdsConnected ? t('pages.integrationOnboarding.connected') : t('pages.integrationOnboarding.required')}</Badge>
+                                                            {renderConnectionButton(
+                                                                "vendor",
+                                                                "Connect",
+                                                                <ExternalLink className="h-3.5 w-3.5" />,
+                                                                isVendorConnected
+                                                            )}
                                                         </div>
-                                                        <p className="text-sm text-muted-foreground mt-1">
-                                                            {t('pages.integrationOnboarding.adsApiDescription')}
-                                                        </p>
-                                                    </div>
-
-                                                    <div>
-                                                        {renderConnectionButton(
-                                                            "ads",
-                                                            "Connect Advertising",
-                                                            <ExternalLink className="h-3.5 w-3.5" />,
-                                                            isAdsConnected
-                                                        )}
-                                                    </div>
+                                                    )}
                                                 </div>
                                             </div>
-                                        </CardContent>
-                                    </Card>
-                                )}
-                            </div>
-                        </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
 
-                        {/* Continue / Done Button */}
-                        <div className="pt-4">
-                            <Button
-                                className="w-full h-11"
-                                size="lg"
-                                onClick={handleContinue}
-                                disabled={!isComplete || isSaving}
-                            >
-                                {isSaving ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        Saving...
-                                    </>
-                                ) : isEmbed ? (
-                                    "Done"
-                                ) : (
-                                    t('pages.integrationOnboarding.continueToDashboard')
-                                )}
-                            </Button>
-                            {!isComplete && (
-                                <p className="text-center text-xs text-muted-foreground mt-3">
-                                    {t('pages.integrationOnboarding.completeAllRequired')}
-                                </p>
+                            {/* Advertising API Card */}
+                            {isAdsApiRequired && (
+                                <Card className={`transition-all ${isAdsConnected ? 'border-green-200 bg-green-50/30' : ''}`}>
+                                    <CardContent className="p-5">
+                                        <div className="flex items-start gap-4">
+                                            <div className={`p-2 rounded-lg shrink-0 ${isAdsConnected ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                                <BarChart3 className="h-6 w-6" />
+                                            </div>
+                                            <div className="flex-1 space-y-4">
+                                                <div>
+                                                    <div className="flex items-center justify-between">
+                                                        <h3 className="font-medium">{t('pages.integrationOnboarding.adsApiTitle')}</h3>
+                                                        <Badge variant="secondary" className={`text-[10px] ${isAdsConnected ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}>{isAdsConnected ? t('pages.integrationOnboarding.connected') : t('pages.integrationOnboarding.required')}</Badge>
+                                                    </div>
+                                                    <p className="text-sm text-muted-foreground mt-1">
+                                                        {t('pages.integrationOnboarding.adsApiDescription')}
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    {renderConnectionButton(
+                                                        "ads",
+                                                        "Connect Advertising",
+                                                        <ExternalLink className="h-3.5 w-3.5" />,
+                                                        isAdsConnected
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
                             )}
                         </div>
-
                     </div>
-                )}
+
+                    {/* Continue / Done Button */}
+                    <div className="pt-4">
+                        <Button
+                            className="w-full h-11"
+                            size="lg"
+                            onClick={handleContinue}
+                            disabled={!isComplete || isSaving}
+                        >
+                            {isSaving ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : isEmbed ? (
+                                "Done"
+                            ) : (
+                                t('pages.integrationOnboarding.continueToDashboard')
+                            )}
+                        </Button>
+                        {!isComplete && (
+                            <p className="text-center text-xs text-muted-foreground mt-3">
+                                {t('pages.integrationOnboarding.completeAllRequired')}
+                            </p>
+                        )}
+                    </div>
+
+                </div>
 
                 {/* Ads Account Selector Dialog */}
                 <Dialog open={isAdsSelectorOpen || isFetchingAdsProfiles} onOpenChange={(open) => {

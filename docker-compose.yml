@@ -21,7 +21,7 @@ services:
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
     command: >
-      sh -c "redis-server --requirepass $$REDIS_PASSWORD"
+      sh -c "redis-server --requirepass $${REDIS_PASSWORD:-dev}"
     volumes:
       - redisdata:/data
     networks:
