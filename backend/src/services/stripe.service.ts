@@ -104,7 +104,7 @@ export class StripeService {
     if (existingScheduleId && typeof existingScheduleId === 'string') {
       try {
         await this.stripe.subscriptionSchedules.release(existingScheduleId);
-      } catch (err) {
+      } catch {
         // If it's already released/cancelled, ignore.
       }
     }

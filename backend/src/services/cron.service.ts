@@ -6,7 +6,6 @@ import { CreditReservation } from '../models/credit_reservation';
 import { CreditWallet } from '../models/credit_wallet';
 import { CreditLedgerEntry } from '../models/credit_ledger';
 import { PlanCreditGrant } from '../models/plan_credit_grant';
-import { Plan } from '../models/plan';
 import { BundlePlan } from '../models/bundle_plan';
 import {
   SubStatus,

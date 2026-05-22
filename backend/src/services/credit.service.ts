@@ -15,7 +15,6 @@ import { Tool } from '../models/tool';
 import { Subscription } from '../models/subscription';
 import { PlanCreditGrant } from '../models/plan_credit_grant';
 import { BundlePlan } from '../models/bundle_plan';
-import { Plan } from '../models/plan';
 import Logger from '../utils/logger';
 
 const ACTIVE_SUB_STATUSES: SubStatus[] = [SubStatus.ACTIVE, SubStatus.TRIALING, SubStatus.PAST_DUE];

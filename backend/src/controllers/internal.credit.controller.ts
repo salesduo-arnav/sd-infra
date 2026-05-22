@@ -1,8 +1,6 @@
 import { Request, Response } from 'express';
-import { Op } from 'sequelize';
 import { Tool } from '../models/tool';
 import { Feature } from '../models/feature';
-import { CreditWallet } from '../models/credit_wallet';
 import {
   CreditServiceError,
   InsufficientCreditsError,
@@ -11,7 +9,6 @@ import {
   creditService,
 } from '../services/credit.service';
 import { handleError } from '../utils/error';
-import Logger from '../utils/logger';
 
 /**
  * Internal credit controller. Called by micro tools via service-key auth.
