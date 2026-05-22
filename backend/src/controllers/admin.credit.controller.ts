@@ -9,7 +9,7 @@ import { CreditPack } from '../models/credit_pack';
 import { PlanCreditGrant } from '../models/plan_credit_grant';
 import { CreditWallet } from '../models/credit_wallet';
 import { CreditLedgerEntry } from '../models/credit_ledger';
-import { CreditBucket, CreditOnCancel, CreditResetInterval } from '../models/enums';
+import { CreditBucket, CreditEntryType, CreditOnCancel, CreditResetInterval } from '../models/enums';
 import { creditService, CreditServiceError, InsufficientCreditsError } from '../services/credit.service';
 import { stripeService } from '../services/stripe.service';
 import { AuditService } from '../services/audit.service';
@@ -648,22 +648,33 @@ export const getOrgWalletUsage = async (req: Request, res: Response) => {
     })();
     if (!tool) return res.status(404).json({ message: 'Tool not found' });
 
+    // Spending is recorded either as a direct CONSUME entry or as SETTLE entries
+    // when the consume flow uses reserve→settle (one per bucket per reservation).
+    // Both have negative amounts; count a "run" once per reservation for SETTLE so
+    // a plan+purchased split doesn't double-count, and once per CONSUME entry.
     const entries = await CreditLedgerEntry.findAll({
       where: {
         organization_id: id,
         tool_id: tool.id,
-        entry_type: 'consume',
+        entry_type: { [Op.in]: [CreditEntryType.CONSUME, CreditEntryType.SETTLE] },
         created_at: { [Op.gte]: since },
       },
-      attributes: ['operation_slug', 'amount'],
+      attributes: ['entry_type', 'operation_slug', 'amount', 'reservation_id'],
     });
 
-    const summary: Record<string, { spent: number; runs: number }> = {};
+    const summary: Record<string, { spent: number; runs: number; _seenReservations: Set<string> }> = {};
     for (const e of entries) {
       const key = e.operation_slug || 'unknown';
-      if (!summary[key]) summary[key] = { spent: 0, runs: 0 };
+      if (!summary[key]) summary[key] = { spent: 0, runs: 0, _seenReservations: new Set() };
       summary[key].spent += -e.amount;
-      summary[key].runs += 1;
+      if (e.entry_type === CreditEntryType.SETTLE && e.reservation_id) {
+        if (!summary[key]._seenReservations.has(e.reservation_id)) {
+          summary[key]._seenReservations.add(e.reservation_id);
+          summary[key].runs += 1;
+        }
+      } else {
+        summary[key].runs += 1;
+      }
     }
     res.json({
       days,

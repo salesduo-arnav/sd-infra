@@ -348,24 +348,31 @@ function LedgerView({
           <p className="py-6 text-center text-sm text-muted-foreground">No ledger activity.</p>
         ) : (
           entries.map((e) => (
-            <div key={e.id} className="flex items-center gap-2 rounded-md border p-2 text-sm">
-              <Badge variant="outline" className="font-mono text-[10px] uppercase">
-                {e.entry_type}
-              </Badge>
-              <span
-                className={`font-semibold tabular-nums ${
-                  e.amount >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}
-              >
-                {e.amount >= 0 ? `+${e.amount}` : e.amount}
-              </span>
-              <span className="text-xs text-muted-foreground capitalize">{e.bucket}</span>
-              {e.operation_slug && (
-                <span className="font-mono text-[10px] text-muted-foreground">{e.operation_slug}</span>
+            <div key={e.id} className="rounded-md border p-2 text-sm">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                  {e.entry_type}
+                </Badge>
+                <span
+                  className={`font-semibold tabular-nums ${
+                    e.amount >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}
+                >
+                  {e.amount >= 0 ? `+${e.amount}` : e.amount}
+                </span>
+                <span className="text-xs text-muted-foreground capitalize">{e.bucket}</span>
+                {e.operation_slug && (
+                  <span className="font-mono text-[10px] text-muted-foreground">{e.operation_slug}</span>
+                )}
+                <span className="ml-auto text-[11px] text-muted-foreground">
+                  {format(new Date(e.created_at), 'PP p')}
+                </span>
+              </div>
+              {e.reason && (
+                <div className="mt-1 text-xs text-muted-foreground">
+                  <span className="font-medium">Reason:</span> {e.reason}
+                </div>
               )}
-              <span className="ml-auto text-[11px] text-muted-foreground">
-                {format(new Date(e.created_at), 'PP p')}
-              </span>
             </div>
           ))
         )}
